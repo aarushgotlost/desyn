@@ -22,7 +22,7 @@ export interface UserProfile {
   email: string | null;
   displayName: string | null;
   photoURL?: string | null;
-  bannerURL?: string | null; // Added bannerURL
+  bannerURL?: string | null;
   bio?: string;
   techStack?: string[];
   interests?: string[];
@@ -37,7 +37,7 @@ export interface UserProfile {
 interface UpdateProfileData {
   displayName?: string;
   photoDataUrl?: string | null;
-  bannerDataUrl?: string | null; // Added bannerDataUrl
+  bannerDataUrl?: string | null;
   bio?: string;
   techStack?: string[];
   onboardingCompleted?: boolean;
@@ -124,7 +124,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           }
           profileData.followersCount = profileData.followersCount || 0;
           profileData.followingCount = profileData.followingCount || 0;
-          profileData.bannerURL = profileData.bannerURL || null; // Initialize bannerURL
+          profileData.bannerURL = profileData.bannerURL || null;
           setUserProfile(profileData as UserProfile);
         } else {
           const initialPhotoURL = firebaseUser.photoURL;
@@ -133,7 +133,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             email: firebaseUser.email,
             displayName: firebaseUser.displayName,
             photoURL: initialPhotoURL,
-            bannerURL: null, // Initialize bannerURL
+            bannerURL: null,
             onboardingCompleted: false,
             createdAt: new Date().toISOString(),
             lastLogin: new Date().toISOString(),
@@ -176,7 +176,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         email,
         displayName: additionalData.displayName || displayName,
         photoURL: initialPhotoURL,
-        bannerURL: additionalData.bannerURL || null, // Initialize bannerURL
+        bannerURL: additionalData.bannerURL || null,
         bio: additionalData.bio || '',
         techStack: additionalData.techStack || [],
         interests: additionalData.interests || [],
@@ -209,7 +209,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             onboardingCompleted: typeof existingData.onboardingCompleted === 'undefined' ? false : existingData.onboardingCompleted,
             followersCount: existingData.followersCount || 0,
             followingCount: existingData.followingCount || 0,
-            bannerURL: existingData.bannerURL || null, // Ensure bannerURL is handled
+            bannerURL: existingData.bannerURL || null,
         } as UserProfile;
 
         const updatePayload: { onboardingCompleted?: boolean, lastLogin: Timestamp, followersCount?: number, followingCount?: number, bannerURL?: string | null } = {
@@ -297,7 +297,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 onboardingCompleted: typeof profile.onboardingCompleted === 'undefined' ? false : profile.onboardingCompleted,
                 followersCount: profile.followersCount || 0,
                 followingCount: profile.followingCount || 0,
-                bannerURL: profile.bannerURL || null, // Ensure bannerURL is handled
+                bannerURL: profile.bannerURL || null,
             } as UserProfile;
 
             setUserProfile(clientProfile);
@@ -364,7 +364,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (data.photoDataUrl !== undefined) {
         profileUpdateForFirestore.photoURL = data.photoDataUrl;
       }
-      if (data.bannerDataUrl !== undefined) { // Handle bannerDataUrl
+      if (data.bannerDataUrl !== undefined) {
         profileUpdateForFirestore.bannerURL = data.bannerDataUrl;
       }
 
@@ -386,18 +386,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           needsFirebaseAuthUpdate = true;
         }
 
-        // Only update Firebase Auth photoURL if explicitly provided and different or set to null
         if (data.photoDataUrl !== undefined) {
-            if (data.photoDataUrl === null && auth.currentUser.photoURL !== null) {
-                updatesForFirebaseAuth.photoURL = null;
-                needsFirebaseAuthUpdate = true;
-            } else if (data.photoDataUrl && data.photoDataUrl !== auth.currentUser.photoURL) {
-                // Note: Firebase Auth photoURL is typically a URL, not a data URI.
-                // This part might need adjustment if direct data URI update to Firebase Auth is problematic.
-                // For now, mirroring existing logic.
-                updatesForFirebaseAuth.photoURL = data.photoDataUrl;
-                needsFirebaseAuthUpdate = true;
+          if (data.photoDataUrl === null) { // User wants to remove avatar
+            if (auth.currentUser.photoURL !== null) { // Only update if it's currently set
+              updatesForFirebaseAuth.photoURL = null;
+              needsFirebaseAuthUpdate = true;
             }
+          } else if (typeof data.photoDataUrl === 'string' && !data.photoDataUrl.startsWith('data:')) { 
+            // If it's a string but NOT a data URI, assume it's a valid (short) URL.
+            // This is a less likely scenario for new uploads via the form, which produce data URIs.
+            if (data.photoDataUrl !== auth.currentUser.photoURL) {
+              updatesForFirebaseAuth.photoURL = data.photoDataUrl;
+              needsFirebaseAuthUpdate = true;
+            }
+          }
+          // If data.photoDataUrl is a data URI (starts with 'data:'), we do NOT update 
+          // Firebase Auth's photoURL with it to prevent the "Photo URL too long" error.
+          // The image will be in Firestore as a data URI and displayed from there.
         }
 
 
@@ -417,7 +422,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             updatedAt: (updatedProfileData.updatedAt as Timestamp)?.toDate ? (updatedProfileData.updatedAt as Timestamp).toDate().toISOString() : new Date().toISOString(),
             followersCount: updatedProfileData.followersCount || 0,
             followingCount: updatedProfileData.followingCount || 0,
-            bannerURL: updatedProfileData.bannerURL || null, // Ensure bannerURL is set
+            bannerURL: updatedProfileData.bannerURL || null,
         } as UserProfile;
         setUserProfile(clientProfile);
       }
@@ -434,13 +439,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     try {
       let iconStorageURL: string | null = null;
-      if (data.iconFile) {
-        // For simplicity, this example assumes direct data URL storage if small enough,
-        // or you'd implement Firebase Storage upload here.
-        // This is consistent with how profile pictures are handled (data URI in Firestore).
-        // A real implementation should use Firebase Storage for larger files.
-        // iconStorageURL = await uploadImageToStorage(data.iconFile, `community_icons/${user.uid}/${Date.now()}_${data.iconFile.name}`);
-      }
+      // if (data.iconFile) {
+      //   iconStorageURL = await uploadImageToStorage(data.iconFile, `community_icons/${user.uid}/${Date.now()}_${data.iconFile.name}`);
+      // }
 
       const communityColRef = collection(db, 'communities');
       const communityPayload: { [key: string]: any } = {
@@ -451,12 +452,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         memberCount: 1,
         members: [user.uid],
         createdAt: serverTimestamp(),
-        iconURL: iconStorageURL, // Placeholder if using direct file upload/storage
+        iconURL: iconStorageURL,
       };
 
-      // If iconFile is provided, convert to data URL and store (if small)
-      // This part depends on whether you want to store as dataURL or upload to storage
-      // For now, matching profile pic logic (dataURL)
       if (data.iconFile) {
         const reader = new FileReader();
         await new Promise<void>((resolve, reject) => {
