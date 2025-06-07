@@ -22,7 +22,7 @@ const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
 
 const imageFileSchema = z
-  .instanceof(FileList)
+  .custom<FileList>((val) => val instanceof FileList, "Expected a FileList")
   .optional()
   .refine(
     (fileList) => !fileList || fileList.length === 0 || (fileList.length === 1 && fileList[0].size <= MAX_FILE_SIZE_BYTES),
@@ -67,12 +67,11 @@ export default function ProfileSetupPage() {
     if (!authLoading && user) {
       form.reset({
         displayName: userProfile?.displayName || user.displayName || '',
-        // photoFile is for new uploads, initial preview is handled by previewUrl state
         photoFile: undefined, 
         bio: userProfile?.bio || '',
         techStack: userProfile?.techStack?.join(', ') || '',
       });
-      setPreviewUrl(userProfile?.photoURL || null); // Set initial preview from existing profile
+      setPreviewUrl(userProfile?.photoURL || null); 
     }
      if (!authLoading && !user) {
       router.replace('/login'); 
@@ -86,10 +85,8 @@ export default function ProfileSetupPage() {
       objectUrl = URL.createObjectURL(photoFileWatch);
       setPreviewUrl(objectUrl);
     } else if (!photoFileWatch && userProfile?.photoURL) {
-      // If file is cleared and there was an original profile URL, show original
       setPreviewUrl(userProfile.photoURL);
     } else if (!photoFileWatch) {
-      // If file is cleared and no original, clear preview
       setPreviewUrl(null);
     }
   
@@ -106,13 +103,13 @@ export default function ProfileSetupPage() {
     try {
       const profileUpdateData = {
         displayName: data.displayName,
-        photoFile: data.photoFile, // Pass the File object
+        photoFile: data.photoFile, 
         bio: data.bio,
         techStack: data.techStack ? data.techStack.split(',').map(s => s.trim()).filter(s => s) : [],
         onboardingCompleted: true,
       };
       await updateCurrentProfile(profileUpdateData);
-      toast({ title: "Profile Updated!", description: "Welcome to Desyn!" });
+      toast({ title: "Profile Updated!", description: "Your profile has been successfully saved." });
       router.push('/');
     } catch (error: any) {
       toast({
@@ -139,8 +136,12 @@ export default function ProfileSetupPage() {
       <Card className="w-full max-w-lg shadow-xl">
         <CardHeader className="text-center">
           <UserCircle className="mx-auto h-12 w-12 text-primary mb-3" />
-          <CardTitle className="text-2xl font-headline">Complete Your Profile</CardTitle>
-          <CardDescription>Let's get your Desyn profile set up.</CardDescription>
+          <CardTitle className="text-2xl font-headline">
+            {userProfile?.onboardingCompleted ? "Update Your Profile" : "Complete Your Profile"}
+          </CardTitle>
+          <CardDescription>
+            {userProfile?.onboardingCompleted ? "Keep your information current." : "Let's get your Desyn profile set up."}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -162,31 +163,38 @@ export default function ProfileSetupPage() {
               <FormField
                 control={form.control}
                 name="photoFile"
-                render={({ field: { onChange, onBlur, name, ref } }) => (
+                render={({ field: { onChange, onBlur, name, ref } }) => ( // Correctly destructure to pass only necessary props to Input
                   <FormItem>
                     <FormLabel>Profile Picture</FormLabel>
-                    <FormControl>
-                      <div className="flex items-center space-x-2">
-                        <Input 
-                          type="file" 
-                          accept={ACCEPTED_IMAGE_TYPES.join(',')}
-                          onChange={(e) => onChange(e.target.files)} 
-                          onBlur={onBlur} 
-                          name={name} 
-                          ref={ref}
-                          className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
-                        />
-                         <UploadCloud className="text-muted-foreground" />
-                      </div>
-                    </FormControl>
-                     {previewUrl && (
-                        <Image src={previewUrl} alt="Profile preview" width={80} height={80} className="mt-2 rounded-full object-cover border" data-ai-hint="user avatar" />
-                     )}
-                    <FormDescription>Upload your avatar (max {MAX_FILE_SIZE_MB}MB).</FormDescription>
-                    <FormMessage />
+                    <div className="flex items-center space-x-3">
+                        {previewUrl && (
+                            <Image src={previewUrl} alt="Profile preview" width={80} height={80} className="rounded-full object-cover border" data-ai-hint="user avatar"/>
+                        )}
+                        {!previewUrl && (
+                            <div className="w-20 h-20 rounded-full bg-muted border flex items-center justify-center">
+                                <UserCircle className="w-10 h-10 text-muted-foreground" />
+                            </div>
+                        )}
+                        <FormControl>
+                            <div className="flex-1">
+                            <Input 
+                                type="file" 
+                                accept={ACCEPTED_IMAGE_TYPES.join(',')}
+                                onChange={(e) => onChange(e.target.files)} // Pass FileList to RHF
+                                onBlur={onBlur} 
+                                name={name} 
+                                ref={ref}
+                                className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                            />
+                            <FormDescription className="mt-1">Upload your avatar (max {MAX_FILE_SIZE_MB}MB).</FormDescription>
+                            </div>
+                        </FormControl>
+                    </div>
+                    <FormMessage /> {/* This will show errors from zod schema */}
                   </FormItem>
                 )}
               />
+              
 
               <FormField
                 control={form.control}
@@ -218,7 +226,7 @@ export default function ProfileSetupPage() {
               />
               
               <Button type="submit" className="w-full" disabled={isSubmitting || authLoading}>
-                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Save Profile & Continue"}
+                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Save Profile"}
               </Button>
             </form>
           </Form>
