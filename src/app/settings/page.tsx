@@ -5,7 +5,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { Button, buttonVariants } from "@/components/ui/button"; 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { User, Palette, Shield, Bell, LogOut, SendToBack, CheckCircle, XCircle, AlertTriangle } from "lucide-react";
+import { User, Palette, Shield, Bell, LogOut, SendToBack, CheckCircle, XCircle, AlertTriangle, Lock, Smartphone, FileArchive, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext"; 
 import { cn } from "@/lib/utils"; 
@@ -47,7 +47,7 @@ export default function SettingsPage() {
       return;
     }
 
-    if (VAPID_KEY === "YOUR_PUBLIC_VAPID_KEY_HERE") { // This check will now be false if the key is valid
+    if (VAPID_KEY === "YOUR_PUBLIC_VAPID_KEY_HERE") { 
        toast({
         title: "VAPID Key Missing",
         description: "The VAPID key is not configured. Please update it in src/app/settings/page.tsx.",
@@ -169,7 +169,7 @@ export default function SettingsPage() {
           <CardDescription>Manage how you receive push notifications from the app.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {VAPID_KEY === "YOUR_PUBLIC_VAPID_KEY_HERE" && ( // This will now only show if the VAPID_KEY constant is exactly the placeholder string
+          {VAPID_KEY === "YOUR_PUBLIC_VAPID_KEY_HERE" && ( 
             <div className="p-3 rounded-md bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700">
               <div className="flex items-start">
                 <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 mr-2 flex-shrink-0" />
@@ -229,8 +229,49 @@ export default function SettingsPage() {
           <CardTitle className="flex items-center"><Shield className="mr-2 h-5 w-5 text-primary" /> Security & Privacy</CardTitle>
           <CardDescription>Manage your account security and privacy settings.</CardDescription>
         </CardHeader>
-        <CardContent>
-            <p className="text-sm text-muted-foreground">Security and privacy settings will be available soon.</p>
+        <CardContent className="space-y-6">
+            <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h4 className="font-medium">Password</h4>
+                        <p className="text-sm text-muted-foreground">Change your account password.</p>
+                    </div>
+                     <Link href="/forgot-password" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
+                        <Lock className="mr-2 h-4 w-4" /> Change Password
+                    </Link>
+                </div>
+            </div>
+            <Separator />
+             <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h4 className="font-medium">Two-Factor Authentication (2FA)</h4>
+                        <p className="text-sm text-muted-foreground">Add an extra layer of security to your account.</p>
+                    </div>
+                    <Button variant="outline" size="sm" disabled>
+                        <Smartphone className="mr-2 h-4 w-4" /> Setup 2FA (soon)
+                    </Button>
+                </div>
+                 <p className="text-xs text-muted-foreground italic">Currently, 2FA is not available.</p>
+            </div>
+            <Separator />
+            <div className="space-y-2">
+                <h4 className="font-medium">Active Sessions</h4>
+                <p className="text-sm text-muted-foreground">View and manage devices where you're logged in. (Feature coming soon)</p>
+            </div>
+             <Separator />
+            <div className="space-y-2">
+                <h4 className="font-medium">Account Data</h4>
+                <p className="text-sm text-muted-foreground">Request an export of your data or manage account deletion. (Feature coming soon)</p>
+                 <div className="flex space-x-2 pt-1">
+                    <Button variant="outline" size="sm" disabled>
+                        <FileArchive className="mr-2 h-4 w-4" /> Export Data (soon)
+                    </Button>
+                    <Button variant="destructive" size="sm" disabled>
+                        <Trash2 className="mr-2 h-4 w-4" /> Delete Account (soon)
+                    </Button>
+                </div>
+            </div>
         </CardContent>
       </Card>
 
@@ -242,3 +283,4 @@ export default function SettingsPage() {
     </div>
   );
 }
+
