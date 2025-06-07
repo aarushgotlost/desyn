@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useEffect } from 'react'; // Added useEffect
 import { Button } from '@/components/ui/button';
 import { CheckCircle, Loader2, XCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -50,11 +50,11 @@ export function MarkAsSolvedButton({ postId, initialIsSolved, authorId, size="sm
     });
   };
 
-  if (!isAuthor && !isSolved) { // If not author and not solved, don't show button or show a placeholder
+  if (!isAuthor && !isSolved) { 
     return <Button variant="outline" size={size} disabled className="text-xs">Mark as Solved</Button>;
   }
   
-  if (isSolved && !isAuthor) { // If solved by author, show solved status
+  if (isSolved && !isAuthor) { 
      return (
         <div className={cn("flex items-center font-medium text-xs", 
                         isSolved ? "text-green-600 dark:text-green-400" : "text-muted-foreground",
