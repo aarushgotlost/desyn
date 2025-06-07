@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from 'react';
@@ -6,6 +7,9 @@ import { Progress } from '@/components/ui/progress';
 import { ChevronLeft, ChevronRight, CheckCircle } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useAuth } from '@/contexts/AuthContext';
+import { useRouter } from 'next/navigation';
+
 
 interface OnboardingStep {
   title: string;
@@ -20,6 +24,8 @@ interface OnboardingClientProps {
 
 export function OnboardingClient({ steps }: OnboardingClientProps) {
   const [currentStep, setCurrentStep] = useState(0);
+  const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
   const totalSteps = steps.length;
 
   const nextStep = () => {
@@ -33,6 +39,24 @@ export function OnboardingClient({ steps }: OnboardingClientProps) {
       setCurrentStep(currentStep - 1);
     }
   };
+
+  const handleFinish = () => {
+    // If user is somehow on this page and already onboarded (e.g. navigated back), send to home.
+    // Otherwise, new users will be guided to /onboarding/profile-setup by AuthGuard.
+    // For users who are not logged in, they can go to signup/login.
+    if (user && userProfile?.onboardingCompleted) {
+        router.push('/');
+    } else if (user && !userProfile?.onboardingCompleted) {
+        router.push('/onboarding/profile-setup');
+    }
+    // If !user, the buttons below (Sign Up / Log In) will handle navigation.
+  };
+  
+  const { userProfile } = useAuth(); // Get userProfile to check onboarding status
+
+  if (authLoading) {
+    return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
+  }
 
   const progressValue = ((currentStep + 1) / totalSteps) * 100;
   const stepData = steps[currentStep];
@@ -74,19 +98,38 @@ export function OnboardingClient({ steps }: OnboardingClientProps) {
         <div className="pt-6 space-y-4">
             <div className="flex items-center justify-center text-green-500">
                 <CheckCircle className="mr-2 h-8 w-8" />
-                <p className="text-xl font-semibold">You&apos;re all set!</p>
+                <p className="text-xl font-semibold">You've seen the highlights!</p>
             </div>
-            <p className="text-muted-foreground">Ready to dive in? Choose an option below to get started.</p>
+            <p className="text-muted-foreground">
+              {user && !userProfile?.onboardingCompleted ? "Next, let's set up your profile." : "Ready to dive in?"}
+            </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
-                <Button asChild size="lg" className="w-full sm:w-auto">
-                    <Link href="/signup">Sign Up</Link>
-                </Button>
-                <Button asChild variant="outline" size="lg" className="w-full sm:w-auto">
-                    <Link href="/login">Log In</Link>
-                </Button>
+              {user && !userProfile?.onboardingCompleted ? (
+                 <Button asChild size="lg" className="w-full sm:w-auto" onClick={handleFinish}>
+                    <Link href="/onboarding/profile-setup">Setup Profile</Link>
+                 </Button>
+              ) : user && userProfile?.onboardingCompleted ? (
+                 <Button asChild size="lg" className="w-full sm:w-auto" onClick={handleFinish}>
+                    <Link href="/">Go to App</Link>
+                 </Button>
+              ) : (
+                <>
+                  <Button asChild size="lg" className="w-full sm:w-auto">
+                      <Link href="/signup">Sign Up</Link>
+                  </Button>
+                  <Button asChild variant="outline" size="lg" className="w-full sm:w-auto">
+                      <Link href="/login">Log In</Link>
+                  </Button>
+                </>
+              )}
             </div>
         </div>
       )}
     </div>
   );
 }
+
+// Adding Loader2 for consistency, assuming it exists or should be added to lucide imports if not.
+// If Loader2 is not part of lucide-react, it should be a custom component or another icon should be used.
+// For this example, I'll assume Loader2 from lucide-react is fine.
+import { Loader2 } from 'lucide-react'; 

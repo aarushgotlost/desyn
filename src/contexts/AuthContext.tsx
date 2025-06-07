@@ -13,7 +13,7 @@ import {
   signOut,
   sendPasswordResetEmail
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, serverTimestamp, collection, addDoc, DocumentReference, query, where, getDocs } from 'firebase/firestore';
+import { doc, setDoc, getDoc, serverTimestamp, collection, addDoc, DocumentReference, query, where, getDocs, updateDoc } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 
 export interface UserProfile {
@@ -24,6 +24,9 @@ export interface UserProfile {
   bio?: string;
   techStack?: string[];
   interests?: string[];
+  onboardingCompleted: boolean; // New flag
+  createdAt?: any;
+  lastLogin?: any;
   // Add other profile fields as needed
 }
 
@@ -54,6 +57,7 @@ interface AuthContextType {
   signInWithEmail: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   sendPasswordReset: (email: string) => Promise<void>;
+  updateCurrentProfile: (data: Partial<UserProfile>) => Promise<void>; // New function
   createCommunity: (data: CreateCommunityData) => Promise<string>;
   createPost: (data: CreatePostData) => Promise<string>;
 }
@@ -75,11 +79,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (userDocSnap.exists()) {
           setUserProfile(userDocSnap.data() as UserProfile);
         } else {
+          // This case should ideally be handled by createUserProfileDocument
+          // but as a fallback:
           const newUserProfile: UserProfile = {
             uid: firebaseUser.uid,
             email: firebaseUser.email,
             displayName: firebaseUser.displayName,
             photoURL: firebaseUser.photoURL,
+            onboardingCompleted: false, // Default for absolutely new user
           };
           await setDoc(userDocRef, { ...newUserProfile, createdAt: serverTimestamp(), lastLogin: serverTimestamp() });
           setUserProfile(newUserProfile);
@@ -111,17 +118,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         bio: additionalData.bio || '',
         techStack: additionalData.techStack || [],
         interests: additionalData.interests || [],
+        onboardingCompleted: additionalData.onboardingCompleted || false, // Ensure this is set
+        createdAt: serverTimestamp(),
+        lastLogin: serverTimestamp(),
         ...additionalData,
       };
       try {
-        await setDoc(userDocRef, { ...profileData, createdAt: serverTimestamp(), lastLogin: serverTimestamp() });
+        await setDoc(userDocRef, profileData);
         setUserProfile(profileData);
       } catch (error) {
         console.error("Error creating user profile: ", error);
-        throw error; // re-throw to be caught by caller
+        throw error; 
       }
     } else {
-       setUserProfile(userDocSnap.data() as UserProfile);
+       const existingProfile = userDocSnap.data() as UserProfile;
+        // If onboardingCompleted is not set, default to false
+        if (typeof existingProfile.onboardingCompleted === 'undefined') {
+            existingProfile.onboardingCompleted = false;
+            await setDoc(userDocRef, { onboardingCompleted: false }, { merge: true });
+        }
+       setUserProfile(existingProfile);
     }
   };
 
@@ -132,16 +148,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const result = await signInWithPopup(auth, provider);
       if (result.user) {
         await createUserProfileDocument(result.user);
-         // Check if it's a new user (creation time equals last sign-in time)
-        if (result.user.metadata.creationTime === result.user.metadata.lastSignInTime) {
-            router.push('/onboarding');
+        // AuthGuard will handle redirection based on onboardingCompleted status
+        if (!userProfile?.onboardingCompleted) {
+             router.push('/onboarding/profile-setup');
         } else {
             router.push('/');
         }
       }
     } catch (error) {
       console.error("Error signing in with Google: ", error);
-      // Handle error (e.g., show toast notification by throwing)
       throw error;
     } finally {
       setLoading(false);
@@ -153,8 +168,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setLoading(true);
       const result = await createUserWithEmailAndPassword(auth, email, password);
       if (result.user) {
-        await createUserProfileDocument(result.user, { displayName: name, interests, photoURL });
-        router.push('/onboarding'); // Redirect new sign-ups to onboarding
+        await createUserProfileDocument(result.user, { displayName: name, interests, photoURL, onboardingCompleted: false });
+        router.push('/onboarding/profile-setup'); 
       }
     } catch (error) {
       console.error("Error signing up: ", error);
@@ -167,8 +182,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signInWithEmail = async (email: string, password: string) => {
     try {
       setLoading(true);
-      await signInWithEmailAndPassword(auth, email, password);
-      router.push('/');
+      const result = await signInWithEmailAndPassword(auth, email, password);
+       if (result.user) {
+        // Fetch profile to check onboarding status
+        const userDocRef = doc(db, 'users', result.user.uid);
+        const userDocSnap = await getDoc(userDocRef);
+        if (userDocSnap.exists()) {
+            const profile = userDocSnap.data() as UserProfile;
+            setUserProfile(profile); // update local state
+            if (!profile.onboardingCompleted) {
+                router.push('/onboarding/profile-setup');
+            } else {
+                router.push('/');
+            }
+        } else {
+            // Should not happen if signup creates profile, but handle defensively
+            await createUserProfileDocument(result.user, { onboardingCompleted: false });
+            router.push('/onboarding/profile-setup');
+        }
+      }
     } catch (error) {
       console.error("Error signing in: ", error);
       throw error;
@@ -186,7 +218,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.error("Error signing out: ", error);
       throw error;
     } finally {
-      // No setLoading(false) here as the component will unmount or AuthGuard will take over
+      // setLoading(false); // State will reset on navigation
     }
   };
 
@@ -199,6 +231,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const updateCurrentProfile = async (data: Partial<UserProfile>) => {
+    if (!user) throw new Error("User not authenticated for profile update");
+    try {
+      setLoading(true);
+      const userDocRef = doc(db, 'users', user.uid);
+      const profileDataToUpdate = {
+        ...data,
+        techStack: typeof data.techStack === 'string' ? (data.techStack as unknown as string).split(',').map(s => s.trim()).filter(s => s) : data.techStack,
+        updatedAt: serverTimestamp(),
+      };
+      await updateDoc(userDocRef, profileDataToUpdate);
+      const updatedDoc = await getDoc(userDocRef);
+      if (updatedDoc.exists()) {
+        setUserProfile(updatedDoc.data() as UserProfile);
+      }
+    } catch (error) {
+      console.error("Error updating profile: ", error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const createCommunity = async (data: CreateCommunityData): Promise<string> => {
     if (!user) throw new Error("User not authenticated");
     try {
@@ -206,15 +261,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const newCommunityDocRef = await addDoc(communityColRef, {
         ...data,
         createdBy: user.uid,
-        memberCount: 1, // Creator is the first member
-        members: [user.uid], // Store member UIDs
+        memberCount: 1, 
+        members: [user.uid], 
         createdAt: serverTimestamp(),
       });
-      // Optionally, add community to user's joined communities list in user profile
-      // const userDocRef = doc(db, 'users', user.uid);
-      // await updateDoc(userDocRef, {
-      //   joinedCommunities: arrayUnion(newCommunityDocRef.id)
-      // });
       return newCommunityDocRef.id;
     } catch (error) {
       console.error("Error creating community: ", error);
@@ -225,7 +275,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const createPost = async (data: CreatePostData): Promise<string> => {
     if (!user || !userProfile) throw new Error("User not authenticated or profile missing");
     
-    // Ensure communityName is present, if not, fetch it (though passed from client now)
     let communityName = data.communityName;
     if (!communityName) {
         const communityDocRef = doc(db, 'communities', data.communityId);
@@ -241,7 +290,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const postColRef = collection(db, 'posts');
       const newPostDocRef = await addDoc(postColRef, {
         ...data,
-        communityName, // Storing denormalized name
+        communityName, 
         authorId: user.uid,
         authorName: userProfile.displayName || "Anonymous",
         authorAvatar: userProfile.photoURL || null,
@@ -268,6 +317,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       signInWithEmail, 
       logout, 
       sendPasswordReset,
+      updateCurrentProfile,
       createCommunity,
       createPost
     }}>

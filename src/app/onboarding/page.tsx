@@ -1,8 +1,10 @@
+
 import { OnboardingClient } from '@/components/onboarding/OnboardingClient';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Image from 'next/image';
 
-const onboardingSteps = [
+// These steps are now purely informational, profile setup is handled separately.
+const informationalOnboardingSteps = [
   {
     title: "Connect with Developers",
     description: "Find and connect with developers from around the globe. Share your ideas and collaborate on exciting projects.",
@@ -39,7 +41,10 @@ export default function OnboardingPage() {
           <CardDescription className="text-lg text-muted-foreground">Your journey to connect, learn, and grow starts here.</CardDescription>
         </CardHeader>
         <CardContent className="p-6 md:p-10">
-          <OnboardingClient steps={onboardingSteps} />
+          {/* OnboardingClient now just shows these informational slides */}
+          {/* The "Sign Up" / "Log In" buttons at the end will now act as simple links */}
+          {/* Actual profile setup is handled by /onboarding/profile-setup and AuthGuard */}
+          <OnboardingClient steps={informationalOnboardingSteps} />
         </CardContent>
       </Card>
     </div>

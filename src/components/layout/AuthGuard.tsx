@@ -1,52 +1,60 @@
+
 "use client";
 
 import { useAuth } from '@/contexts/AuthContext';
 import { usePathname, useRouter } from 'next/navigation';
 import type { ReactNode} from 'react';
 import { useEffect } from 'react';
-import { Skeleton } from '@/components/ui/skeleton'; // For loading state
+import { Skeleton } from '@/components/ui/skeleton'; 
 
 interface AuthGuardProps {
   children: ReactNode;
 }
 
-const publicPaths = ['/login', '/signup', '/forgot-password', '/onboarding'];
-const authRestrictedPaths = ['/login', '/signup', '/forgot-password']; // Pages users shouldn't see if logged in
+// Add '/onboarding/profile-setup' to publicPaths if it's part of a flow accessible before full onboarding,
+// or treat it as a protected route that only users with onboardingCompleted=false can access.
+// For now, let's consider it a special protected route.
+const publicPaths = ['/login', '/signup', '/forgot-password', '/onboarding']; // '/onboarding' (slideshow) can remain public/optional
+const authRestrictedPaths = ['/login', '/signup', '/forgot-password']; // Pages users shouldn't see if logged in AND onboarding is complete
 
 export default function AuthGuard({ children }: AuthGuardProps) {
-  const { user, loading } = useAuth();
+  const { user, userProfile, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
-    if (loading) return; // Wait for auth state to load
+    if (loading) return; 
 
     const pathIsPublic = publicPaths.includes(pathname);
     const pathIsAuthRestricted = authRestrictedPaths.includes(pathname);
+    const isProfileSetupPage = pathname === '/onboarding/profile-setup';
 
     if (user) {
-      // If user is logged in
-      if (pathname === '/onboarding' && user.metadata.creationTime === user.metadata.lastSignInTime) {
-        // Allow new users to onboarding
-      } else if (pathIsAuthRestricted) {
-        // Redirect away from login/signup if logged in and not onboarding a new user
+      // User is logged in
+      if (userProfile && !userProfile.onboardingCompleted && !isProfileSetupPage) {
+        // If onboarding is not complete, and they are not on the profile setup page, redirect them there.
+        router.replace('/onboarding/profile-setup');
+      } else if (userProfile && userProfile.onboardingCompleted && (pathIsAuthRestricted || isProfileSetupPage)) {
+        // If onboarding is complete, redirect away from auth-restricted pages and profile setup page.
         router.replace('/');
+      } else if (!userProfile && !isProfileSetupPage) {
+        // Edge case: user exists, but profile is somehow null (shouldn't happen with current AuthContext logic)
+        // and not trying to setup profile, send to profile setup.
+        router.replace('/onboarding/profile-setup');
       }
     } else {
-      // If user is not logged in
-      if (!pathIsPublic) {
-        // Redirect to login if trying to access a protected page
+      // User is not logged in
+      if (!pathIsPublic && !isProfileSetupPage) { 
+        // If trying to access a protected page (and it's not profile setup which requires auth but special handling), redirect to login.
         router.replace('/login');
       }
     }
-  }, [user, loading, router, pathname]);
+  }, [user, userProfile, loading, router, pathname]);
 
   if (loading) {
-     // Improved loading state: Full page skeleton or a more subtle loader
     return (
       <div className="flex flex-col min-h-screen">
-        {/* Optional: Skeleton Header */}
-        {!(publicPaths.includes(pathname)) && (
+        {!(publicPaths.includes(pathname) || pathname === '/onboarding/profile-setup') && (
             <div className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
                 <div className="container flex h-16 items-center justify-between">
                     <Skeleton className="h-8 w-32" />
@@ -68,13 +76,12 @@ export default function AuthGuard({ children }: AuthGuardProps) {
     );
   }
   
-  // If user is not loaded and trying to access protected page, this could briefly show the protected page.
-  // The useEffect hook will redirect, but this check prevents rendering children prematurely.
-  if (!user && !publicPaths.includes(pathname)) {
-    // This also can show a loading state or null to prevent flicker
+  // If user is not logged in AND not trying to access a public page or the special profile setup page, show loading.
+  // This prevents rendering children that might require auth.
+  if (!user && !publicPaths.includes(pathname) && pathname !== '/onboarding/profile-setup') {
      return (
       <div className="flex flex-col min-h-screen">
-         {!(publicPaths.includes(pathname)) && (
+         {!(publicPaths.includes(pathname) || pathname === '/onboarding/profile-setup') && (
             <div className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
                 <div className="container flex h-16 items-center justify-between">
                     <Skeleton className="h-8 w-32" />
@@ -95,7 +102,6 @@ export default function AuthGuard({ children }: AuthGuardProps) {
       </div>
     );
   }
-
 
   return <>{children}</>;
 }
