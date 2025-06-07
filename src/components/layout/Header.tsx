@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from 'next/link';
@@ -14,7 +15,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, User, Settings, PlusCircle, Users, HomeIcon } from 'lucide-react';
+import { LogOut, User, Settings, PlusCircle, Users, HomeIcon, MessageSquare } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 
@@ -23,8 +24,9 @@ export default function Header() {
   const pathname = usePathname();
 
   const navLinks = [
-    { href: "/", label: "Home", icon: HomeIcon },
-    { href: "/communities", label: "Communities", icon: Users },
+    { href: "/", label: "Home", icon: HomeIcon, authRequired: false },
+    { href: "/communities", label: "Communities", icon: Users, authRequired: false },
+    { href: "/messages", label: "Messages", icon: MessageSquare, authRequired: true },
     { href: "/posts/create", label: "Create Post", icon: PlusCircle, authRequired: true },
   ];
 
@@ -34,7 +36,7 @@ export default function Header() {
   }
 
   // Do not render header on auth pages or onboarding
-  if (['/login', '/signup', '/forgot-password', '/onboarding'].includes(pathname)) {
+  if (['/login', '/signup', '/forgot-password', '/onboarding', '/onboarding/profile-setup'].includes(pathname)) {
     return null;
   }
 
@@ -49,16 +51,17 @@ export default function Header() {
         <nav className="hidden md:flex items-center space-x-6 text-sm font-medium">
           {navLinks.map(link => {
             if (link.authRequired && !user) return null;
+            const isActive = (link.href === "/" && pathname === link.href) || (link.href !== "/" && pathname.startsWith(link.href));
             return (
               <Link
                 key={link.href}
                 href={link.href}
                 className={cn(
-                  "transition-colors hover:text-primary",
-                  pathname === link.href ? "text-primary" : "text-muted-foreground"
+                  "transition-colors hover:text-primary flex items-center",
+                  isActive ? "text-primary" : "text-muted-foreground"
                 )}
               >
-                <link.icon className="inline-block w-4 h-4 mr-1" />
+                <link.icon className="inline-block w-4 h-4 mr-1.5" />
                 {link.label}
               </Link>
             );
@@ -103,7 +106,7 @@ export default function Header() {
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
-            <div className="space-x-2">
+            <div className="hidden md:flex space-x-2"> {/* Hide login/signup on mobile header if bottom nav is main */}
               <Button asChild variant="ghost">
                 <Link href="/login">Login</Link>
               </Button>

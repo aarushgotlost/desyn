@@ -28,6 +28,7 @@ export interface UserProfile {
   onboardingCompleted: boolean;
   createdAt?: any;
   lastLogin?: any;
+  updatedAt?: any;
 }
 
 // Data for creating/updating, accepting File objects
@@ -282,7 +283,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       };
       
       // Remove undefined fields to avoid overwriting with undefined in Firestore
-      Object.keys(profileDataToUpdate).forEach(key => profileDataToUpdate[key as keyof Partial<UserProfile>] === undefined && delete profileDataToUpdate[key as keyof Partial<UserProfile>]);
+      Object.keys(profileDataToUpdate).forEach(key => {
+        const typedKey = key as keyof Partial<UserProfile>;
+        if (profileDataToUpdate[typedKey] === undefined) {
+          delete profileDataToUpdate[typedKey];
+        }
+      });
 
 
       await updateDoc(userDocRef, profileDataToUpdate);
@@ -309,16 +315,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       const communityColRef = collection(db, 'communities');
-      const newCommunityDocRef = await addDoc(communityColRef, {
+      const communityPayload: { [key: string]: any } = {
         name: data.name,
-        iconURL: iconStorageURL,
         description: data.description,
         tags: data.tags,
         createdBy: user.uid,
         memberCount: 1, 
         members: [user.uid], 
         createdAt: serverTimestamp(),
-      });
+      };
+
+      if (iconStorageURL !== undefined) {
+        communityPayload.iconURL = iconStorageURL;
+      } else {
+        communityPayload.iconURL = null; // Explicitly set to null if no icon
+      }
+      
+      const newCommunityDocRef = await addDoc(communityColRef, communityPayload);
       return newCommunityDocRef.id;
     } catch (error) {
       console.error("Error creating community: ", error);
@@ -333,7 +346,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     
     let communityName = data.communityName;
-    if (!communityName && data.communityId) { // Ensure communityId is present
+    if (!communityName && data.communityId) { 
         const communityDocRef = doc(db, 'communities', data.communityId);
         const communitySnap = await getDoc(communityDocRef);
         if (communitySnap.exists()) {
@@ -353,13 +366,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       const postColRef = collection(db, 'posts');
-      const newPostDocRef = await addDoc(postColRef, {
+      const postPayload: { [key: string]: any } = {
         title: data.title,
         communityId: data.communityId,
         communityName, 
         description: data.description,
         codeSnippet: data.codeSnippet,
-        imageURL: imageStorageURL,
         tags: data.tags,
         authorId: user.uid,
         authorName: userProfile.displayName || "Anonymous",
@@ -368,7 +380,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         likes: 0,
         commentsCount: 0,
         isSolved: false,
-      });
+      };
+
+      if (imageStorageURL !== undefined) {
+        postPayload.imageURL = imageStorageURL;
+      } else {
+        postPayload.imageURL = null; // Explicitly set to null if no image
+      }
+
+      const newPostDocRef = await addDoc(postColRef, postPayload);
       return newPostDocRef.id;
     } catch (error) {
       console.error("Error creating post: ", error);

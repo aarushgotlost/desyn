@@ -1,3 +1,4 @@
+
 import type { Metadata } from 'next';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
@@ -5,6 +6,7 @@ import { AuthProvider } from '@/contexts/AuthContext';
 import { ThemeProvider } from '@/components/providers/ThemeProvider';
 import AuthGuard from '@/components/layout/AuthGuard';
 import Header from '@/components/layout/Header';
+import { BottomNavigationBar } from '@/components/layout/BottomNavigationBar';
 
 export const metadata: Metadata = {
   title: 'DevConnect - Developer Social Network',
@@ -26,7 +28,7 @@ export default function RootLayout({
       <body className="font-body antialiased">
         <ThemeProvider
           attribute="class"
-          defaultTheme="system"
+          defaultTheme="dark"
           enableSystem
           disableTransitionOnChange
         >
@@ -34,10 +36,11 @@ export default function RootLayout({
             <AuthGuard>
               <div className="flex flex-col min-h-screen">
                 <Header />
-                <main className="flex-grow container mx-auto px-4 py-8">
+                <main className="flex-grow container mx-auto px-4 py-8 pb-20 md:pb-8">
                  {children}
                 </main>
-                <footer className="py-6 text-center text-sm text-muted-foreground">
+                <BottomNavigationBar />
+                <footer className="py-6 text-center text-sm text-muted-foreground md:mb-0 mb-16">
                   © {new Date().getFullYear()} DevConnect. All rights reserved.
                 </footer>
               </div>
