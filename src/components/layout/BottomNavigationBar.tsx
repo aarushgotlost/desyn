@@ -42,10 +42,7 @@ export function BottomNavigationBar() {
       )}>
         {navItems.map(item => {
           if (item.authRequired && !user) {
-            // Render a disabled-like placeholder if auth is required but user not logged in
-            // This ensures the grid column count reflects potentially visible items for layout,
-            // but this specific item won't be interactive. Or, filter them out before mapping.
-            // For simplicity, we'll filter them from the count and not render them if auth fails.
+            // This item won't be rendered if auth is required and user is not logged in
             return null; 
           }
           const isActive = (item.href === "/" && pathname === item.href) || 
