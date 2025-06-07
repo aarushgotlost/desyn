@@ -18,12 +18,15 @@ export function BottomNavigationBar() {
   const pathname = usePathname();
   const { user, loading } = useAuth();
 
-  if (loading) { // Don't render anything if auth state is still loading
+  if (loading) { 
     return null;
   }
 
-  // Do not render bottom nav on auth pages or onboarding
-  if (['/login', '/signup', '/forgot-password', '/onboarding', '/onboarding/profile-setup'].includes(pathname)) {
+  const authPages = ['/login', '/signup', '/forgot-password', '/onboarding', '/onboarding/profile-setup'];
+  // Hide if it's a specific chat detail page (e.g., /messages/xxxx), but not on /messages or /messages/new
+  const isChatDetailPage = pathname.startsWith('/messages/') && pathname.split('/').length > 2 && pathname.split('/')[2] !== 'new';
+
+  if (authPages.includes(pathname) || isChatDetailPage) {
     return null;
   }
 
@@ -40,7 +43,7 @@ export function BottomNavigationBar() {
             );
           }
           const isActive = (item.href === "/" && pathname === item.href) || 
-                           (item.href !== "/" && pathname.startsWith(item.href));
+                           (item.href !== "/" && pathname.startsWith(item.href) && !(item.href === "/messages" && isChatDetailPage));
           return (
             <Link
               key={item.label}

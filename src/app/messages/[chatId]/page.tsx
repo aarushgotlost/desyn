@@ -1,10 +1,10 @@
 
 "use client";
 
-import { use, useEffect, useState, useRef, FormEvent } from 'react'; // Added 'use'
+import { use, useEffect, useState, useRef, FormEvent } from 'react'; 
 import { useAuth } from '@/contexts/AuthContext';
-import { sendMessage } from '@/services/chatService'; // sendMessage is a Server Action
-import { getChatMessages } from '@/services/chatSubscriptionService'; // getChatMessages is for client-side listeners
+import { sendMessage } from '@/services/chatService'; 
+import { getChatMessages } from '@/services/chatSubscriptionService'; 
 import type { ChatMessage, ChatParticipant } from '@/types/messaging';
 import { Card, CardContent, CardDescription, CardHeader, CardFooter, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -25,29 +25,45 @@ export default function ChatPage({ params }: { params: { chatId: string } }) {
   const [isLoadingMessages, setIsLoadingMessages] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [otherParticipant, setOtherParticipant] = useState<ChatParticipant | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  const chatContentRef = useRef<HTMLDivElement>(null);
+  const initialLoadDoneRef = useRef(false);
 
-  // As per Next.js warning, `params` (the prop) is treated as a Promise and should be unwrapped.
-  // The `as unknown as Promise<...>` cast is to align with the warning's implication,
-  // as the declared prop type `params: { chatId: string }` doesn't reflect it being a promise.
   const resolvedParams = use(params as unknown as Promise<{ chatId: string }>);
   const chatId = resolvedParams.chatId;
 
   useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    const scrollableElement = chatContentRef.current;
+    if (!scrollableElement) return;
+
+    if (!isLoadingMessages && !initialLoadDoneRef.current && messages.length > 0) {
+      scrollableElement.scrollTop = scrollableElement.scrollHeight;
+      initialLoadDoneRef.current = true;
+    } else if (initialLoadDoneRef.current && messages.length > 0) {
+      const isNearBottom = scrollableElement.scrollHeight - scrollableElement.scrollTop <= scrollableElement.clientHeight + 200; 
+      const lastMessage = messages[messages.length - 1];
+      const lastMessageIsOurs = lastMessage && user && lastMessage.senderId === user.uid;
+
+      if (isNearBottom || lastMessageIsOurs) {
+          const timer = setTimeout(() => {
+              if (scrollableElement) { // Check again as component might unmount
+                scrollableElement.scrollTop = scrollableElement.scrollHeight;
+              }
+          }, 0);
+          return () => clearTimeout(timer);
+      }
     }
-  }, [messages]);
+  }, [messages, isLoadingMessages, user]);
+
 
   useEffect(() => {
-    if (authLoading) return;
+    if (authLoading || !chatId) return; 
     if (!user || !userProfile) {
       router.push('/login');
       return;
     }
 
     const fetchChatDetails = async () => {
-      if (!chatId) return; // Ensure chatId is resolved
       const chatDocRef = doc(db, 'chats', chatId);
       const chatSnap = await getDoc(chatDocRef);
       if (chatSnap.exists()) {
@@ -57,7 +73,6 @@ export default function ChatPage({ params }: { params: { chatId: string } }) {
           setOtherParticipant(otherP || null);
         }
       } else {
-        // Handle chat not found, maybe redirect
         console.error("Chat not found");
         router.push('/messages');
       }
@@ -65,17 +80,13 @@ export default function ChatPage({ params }: { params: { chatId: string } }) {
     fetchChatDetails();
 
     setIsLoadingMessages(true);
-    if (!chatId) { // Prevent subscription if chatId is not yet available
-        setIsLoadingMessages(false);
-        return;
-    }
+    initialLoadDoneRef.current = false; // Reset for potential chatId changes
     const unsubscribe = getChatMessages(chatId, (newMessages) => {
       setMessages(newMessages);
       setIsLoadingMessages(false);
     }, (error) => {
       console.error("Error fetching chat messages:", error);
       setIsLoadingMessages(false);
-      // Optionally show toast to user
     });
 
     return () => unsubscribe();
@@ -90,15 +101,15 @@ export default function ChatPage({ params }: { params: { chatId: string } }) {
     try {
       await sendMessage(chatId, userProfile, newMessageText);
       setNewMessageText('');
+      // The useEffect for [messages] will handle scrolling for our own message
     } catch (error) {
       console.error("Error sending message:", error);
-      // Optionally show toast
     } finally {
       setIsSending(false);
     }
   };
 
-  if (authLoading || (isLoadingMessages && messages.length === 0)) { // Show loader if auth is loading or if messages are loading and none are displayed yet
+  if (authLoading || (isLoadingMessages && messages.length === 0 && !otherParticipant)) { 
     return (
       <div className="flex justify-center items-center h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -107,12 +118,11 @@ export default function ChatPage({ params }: { params: { chatId: string } }) {
   }
 
   if (!user || !userProfile) {
-    // This case should be handled by the redirect in useEffect, but as a fallback:
     return <p className="text-center mt-8">Please log in to view messages.</p>;
   }
 
   return (
-    <Card className="h-[calc(100vh-8rem-4rem)] md:h-[calc(100vh-8rem-1rem)] flex flex-col shadow-xl"> {/* Adjust height for header and potential footer/padding */}
+    <Card className="h-[calc(100vh-8rem-4rem)] md:h-[calc(100vh-8rem-1rem)] flex flex-col shadow-xl">
       <CardHeader className="border-b p-4">
         <div className="flex items-center space-x-3">
           <Button variant="ghost" size="icon" className="md:hidden" onClick={() => router.push('/messages')}>
@@ -126,18 +136,17 @@ export default function ChatPage({ params }: { params: { chatId: string } }) {
           )}
           <div>
             <CardTitle className="text-lg">{otherParticipant?.displayName || 'Chat'}</CardTitle>
-            {/* <CardDescription>Online</CardDescription> Placeholder */}
           </div>
         </div>
       </CardHeader>
-      <CardContent className="flex-1 overflow-y-auto p-4 space-y-0.5"> {/* Reduced space-y for tighter bubbles */}
+      <CardContent ref={chatContentRef} className="flex-1 overflow-y-auto p-4 space-y-0.5">
         {messages.length === 0 && !isLoadingMessages && (
           <p className="text-center text-muted-foreground py-8">No messages yet. Start the conversation!</p>
         )}
         {messages.map((msg) => (
           <MessageBubble key={msg.id} message={msg} currentUserId={user.uid} />
         ))}
-        <div ref={messagesEndRef} />
+        {/* Removed messagesEndRef as we scroll chatContentRef directly */}
       </CardContent>
       <CardFooter className="border-t p-4">
         <form onSubmit={handleSendMessage} className="flex w-full items-center space-x-2">

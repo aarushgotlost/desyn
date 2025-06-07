@@ -7,6 +7,7 @@ import { ThemeProvider } from '@/components/providers/ThemeProvider';
 import AuthGuard from '@/components/layout/AuthGuard';
 import Header from '@/components/layout/Header';
 import { BottomNavigationBar } from '@/components/layout/BottomNavigationBar';
+import { ConditionalFooter } from '@/components/layout/ConditionalFooter'; // Import ConditionalFooter
 
 export const metadata: Metadata = {
   title: 'Desyn - Developer Social Network',
@@ -40,9 +41,7 @@ export default function RootLayout({
                  {children}
                 </main>
                 <BottomNavigationBar />
-                <footer className="py-6 text-center text-sm text-muted-foreground md:mb-0 mb-16">
-                  © {new Date().getFullYear()} Desyn. All rights reserved.
-                </footer>
+                <ConditionalFooter /> {/* Use ConditionalFooter here */}
               </div>
             </AuthGuard>
             <Toaster />
