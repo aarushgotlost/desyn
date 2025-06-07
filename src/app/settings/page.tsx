@@ -1,12 +1,20 @@
+
+"use client"; // Made this a Client Component
+
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { User, Palette, Shield, Bell, LogOut } from "lucide-react";
 import Link from "next/link";
+import { useAuth } from "@/contexts/AuthContext"; // Imported useAuth
 
 export default function SettingsPage() {
-  // const { logout } = useAuth(); // Would be used for actual logout
+  const { logout, loading } = useAuth(); // Get logout function
+
+  const handleLogout = async () => {
+    await logout();
+  };
 
   return (
     <div className="max-w-2xl mx-auto space-y-8">
@@ -25,14 +33,16 @@ export default function SettingsPage() {
             <h3 className="font-medium mb-1">Profile Information</h3>
             <p className="text-sm text-muted-foreground mb-2">Control your public profile details.</p>
             <Button variant="outline" asChild>
-              <Link href="/profile">Edit Profile</Link>
+              <Link href="/onboarding/profile-setup">Edit Profile</Link> {/* Changed link to actual profile edit page */}
             </Button>
           </div>
           <Separator />
           <div>
             <h3 className="font-medium mb-1">Change Password</h3>
             <p className="text-sm text-muted-foreground mb-2">Update your account password for better security.</p>
-            <Button variant="outline">Change Password</Button>
+            <Button variant="outline" asChild>
+                <Link href="/forgot-password">Change Password</Link>
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -48,7 +58,7 @@ export default function SettingsPage() {
               <h3 className="font-medium">Theme</h3>
               <p className="text-sm text-muted-foreground">Switch between light and dark mode.</p>
             </div>
-            <ThemeToggle />
+            <ThemeToggle /> {/* ThemeToggle moved here */}
           </div>
         </CardContent>
       </Card>
@@ -74,7 +84,7 @@ export default function SettingsPage() {
       </Card>
 
       <div className="text-center pt-4">
-        <Button variant="destructive" className="w-full max-w-xs" /* onClick={logout} */ >
+        <Button variant="destructive" className="w-full max-w-xs" onClick={handleLogout} disabled={loading}>
           <LogOut className="mr-2 h-4 w-4" /> Log Out
         </Button>
       </div>

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { ThemeToggle } from '@/components/ThemeToggle';
+// import { ThemeToggle } from '@/components/ThemeToggle'; // Removed ThemeToggle import
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -15,7 +15,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, User, Settings, PlusCircle, Users, HomeIcon, MessageSquare } from 'lucide-react';
+import { LogOut, User, Settings, PlusCircle, Users, HomeIcon } from 'lucide-react'; // MessageSquare removed, Settings already here
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 
@@ -26,7 +26,7 @@ export default function Header() {
   const navLinks = [
     { href: "/", label: "Home", icon: HomeIcon, authRequired: false },
     { href: "/communities", label: "Communities", icon: Users, authRequired: false },
-    { href: "/messages", label: "Messages", icon: MessageSquare, authRequired: true },
+    { href: "/settings", label: "Settings", icon: Settings, authRequired: true }, // Changed from Messages
     { href: "/posts/create", label: "Create Post", icon: PlusCircle, authRequired: true },
   ];
 
@@ -35,7 +35,6 @@ export default function Header() {
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
   }
 
-  // Do not render header on auth pages or onboarding
   if (['/login', '/signup', '/forgot-password', '/onboarding', '/onboarding/profile-setup'].includes(pathname)) {
     return null;
   }
@@ -69,7 +68,7 @@ export default function Header() {
         </nav>
 
         <div className="flex items-center space-x-3">
-          <ThemeToggle />
+          {/* <ThemeToggle /> Removed from here */}
           {loading ? (
             <div className="w-8 h-8 bg-muted rounded-full animate-pulse" />
           ) : user ? (
@@ -106,7 +105,7 @@ export default function Header() {
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
-            <div className="hidden md:flex space-x-2"> {/* Hide login/signup on mobile header if bottom nav is main */}
+            <div className="hidden md:flex space-x-2">
               <Button asChild variant="ghost">
                 <Link href="/login">Login</Link>
               </Button>
