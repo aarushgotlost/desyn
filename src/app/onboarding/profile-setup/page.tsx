@@ -7,26 +7,35 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Label } from '@/components/ui/label'; // Keep if used elsewhere, or remove if FormLabel is always used.
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useAuth, type UserProfile } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import { Loader2, UserCircle, UploadCloud, Trash2 } from 'lucide-react';
+import { Loader2, UserCircle, UploadCloud, Trash2, Image as ImageIcon } from 'lucide-react';
 import Image from 'next/image';
 
-const MAX_DATA_URL_SIZE_MB = 1; 
-const MAX_DATA_URL_SIZE_BYTES = MAX_DATA_URL_SIZE_MB * 1024 * 1024;
+const MAX_AVATAR_SIZE_MB = 1; 
+const MAX_AVATAR_SIZE_BYTES = MAX_AVATAR_SIZE_MB * 1024 * 1024;
+
+const MAX_BANNER_SIZE_MB = 2;
+const MAX_BANNER_SIZE_BYTES = MAX_BANNER_SIZE_MB * 1024 * 1024;
+
 const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
 
 const profileSetupSchema = z.object({
   displayName: z.string().min(2, { message: "Name must be at least 2 characters." }).max(50, { message: "Name cannot exceed 50 characters."}),
   photoDataUrl: z.string().optional().nullable() 
     .refine(
-      (dataUrl) => !dataUrl || dataUrl.length <= MAX_DATA_URL_SIZE_BYTES,
-      `Image size is too large (max ${MAX_DATA_URL_SIZE_MB}MB). Please choose a smaller image.`
+      (dataUrl) => !dataUrl || dataUrl.length <= MAX_AVATAR_SIZE_BYTES,
+      `Avatar image size is too large (max ${MAX_AVATAR_SIZE_MB}MB).`
+    ),
+  bannerDataUrl: z.string().optional().nullable()
+    .refine(
+      (dataUrl) => !dataUrl || dataUrl.length <= MAX_BANNER_SIZE_BYTES,
+      `Banner image size is too large (max ${MAX_BANNER_SIZE_MB}MB).`
     ),
   bio: z.string().max(200, { message: "Bio cannot exceed 200 characters." }).optional(),
   techStack: z.string().optional(), 
@@ -39,8 +48,12 @@ export default function ProfileSetupPage() {
   const { toast } = useToast();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [fileError, setFileError] = useState<string | null>(null);
+  
+  const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string | null>(null);
+  const [avatarFileError, setAvatarFileError] = useState<string | null>(null);
+
+  const [bannerPreviewUrl, setBannerPreviewUrl] = useState<string | null>(null);
+  const [bannerFileError, setBannerFileError] = useState<string | null>(null);
 
 
   const form = useForm<ProfileSetupFormInputs>({
@@ -48,6 +61,7 @@ export default function ProfileSetupPage() {
     defaultValues: {
       displayName: '',
       photoDataUrl: null,
+      bannerDataUrl: null,
       bio: '',
       techStack: '',
     },
@@ -58,10 +72,12 @@ export default function ProfileSetupPage() {
       form.reset({
         displayName: userProfile?.displayName || user.displayName || '',
         photoDataUrl: userProfile?.photoURL || null, 
+        bannerDataUrl: userProfile?.bannerURL || null,
         bio: userProfile?.bio || '',
         techStack: userProfile?.techStack?.join(', ') || '',
       });
-      setPreviewUrl(userProfile?.photoURL || null); 
+      setAvatarPreviewUrl(userProfile?.photoURL || null); 
+      setBannerPreviewUrl(userProfile?.bannerURL || null);
     }
      if (!authLoading && !user) {
       router.replace('/login'); 
@@ -69,13 +85,13 @@ export default function ProfileSetupPage() {
   }, [user, userProfile, authLoading, form, router]);
 
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setFileError(null); 
+  const handleAvatarFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setAvatarFileError(null); 
     const file = event.target.files?.[0];
     if (file) {
       if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
-        setFileError('Invalid file type. Please select an image (jpg, png, webp, gif).');
-        form.setValue('photoDataUrl', previewUrl); 
+        setAvatarFileError('Invalid file type. Please select an image (jpg, png, webp, gif).');
+        form.setValue('photoDataUrl', avatarPreviewUrl); 
         event.target.value = ''; 
         return;
       }
@@ -83,29 +99,67 @@ export default function ProfileSetupPage() {
       const reader = new FileReader();
       reader.onloadend = () => {
         const dataUrl = reader.result as string;
-        if (dataUrl.length > MAX_DATA_URL_SIZE_BYTES) {
-          setFileError(`Image is too large (max ${MAX_DATA_URL_SIZE_MB}MB). Please choose a smaller image or resize it.`);
-          form.setValue('photoDataUrl', previewUrl); 
+        if (dataUrl.length > MAX_AVATAR_SIZE_BYTES) {
+          setAvatarFileError(`Avatar is too large (max ${MAX_AVATAR_SIZE_MB}MB).`);
+          form.setValue('photoDataUrl', avatarPreviewUrl); 
           event.target.value = ''; 
           return;
         }
-        setPreviewUrl(dataUrl);
+        setAvatarPreviewUrl(dataUrl);
         form.setValue('photoDataUrl', dataUrl, { shouldValidate: true });
       };
       reader.onerror = () => {
-        setFileError('Failed to read file.');
+        setAvatarFileError('Failed to read file.');
         event.target.value = ''; 
       };
       reader.readAsDataURL(file);
     }
   };
 
-  const handleRemoveImage = () => {
-    setPreviewUrl(null);
+  const handleRemoveAvatar = () => {
+    setAvatarPreviewUrl(null);
     form.setValue('photoDataUrl', null, { shouldValidate: true });
-    const fileInput = document.getElementById('photo-file-input') as HTMLInputElement;
+    const fileInput = document.getElementById('avatar-file-input') as HTMLInputElement;
     if (fileInput) fileInput.value = '';
-     setFileError(null);
+     setAvatarFileError(null);
+  };
+
+  const handleBannerFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setBannerFileError(null);
+    const file = event.target.files?.[0];
+    if (file) {
+        if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+            setBannerFileError('Invalid file type. Please select an image (jpg, png, webp, gif).');
+            form.setValue('bannerDataUrl', bannerPreviewUrl);
+            event.target.value = '';
+            return;
+        }
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const dataUrl = reader.result as string;
+            if (dataUrl.length > MAX_BANNER_SIZE_BYTES) {
+                setBannerFileError(`Banner image is too large (max ${MAX_BANNER_SIZE_MB}MB).`);
+                form.setValue('bannerDataUrl', bannerPreviewUrl);
+                event.target.value = '';
+                return;
+            }
+            setBannerPreviewUrl(dataUrl);
+            form.setValue('bannerDataUrl', dataUrl, { shouldValidate: true });
+        };
+        reader.onerror = () => {
+            setBannerFileError('Failed to read banner file.');
+            event.target.value = '';
+        };
+        reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveBanner = () => {
+      setBannerPreviewUrl(null);
+      form.setValue('bannerDataUrl', null, { shouldValidate: true });
+      const fileInput = document.getElementById('banner-file-input') as HTMLInputElement;
+      if (fileInput) fileInput.value = '';
+      setBannerFileError(null);
   };
 
 
@@ -115,6 +169,7 @@ export default function ProfileSetupPage() {
       const profileUpdateData = {
         displayName: data.displayName,
         photoDataUrl: data.photoDataUrl, 
+        bannerDataUrl: data.bannerDataUrl,
         bio: data.bio,
         techStack: data.techStack ? data.techStack.split(',').map(s => s.trim()).filter(s => s) : [],
         onboardingCompleted: true,
@@ -174,8 +229,8 @@ export default function ProfileSetupPage() {
               <FormItem>
                 <FormLabel>Profile Picture</FormLabel>
                 <div className="flex items-center space-x-3">
-                    {previewUrl ? (
-                        <Image src={previewUrl} alt="Profile picture preview" width={80} height={80} className="rounded-full object-cover border" data-ai-hint="user avatar preview"/>
+                    {avatarPreviewUrl ? (
+                        <Image src={avatarPreviewUrl} alt="Profile picture preview" width={80} height={80} className="rounded-full object-cover border" data-ai-hint="user avatar preview"/>
                     ) : (
                         <div className="w-20 h-20 rounded-full bg-muted border flex items-center justify-center">
                             <UserCircle className="w-10 h-10 text-muted-foreground" />
@@ -183,26 +238,63 @@ export default function ProfileSetupPage() {
                     )}
                     <div className="flex-1 space-y-2">
                       <Input 
-                          id="photo-file-input"
+                          id="avatar-file-input"
                           type="file" 
                           accept={ACCEPTED_IMAGE_TYPES.join(',')}
-                          onChange={handleFileChange}
+                          onChange={handleAvatarFileChange}
                           className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
                           aria-label="Upload profile picture"
                       />
-                       {previewUrl && (
-                        <Button type="button" variant="outline" size="sm" onClick={handleRemoveImage} aria-label="Remove profile picture">
-                          <Trash2 className="mr-2 h-4 w-4" /> Remove Image
+                       {avatarPreviewUrl && (
+                        <Button type="button" variant="outline" size="sm" onClick={handleRemoveAvatar} aria-label="Remove profile picture">
+                          <Trash2 className="mr-2 h-4 w-4" /> Remove Avatar
                         </Button>
                       )}
                     </div>
                 </div>
-                <FormDescription className="mt-1">Upload your avatar (max {MAX_DATA_URL_SIZE_MB}MB). Larger images may impact performance.</FormDescription>
-                 {fileError && <p className="text-sm font-medium text-destructive">{fileError}</p>}
+                <FormDescription className="mt-1">Upload your avatar (max {MAX_AVATAR_SIZE_MB}MB).</FormDescription>
+                 {avatarFileError && <p className="text-sm font-medium text-destructive">{avatarFileError}</p>}
                  <FormField
                     control={form.control}
                     name="photoDataUrl"
                     render={() => <FormMessage />} 
+                  />
+              </FormItem>
+
+              <FormItem>
+                  <FormLabel>Profile Banner</FormLabel>
+                  {bannerPreviewUrl ? (
+                      <div className="relative w-full aspect-[3/1] rounded-md overflow-hidden border mb-2">
+                          <Image src={bannerPreviewUrl} alt="Profile banner preview" layout="fill" objectFit="cover" data-ai-hint="profile banner preview wide"/>
+                      </div>
+                  ) : (
+                      <div className="w-full aspect-[3/1] rounded-md bg-muted border flex items-center justify-center mb-2">
+                          <ImageIcon className="w-12 h-12 text-muted-foreground" />
+                      </div>
+                  )}
+                  <div className="flex items-center space-x-3">
+                      <div className="flex-1 space-y-2">
+                          <Input
+                              id="banner-file-input"
+                              type="file"
+                              accept={ACCEPTED_IMAGE_TYPES.join(',')}
+                              onChange={handleBannerFileChange}
+                              className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                              aria-label="Upload profile banner"
+                          />
+                          {bannerPreviewUrl && (
+                              <Button type="button" variant="outline" size="sm" onClick={handleRemoveBanner} aria-label="Remove profile banner">
+                                  <Trash2 className="mr-2 h-4 w-4" /> Remove Banner
+                              </Button>
+                          )}
+                      </div>
+                  </div>
+                  <FormDescription className="mt-1">Upload a banner for your profile (max {MAX_BANNER_SIZE_MB}MB).</FormDescription>
+                  {bannerFileError && <p className="text-sm font-medium text-destructive">{bannerFileError}</p>}
+                  <FormField
+                    control={form.control}
+                    name="bannerDataUrl"
+                    render={() => <FormMessage />}
                   />
               </FormItem>
               

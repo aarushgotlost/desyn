@@ -24,7 +24,7 @@ const getInitials = (name: string | null | undefined): string => {
 };
 
 export default function ProfilePage() {
-  noStore(); // Ensure dynamic data fetching
+  noStore(); 
   const { user: currentUser, userProfile: currentUserProfile, loading: authLoading } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
@@ -78,13 +78,25 @@ export default function ProfilePage() {
      return <div className="text-center py-10">Profile not found.</div>;
   }
   
-  const { displayName, email, photoURL, bio, techStack, createdAt, followersCount, followingCount } = profileToDisplay;
+  const { displayName, email, photoURL, bannerURL, bio, techStack, createdAt, followersCount, followingCount } = profileToDisplay;
   const joinedDate = createdAt ? new Date(createdAt) : null; 
 
   return (
     <div className="space-y-8">
       <Card className="overflow-hidden shadow-xl">
-        <div className="relative h-40 md:h-56 bg-gradient-to-r from-primary to-accent">
+        <div className="relative h-40 md:h-56">
+          {bannerURL ? (
+            <Image 
+              src={bannerURL} 
+              alt={`${displayName || 'User'}'s profile banner`} 
+              layout="fill" 
+              objectFit="cover" 
+              priority 
+              data-ai-hint="profile banner user custom"
+            />
+          ) : (
+            <div className="h-full w-full bg-gradient-to-r from-primary to-accent" data-ai-hint="abstract gradient default banner"></div>
+          )}
         </div>
         <CardContent className="pt-0">
           <div className="flex flex-col md:flex-row items-center md:items-end -mt-16 md:-mt-20 space-y-4 md:space-y-0 md:space-x-6 px-6 pb-6 border-b">
@@ -108,7 +120,7 @@ export default function ProfilePage() {
               </div>
             </div>
             <div className="flex flex-col sm:flex-row gap-2 self-center md:self-end">
-                <Button variant="outline" asChild>
+                <Button variant="outline" asChild aria-label="Edit profile">
                   <Link href="/onboarding/profile-setup"> 
                       <Edit3 size={16} className="mr-2" /> Edit Profile
                   </Link>

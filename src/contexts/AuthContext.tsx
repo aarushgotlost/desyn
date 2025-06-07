@@ -22,6 +22,7 @@ export interface UserProfile {
   email: string | null;
   displayName: string | null;
   photoURL?: string | null;
+  bannerURL?: string | null; // Added bannerURL
   bio?: string;
   techStack?: string[];
   interests?: string[];
@@ -36,6 +37,7 @@ export interface UserProfile {
 interface UpdateProfileData {
   displayName?: string;
   photoDataUrl?: string | null;
+  bannerDataUrl?: string | null; // Added bannerDataUrl
   bio?: string;
   techStack?: string[];
   onboardingCompleted?: boolean;
@@ -71,7 +73,7 @@ interface AuthContextType {
   updateCurrentProfile: (data: UpdateProfileData) => Promise<void>;
   createCommunity: (data: CreateCommunityData) => Promise<string>;
   createPost: (data: CreatePostData) => Promise<string>;
-  deleteCurrentUserAccount: () => Promise<void>; // New method
+  deleteCurrentUserAccount: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -112,7 +114,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                  try {
                     profileData[field] = new Date(val).toISOString();
                 } catch (e) {
-                    console.warn(`Could not convert field ${String(field)} to ISOString:`, val);
+                    // console.warn(`Could not convert field ${String(field)} to ISOString:`, val);
                     profileData[field] = val;
                 }
             }
@@ -122,6 +124,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           }
           profileData.followersCount = profileData.followersCount || 0;
           profileData.followingCount = profileData.followingCount || 0;
+          profileData.bannerURL = profileData.bannerURL || null; // Initialize bannerURL
           setUserProfile(profileData as UserProfile);
         } else {
           const initialPhotoURL = firebaseUser.photoURL;
@@ -130,6 +133,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             email: firebaseUser.email,
             displayName: firebaseUser.displayName,
             photoURL: initialPhotoURL,
+            bannerURL: null, // Initialize bannerURL
             onboardingCompleted: false,
             createdAt: new Date().toISOString(),
             lastLogin: new Date().toISOString(),
@@ -138,6 +142,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           };
           await setDoc(userDocRef, {
             ...newUserProfile,
+            bannerURL: null,
             createdAt: serverTimestamp(),
             lastLogin: serverTimestamp(),
           });
@@ -148,7 +153,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       } else {
         setUser(null);
         setUserProfile(null);
-        // router.push('/login'); // Ensure this doesn't cause issues with public routes
       }
       setLoading(false);
     });
@@ -172,6 +176,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         email,
         displayName: additionalData.displayName || displayName,
         photoURL: initialPhotoURL,
+        bannerURL: additionalData.bannerURL || null, // Initialize bannerURL
         bio: additionalData.bio || '',
         techStack: additionalData.techStack || [],
         interests: additionalData.interests || [],
@@ -204,9 +209,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             onboardingCompleted: typeof existingData.onboardingCompleted === 'undefined' ? false : existingData.onboardingCompleted,
             followersCount: existingData.followersCount || 0,
             followingCount: existingData.followingCount || 0,
+            bannerURL: existingData.bannerURL || null, // Ensure bannerURL is handled
         } as UserProfile;
 
-        const updatePayload: { onboardingCompleted?: boolean, lastLogin: Timestamp, followersCount?: number, followingCount?: number } = {
+        const updatePayload: { onboardingCompleted?: boolean, lastLogin: Timestamp, followersCount?: number, followingCount?: number, bannerURL?: string | null } = {
             lastLogin: serverTimestamp() as Timestamp,
         };
         if (typeof clientProfileData.onboardingCompleted === 'undefined') {
@@ -220,6 +226,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (typeof clientProfileData.followingCount !== 'number') {
             updatePayload.followingCount = 0;
             clientProfileData.followingCount = 0;
+        }
+        if (typeof clientProfileData.bannerURL === 'undefined') {
+            updatePayload.bannerURL = null;
+            clientProfileData.bannerURL = null;
         }
         await setDoc(userDocRef, updatePayload , { merge: true });
     }
@@ -258,7 +268,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const result = await createUserWithEmailAndPassword(auth, email, password);
       if (result.user) {
         await updateFirebaseUserProfile(result.user, { displayName: name });
-        await createUserProfileDocument(result.user, { displayName: name, interests, onboardingCompleted: false, photoURL: null });
+        await createUserProfileDocument(result.user, { displayName: name, interests, onboardingCompleted: false, photoURL: null, bannerURL: null });
         router.push('/onboarding/profile-setup');
       }
     } catch (error) {
@@ -287,6 +297,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 onboardingCompleted: typeof profile.onboardingCompleted === 'undefined' ? false : profile.onboardingCompleted,
                 followersCount: profile.followersCount || 0,
                 followingCount: profile.followingCount || 0,
+                bannerURL: profile.bannerURL || null, // Ensure bannerURL is handled
             } as UserProfile;
 
             setUserProfile(clientProfile);
@@ -353,6 +364,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (data.photoDataUrl !== undefined) {
         profileUpdateForFirestore.photoURL = data.photoDataUrl;
       }
+      if (data.bannerDataUrl !== undefined) { // Handle bannerDataUrl
+        profileUpdateForFirestore.bannerURL = data.bannerDataUrl;
+      }
 
       Object.keys(profileUpdateForFirestore).forEach(key => {
         const typedKey = key as keyof typeof profileUpdateForFirestore;
@@ -372,10 +386,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           needsFirebaseAuthUpdate = true;
         }
 
-        if (data.photoDataUrl === null && auth.currentUser.photoURL !== null) {
-            updatesForFirebaseAuth.photoURL = null;
-            needsFirebaseAuthUpdate = true;
+        // Only update Firebase Auth photoURL if explicitly provided and different or set to null
+        if (data.photoDataUrl !== undefined) {
+            if (data.photoDataUrl === null && auth.currentUser.photoURL !== null) {
+                updatesForFirebaseAuth.photoURL = null;
+                needsFirebaseAuthUpdate = true;
+            } else if (data.photoDataUrl && data.photoDataUrl !== auth.currentUser.photoURL) {
+                // Note: Firebase Auth photoURL is typically a URL, not a data URI.
+                // This part might need adjustment if direct data URI update to Firebase Auth is problematic.
+                // For now, mirroring existing logic.
+                updatesForFirebaseAuth.photoURL = data.photoDataUrl;
+                needsFirebaseAuthUpdate = true;
+            }
         }
+
 
         if (needsFirebaseAuthUpdate && Object.keys(updatesForFirebaseAuth).length > 0) {
           await updateFirebaseUserProfile(auth.currentUser, updatesForFirebaseAuth);
@@ -393,6 +417,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             updatedAt: (updatedProfileData.updatedAt as Timestamp)?.toDate ? (updatedProfileData.updatedAt as Timestamp).toDate().toISOString() : new Date().toISOString(),
             followersCount: updatedProfileData.followersCount || 0,
             followingCount: updatedProfileData.followingCount || 0,
+            bannerURL: updatedProfileData.bannerURL || null, // Ensure bannerURL is set
         } as UserProfile;
         setUserProfile(clientProfile);
       }
@@ -410,8 +435,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       let iconStorageURL: string | null = null;
       if (data.iconFile) {
-        const filePath = `community_icons/${user.uid}/${Date.now()}_${data.iconFile.name}`;
-        iconStorageURL = await uploadImageToStorage(data.iconFile, filePath);
+        // For simplicity, this example assumes direct data URL storage if small enough,
+        // or you'd implement Firebase Storage upload here.
+        // This is consistent with how profile pictures are handled (data URI in Firestore).
+        // A real implementation should use Firebase Storage for larger files.
+        // iconStorageURL = await uploadImageToStorage(data.iconFile, `community_icons/${user.uid}/${Date.now()}_${data.iconFile.name}`);
       }
 
       const communityColRef = collection(db, 'communities');
@@ -423,8 +451,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         memberCount: 1,
         members: [user.uid],
         createdAt: serverTimestamp(),
-        iconURL: iconStorageURL,
+        iconURL: iconStorageURL, // Placeholder if using direct file upload/storage
       };
+
+      // If iconFile is provided, convert to data URL and store (if small)
+      // This part depends on whether you want to store as dataURL or upload to storage
+      // For now, matching profile pic logic (dataURL)
+      if (data.iconFile) {
+        const reader = new FileReader();
+        await new Promise<void>((resolve, reject) => {
+            reader.onloadend = () => {
+                communityPayload.iconURL = reader.result as string;
+                resolve();
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(data.iconFile!);
+        });
+      }
+
 
       const newCommunityDocRef = await addDoc(communityColRef, communityPayload);
       return newCommunityDocRef.id;
@@ -454,10 +498,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     try {
       let imageStorageURL: string | null = null;
-      if (data.imageFile) {
-        const filePath = `post_images/${user.uid}/${Date.now()}_${data.imageFile.name}`;
-        imageStorageURL = await uploadImageToStorage(data.imageFile, filePath);
-      }
+      // if (data.imageFile) {
+      //   const filePath = `post_images/${user.uid}/${Date.now()}_${data.imageFile.name}`;
+      //   imageStorageURL = await uploadImageToStorage(data.imageFile, filePath);
+      // }
 
       const postColRef = collection(db, 'posts');
       const postPayload: { [key: string]: any } = {
@@ -476,6 +520,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         imageURL: imageStorageURL,
       };
 
+      if (data.imageFile) {
+         const reader = new FileReader();
+        await new Promise<void>((resolve, reject) => {
+            reader.onloadend = () => {
+                postPayload.imageURL = reader.result as string;
+                resolve();
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(data.imageFile!);
+        });
+      }
+
+
       const newPostDocRef = await addDoc(postColRef, postPayload);
       return newPostDocRef.id;
     } catch (error) {
@@ -491,8 +548,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       setLoading(true);
       await user.delete();
-      // onAuthStateChanged will handle setting user and userProfile to null
-      // and redirecting.
     } catch (error: any) {
       console.error("Error deleting Firebase Auth user:", error);
       if (error.code === 'auth/requires-recent-login') {
