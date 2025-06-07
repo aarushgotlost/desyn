@@ -72,15 +72,25 @@ export default function NewMessagePage() {
     if (!currentUserProfile || !selectedUser.uid || selectedUser.uid === currentUserProfile.uid) return;
     setIsCreatingChat(selectedUser.uid);
     try {
-      // Adapt selectedUser to UserProfile for getOrCreateDirectChat if needed, or adjust service
-      const otherUserProfileForChat: UserProfile = {
+      // Create plain objects for the server action, containing only necessary fields for ChatParticipant
+      const plainCurrentUserProfileArg = {
+        uid: currentUserProfile.uid,
+        displayName: currentUserProfile.displayName,
+        photoURL: currentUserProfile.photoURL,
+      };
+
+      const plainOtherUserProfileArg = {
           uid: selectedUser.uid,
           displayName: selectedUser.displayName,
-          email: selectedUser.email || null, // Ensure email is string or null
           photoURL: selectedUser.photoURL,
-          onboardingCompleted: true, // Assume true, or fetch full profile if needed
       };
-      const chatId = await getOrCreateDirectChat(currentUserProfile, otherUserProfileForChat);
+
+      // Cast to UserProfile to satisfy the Server Action's signature.
+      // The Server Action internally only uses fields compatible with ChatParticipant.
+      const chatId = await getOrCreateDirectChat(
+        plainCurrentUserProfileArg as UserProfile, 
+        plainOtherUserProfileArg as UserProfile
+      );
       router.push(`/messages/${chatId}`);
     } catch (error: any) {
       console.error("Error creating or getting chat:", error);
