@@ -42,14 +42,16 @@ export function BottomNavigationBar() {
           const isActive = (item.href === "/" && pathname === item.href) || 
                            (item.href !== "/" && pathname.startsWith(item.href));
           return (
-            <Link key={item.label} href={item.href} passHref legacyBehavior>
-              <a className={cn(
+            <Link
+              key={item.label}
+              href={item.href}
+              className={cn(
                 "flex flex-col items-center justify-center text-xs w-1/4 py-2 transition-colors duration-150",
                 isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
-              )}>
-                <item.icon className={cn("h-6 w-6 mb-0.5", isActive ? "text-primary" : "")} />
-                <span>{item.label}</span>
-              </a>
+              )}
+            >
+              <item.icon className={cn("h-6 w-6 mb-0.5", isActive ? "text-primary" : "")} />
+              <span>{item.label}</span>
             </Link>
           );
         })}
