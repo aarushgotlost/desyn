@@ -9,7 +9,7 @@ import type { ChatSession } from '@/types/messaging';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { MessageSquareText, Users, Loader2, AlertTriangle, Search } from 'lucide-react';
+import { MessageSquareText, UserPlus, Loader2, AlertTriangle, Search } from 'lucide-react'; // Added UserPlus
 import { formatDistanceToNowStrict } from 'date-fns';
 import { Input } from '@/components/ui/input';
 
@@ -120,6 +120,11 @@ export default function MessagesPage() {
     );
   }
 
+  const handleNewChat = () => {
+    // TODO: Implement navigation to a user search/selection page or open a modal
+    alert('New chat functionality (e.g., search for users) coming soon!');
+  };
+
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <Card className="shadow-xl">
@@ -129,11 +134,9 @@ export default function MessagesPage() {
               <MessageSquareText className="mr-3 w-7 h-7 text-primary" />
               My Chats
             </CardTitle>
-             {/* Placeholder for New Chat button - future feature
-            <Button variant="outline" size="sm">
-              <Users className="mr-2 h-4 w-4" /> New Chat
+            <Button variant="outline" size="sm" onClick={handleNewChat}>
+              <UserPlus className="mr-2 h-4 w-4" /> New Chat
             </Button>
-             */}
           </div>
           <CardDescription>
             Your recent direct messages will appear here.
@@ -160,7 +163,7 @@ export default function MessagesPage() {
               <MessageSquareText size={48} className="mx-auto text-muted-foreground mb-4 opacity-50" />
               <h3 className="text-lg font-semibold text-foreground mb-1">No Chats Yet</h3>
               <p className="text-sm text-muted-foreground">
-                Start a conversation from a user's profile.
+                Start a conversation from a user's profile or by clicking "New Chat".
               </p>
             </div>
           )}
