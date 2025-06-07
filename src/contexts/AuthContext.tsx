@@ -21,21 +21,21 @@ export interface UserProfile {
   uid: string;
   email: string | null;
   displayName: string | null;
-  photoURL?: string | null; 
+  photoURL?: string | null;
   bio?: string;
   techStack?: string[];
   interests?: string[];
   onboardingCompleted: boolean;
-  createdAt?: string; 
-  lastLogin?: string; 
-  updatedAt?: string; 
+  createdAt?: string;
+  lastLogin?: string;
+  updatedAt?: string;
   followersCount?: number;
   followingCount?: number;
 }
 
 interface UpdateProfileData {
   displayName?: string;
-  photoDataUrl?: string | null; 
+  photoDataUrl?: string | null;
   bio?: string;
   techStack?: string[];
   onboardingCompleted?: boolean;
@@ -43,7 +43,7 @@ interface UpdateProfileData {
 
 interface CreateCommunityData {
   name: string;
-  iconFile?: File; 
+  iconFile?: File;
   description: string;
   tags: string[];
 }
@@ -54,7 +54,7 @@ interface CreatePostData {
   communityName: string;
   description: string;
   codeSnippet?: string;
-  imageFile?: File; 
+  imageFile?: File;
   tags: string[];
 }
 
@@ -71,6 +71,7 @@ interface AuthContextType {
   updateCurrentProfile: (data: UpdateProfileData) => Promise<void>;
   createCommunity: (data: CreateCommunityData) => Promise<string>;
   createPost: (data: CreatePostData) => Promise<string>;
+  deleteCurrentUserAccount: () => Promise<void>; // New method
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -97,13 +98,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const userDocRef = doc(db, 'users', firebaseUser.uid);
         const userDocSnap = await getDoc(userDocRef);
         if (userDocSnap.exists()) {
-          let profileData = userDocSnap.data() as any; 
+          let profileData = userDocSnap.data() as any;
           const dateFields: (keyof UserProfile)[] = ['createdAt', 'lastLogin', 'updatedAt'];
           dateFields.forEach(field => {
             const val = profileData[field];
-            if (val && typeof (val as Timestamp).toDate === 'function') { 
+            if (val && typeof (val as Timestamp).toDate === 'function') {
               profileData[field] = (val as Timestamp).toDate().toISOString();
-            } else if (val instanceof Date) { 
+            } else if (val instanceof Date) {
               profileData[field] = val.toISOString();
             } else if (typeof val === 'string') {
               profileData[field] = val;
@@ -112,7 +113,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                     profileData[field] = new Date(val).toISOString();
                 } catch (e) {
                     console.warn(`Could not convert field ${String(field)} to ISOString:`, val);
-                    profileData[field] = val; 
+                    profileData[field] = val;
                 }
             }
           });
@@ -130,15 +131,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             displayName: firebaseUser.displayName,
             photoURL: initialPhotoURL,
             onboardingCompleted: false,
-            createdAt: new Date().toISOString(), 
-            lastLogin: new Date().toISOString(), 
+            createdAt: new Date().toISOString(),
+            lastLogin: new Date().toISOString(),
             followersCount: 0,
             followingCount: 0,
           };
           await setDoc(userDocRef, {
             ...newUserProfile,
-            createdAt: serverTimestamp(), 
-            lastLogin: serverTimestamp(), 
+            createdAt: serverTimestamp(),
+            lastLogin: serverTimestamp(),
           });
           setUserProfile(newUserProfile);
         }
@@ -147,6 +148,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       } else {
         setUser(null);
         setUserProfile(null);
+        // router.push('/login'); // Ensure this doesn't cause issues with public routes
       }
       setLoading(false);
     });
@@ -177,13 +179,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         followersCount: 0,
         followingCount: 0,
         ...additionalData,
-        createdAt: serverTimestamp() as Timestamp, 
-        lastLogin: serverTimestamp() as Timestamp, 
+        createdAt: serverTimestamp() as Timestamp,
+        lastLogin: serverTimestamp() as Timestamp,
       };
       clientProfileData = {
         ...profileDataToSet,
-        createdAt: new Date().toISOString(), 
-        lastLogin: new Date().toISOString(), 
+        createdAt: new Date().toISOString(),
+        lastLogin: new Date().toISOString(),
       };
       try {
         await setDoc(userDocRef, profileDataToSet);
@@ -195,7 +197,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
        let existingData = userDocSnap.data() as any;
         clientProfileData = {
             ...existingData,
-            uid: userDocSnap.id, 
+            uid: userDocSnap.id,
             createdAt: (existingData.createdAt as Timestamp)?.toDate ? (existingData.createdAt as Timestamp).toDate().toISOString() : new Date().toISOString(),
             lastLogin: (existingData.lastLogin as Timestamp)?.toDate ? (existingData.lastLogin as Timestamp).toDate().toISOString() : new Date().toISOString(),
             updatedAt: (existingData.updatedAt as Timestamp)?.toDate ? (existingData.updatedAt as Timestamp).toDate().toISOString() : undefined,
@@ -203,7 +205,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             followersCount: existingData.followersCount || 0,
             followingCount: existingData.followingCount || 0,
         } as UserProfile;
-        
+
         const updatePayload: { onboardingCompleted?: boolean, lastLogin: Timestamp, followersCount?: number, followingCount?: number } = {
             lastLogin: serverTimestamp() as Timestamp,
         };
@@ -221,8 +223,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
         await setDoc(userDocRef, updatePayload , { merge: true });
     }
-    setUserProfile(clientProfileData); 
-    return clientProfileData; 
+    setUserProfile(clientProfileData);
+    return clientProfileData;
   };
 
   const signInWithGoogle = async () => {
@@ -255,7 +257,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setLoading(true);
       const result = await createUserWithEmailAndPassword(auth, email, password);
       if (result.user) {
-        await updateFirebaseUserProfile(result.user, { displayName: name }); 
+        await updateFirebaseUserProfile(result.user, { displayName: name });
         await createUserProfileDocument(result.user, { displayName: name, interests, onboardingCompleted: false, photoURL: null });
         router.push('/onboarding/profile-setup');
       }
@@ -286,8 +288,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 followersCount: profile.followersCount || 0,
                 followingCount: profile.followingCount || 0,
             } as UserProfile;
-            
-            setUserProfile(clientProfile); 
+
+            setUserProfile(clientProfile);
             if (!clientProfile.onboardingCompleted) {
                 router.push('/onboarding/profile-setup');
             } else {
@@ -339,7 +341,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     try {
       const userDocRef = doc(db, 'users', user.uid);
-      
+
       const profileUpdateForFirestore: Partial<UserProfile & {updatedAt: Timestamp}> = {
         displayName: data.displayName,
         bio: data.bio,
@@ -347,9 +349,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         onboardingCompleted: data.onboardingCompleted,
         updatedAt: serverTimestamp() as Timestamp,
       };
-      
-      // Handle photoURL separately for Firestore
-      if (data.photoDataUrl !== undefined) { // If photoDataUrl is part of the input (even if null)
+
+      if (data.photoDataUrl !== undefined) {
         profileUpdateForFirestore.photoURL = data.photoDataUrl;
       }
 
@@ -359,7 +360,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           delete profileUpdateForFirestore[typedKey];
         }
       });
-      
+
       await updateDoc(userDocRef, profileUpdateForFirestore);
 
       if (auth.currentUser) {
@@ -370,12 +371,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           updatesForFirebaseAuth.displayName = data.displayName;
           needsFirebaseAuthUpdate = true;
         }
-        
-        if (data.photoDataUrl === null && auth.currentUser.photoURL !== null) { 
+
+        if (data.photoDataUrl === null && auth.currentUser.photoURL !== null) {
             updatesForFirebaseAuth.photoURL = null;
             needsFirebaseAuthUpdate = true;
         }
-        
+
         if (needsFirebaseAuthUpdate && Object.keys(updatesForFirebaseAuth).length > 0) {
           await updateFirebaseUserProfile(auth.currentUser, updatesForFirebaseAuth);
         }
@@ -472,7 +473,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         createdAt: serverTimestamp(),
         likes: 0,
         commentsCount: 0,
-        // isSolved: false, // Removed isSolved
         imageURL: imageStorageURL,
       };
 
@@ -480,6 +480,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return newPostDocRef.id;
     } catch (error) {
       console.error("Error creating post: ", error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteCurrentUserAccount = async () => {
+    if (!user) throw new Error("User not authenticated.");
+    try {
+      setLoading(true);
+      await user.delete();
+      // onAuthStateChanged will handle setting user and userProfile to null
+      // and redirecting.
+    } catch (error: any) {
+      console.error("Error deleting Firebase Auth user:", error);
+      if (error.code === 'auth/requires-recent-login') {
+        throw new Error("This operation is sensitive and requires recent authentication. Please log out and log back in, then try again.");
+      }
       throw error;
     } finally {
       setLoading(false);
@@ -499,7 +517,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       sendPasswordReset,
       updateCurrentProfile,
       createCommunity,
-      createPost
+      createPost,
+      deleteCurrentUserAccount
     }}>
       {children}
     </AuthContext.Provider>

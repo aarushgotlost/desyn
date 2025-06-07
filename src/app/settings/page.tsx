@@ -5,34 +5,47 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { Button, buttonVariants } from "@/components/ui/button"; 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { User, Palette, Shield, Bell, LogOut, SendToBack, CheckCircle, XCircle, AlertTriangle, Lock, Smartphone, FileArchive, Trash2 } from "lucide-react";
+import { User, Palette, Shield, Bell, LogOut, SendToBack, CheckCircle, XCircle, AlertTriangle, Lock, Smartphone, FileArchive, Trash2, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext"; 
 import { cn } from "@/lib/utils"; 
-import { messaging } from '@/lib/firebase'; // Import Firebase Messaging
+import { messaging } from '@/lib/firebase'; 
 import { getToken } from 'firebase/messaging';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useTransition } from 'react';
 import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { deleteUserAccountAndBasicData } from "@/actions/userActions";
 
 
 export default function SettingsPage() {
-  const { logout, loading } = useAuth(); 
+  const { user, userProfile, logout, loading, deleteCurrentUserAccount } = useAuth(); 
   const { toast } = useToast();
+  const [isPending, startTransition] = useTransition();
 
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | 'loading'>('loading');
   const [fcmToken, setFcmToken] = useState<string | null>(null);
   const [isRequestingToken, setIsRequestingToken] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  // IMPORTANT: Replace this with your VAPID key from Firebase Console
-  // Project settings > Cloud Messaging > Web configuration > Web Push certificates
   const VAPID_KEY = "BIhYhqAuf9hWPjsk5sDSk5kBZZK-6btzuXdPjvtDVcEGz81Mk6pPKayslVX394sGLPUshvM_IkXsTFsrffwqjL0"; 
 
   useEffect(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
       setNotificationPermission(Notification.permission);
     } else {
-      setNotificationPermission('denied'); // Assume denied if not supported
+      setNotificationPermission('denied'); 
     }
   }, []);
 
@@ -71,8 +84,6 @@ export default function SettingsPage() {
             title: "Push Notifications Enabled!",
             description: "You will now receive push notifications.",
           });
-          // In a real app, you would send this token to your server
-          console.log('FCM Token:', currentToken);
         } else {
           toast({
             title: "Could Not Get Token",
@@ -100,7 +111,6 @@ export default function SettingsPage() {
         description: "An unexpected error occurred. Check the console for details.",
         variant: "destructive",
       });
-      // Attempt to infer permission state on error, might not be accurate
       if (typeof window !== 'undefined' && 'Notification' in window) {
         setNotificationPermission(Notification.permission);
       } else {
@@ -111,6 +121,40 @@ export default function SettingsPage() {
     }
   };
 
+  const handleDeleteAccountConfirm = () => {
+    setIsDeleting(true);
+    startTransition(async () => {
+      if (!user) {
+        toast({ title: "Error", description: "User not found.", variant: "destructive" });
+        setIsDeleting(false);
+        setShowDeleteDialog(false);
+        return;
+      }
+
+      try {
+        // Step 1: Delete Firestore data via Server Action
+        const firestoreDeleteResult = await deleteUserAccountAndBasicData(user.uid);
+        if (!firestoreDeleteResult.success) {
+          toast({ title: "Error Deleting Data", description: firestoreDeleteResult.message, variant: "destructive" });
+          setIsDeleting(false);
+          setShowDeleteDialog(false);
+          return;
+        }
+        toast({ title: "User Data Cleared", description: "Associated user data has been removed.", variant: "default" });
+
+        // Step 2: Delete Firebase Auth user account (client-side)
+        await deleteCurrentUserAccount();
+        
+        toast({ title: "Account Deleted", description: "Your account has been permanently deleted." });
+        // AuthContext's onAuthStateChanged will handle logout and redirect.
+      } catch (error: any) {
+        toast({ title: "Account Deletion Failed", description: error.message, variant: "destructive" });
+      } finally {
+        setIsDeleting(false);
+        setShowDeleteDialog(false);
+      }
+    });
+  };
 
   const handleLogout = async () => {
     await logout();
@@ -223,7 +267,6 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle className="flex items-center"><Shield className="mr-2 h-5 w-5 text-primary" /> Security & Privacy</CardTitle>
@@ -262,25 +305,53 @@ export default function SettingsPage() {
              <Separator />
             <div className="space-y-2">
                 <h4 className="font-medium">Account Data</h4>
-                <p className="text-sm text-muted-foreground">Request an export of your data or manage account deletion. (Feature coming soon)</p>
+                <p className="text-sm text-muted-foreground mb-1">Request an export of your data or manage account deletion.</p>
                  <div className="flex space-x-2 pt-1">
                     <Button variant="outline" size="sm" disabled>
                         <FileArchive className="mr-2 h-4 w-4" /> Export Data (soon)
                     </Button>
-                    <Button variant="destructive" size="sm" disabled>
-                        <Trash2 className="mr-2 h-4 w-4" /> Delete Account (soon)
-                    </Button>
+                    <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="destructive" size="sm" disabled={loading || isDeleting}>
+                          {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                          Delete Account
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This action cannot be undone. This will permanently delete your account
+                            and remove your data from our servers. Your posts, comments, and other
+                            contributions will also be removed.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={handleDeleteAccountConfirm}
+                            disabled={isDeleting || isPending}
+                            className={buttonVariants({ variant: "destructive"})}
+                          >
+                            {isDeleting || isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                            Delete Account
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                 </div>
+                <p className="text-xs text-muted-foreground pt-1">
+                  Note: Full deletion of all associated content (posts, comments, likes) is a complex process. This action will remove your main profile and notifications. Some content might remain or become anonymized.
+                </p>
             </div>
         </CardContent>
       </Card>
 
       <div className="text-center pt-4">
-        <Button variant="destructive" className="w-full max-w-xs" onClick={handleLogout} disabled={loading}>
+        <Button variant="destructive" className="w-full max-w-xs" onClick={handleLogout} disabled={loading || isPending || isDeleting}>
           <LogOut className="mr-2 h-4 w-4" /> Log Out
         </Button>
       </div>
     </div>
   );
 }
-
