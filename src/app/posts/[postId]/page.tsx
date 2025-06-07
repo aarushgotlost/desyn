@@ -61,7 +61,7 @@ export default async function PostDetailsPage({ params }: { params: { postId: st
             <span>&bull;</span>
             <span>Posted in <Link href={`/communities/${post.communityId}`} className="hover:text-primary">{post.communityName}</Link></span>
             <span>&bull;</span>
-            <span>{post.createdAt ? formatDistanceToNowStrict(post.createdAt.toDate(), { addSuffix: true }) : 'N/A'}</span>
+            <span>{post.createdAt ? formatDistanceToNowStrict(post.createdAt, { addSuffix: true }) : 'N/A'}</span>
           </div>
         </CardHeader>
         <CardContent className="prose prose-sm sm:prose-base lg:prose-lg dark:prose-invert max-w-none space-y-6">

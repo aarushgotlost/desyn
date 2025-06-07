@@ -92,7 +92,7 @@ export default async function CommunityPage({ params }: { params: { communityId:
                     <Link href={`/posts/${post.id}`}>{post.title}</Link>
                   </CardTitle>
                   <p className="text-xs text-muted-foreground">
-                    Posted by {post.authorName} &bull; {post.createdAt ? formatDistanceToNowStrict(post.createdAt.toDate(), { addSuffix: true }) : 'N/A'}
+                    Posted by {post.authorName} &bull; {post.createdAt ? formatDistanceToNowStrict(post.createdAt, { addSuffix: true }) : 'N/A'}
                   </p>
                 </div>
               </div>
