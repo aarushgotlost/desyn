@@ -1,16 +1,17 @@
 
-"use client"; // Made this a Client Component
+"use client"; 
 
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button"; // Import buttonVariants
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { User, Palette, Shield, Bell, LogOut } from "lucide-react";
 import Link from "next/link";
-import { useAuth } from "@/contexts/AuthContext"; // Imported useAuth
+import { useAuth } from "@/contexts/AuthContext"; 
+import { cn } from "@/lib/utils"; // Import cn
 
 export default function SettingsPage() {
-  const { logout, loading } = useAuth(); // Get logout function
+  const { logout, loading } = useAuth(); 
 
   const handleLogout = async () => {
     await logout();
@@ -32,17 +33,17 @@ export default function SettingsPage() {
           <div>
             <h3 className="font-medium mb-1">Profile Information</h3>
             <p className="text-sm text-muted-foreground mb-2">Control your public profile details.</p>
-            <Button variant="outline" asChild>
-              <Link href="/onboarding/profile-setup">Edit Profile</Link> {/* Changed link to actual profile edit page */}
-            </Button>
+            <Link href="/onboarding/profile-setup" className={cn(buttonVariants({ variant: "outline" }))}>
+              Edit Profile
+            </Link>
           </div>
           <Separator />
           <div>
             <h3 className="font-medium mb-1">Change Password</h3>
             <p className="text-sm text-muted-foreground mb-2">Update your account password for better security.</p>
-            <Button variant="outline" asChild>
-                <Link href="/forgot-password">Change Password</Link>
-            </Button>
+            <Link href="/forgot-password" className={cn(buttonVariants({ variant: "outline" }))}>
+                Change Password
+            </Link>
           </div>
         </CardContent>
       </Card>
@@ -58,7 +59,7 @@ export default function SettingsPage() {
               <h3 className="font-medium">Theme</h3>
               <p className="text-sm text-muted-foreground">Switch between light and dark mode.</p>
             </div>
-            <ThemeToggle /> {/* ThemeToggle moved here */}
+            <ThemeToggle /> 
           </div>
         </CardContent>
       </Card>
