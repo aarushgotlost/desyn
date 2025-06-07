@@ -14,9 +14,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, User, Settings, PlusCircle, Users, HomeIcon } from 'lucide-react';
+import { LogOut, User, Settings, PlusCircle, Users, HomeIcon, Bell } from 'lucide-react'; // Added Bell
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { NotificationIcon } from '@/components/notifications/NotificationIcon'; // Import NotificationIcon
 
 export default function Header() {
   const { user, userProfile, logout, loading } = useAuth();
@@ -25,8 +26,8 @@ export default function Header() {
   const navLinks = [
     { href: "/", label: "Home", icon: HomeIcon, authRequired: false },
     { href: "/communities", label: "Communities", icon: Users, authRequired: false },
-    { href: "/settings", label: "Settings", icon: Settings, authRequired: true }, 
     { href: "/posts/create", label: "Create Post", icon: PlusCircle, authRequired: true },
+    { href: "/notifications", label: "Notifications", icon: Bell, authRequired: true }, // Added Notifications link
   ];
 
   const getInitials = (name: string | null | undefined) => {
@@ -41,7 +42,7 @@ export default function Header() {
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center justify-between">
-        <Link href="/" className="flex items-center gap-2 ml-2"> {/* Added ml-2 for margin-left */}
+        <Link href="/" className="flex items-center gap-2 ml-2">
           <Image src="/logo.svg" alt="Desyn Logo" width={30} height={30} data-ai-hint="logo letter D C" />
           <span className="font-bold text-xl font-headline">Desyn</span>
         </Link>
@@ -49,6 +50,9 @@ export default function Header() {
         <nav className="hidden md:flex items-center space-x-6 text-sm font-medium">
           {navLinks.map(link => {
             if (link.authRequired && !user) return null;
+            // Special handling for notifications link to avoid conflict with NotificationIcon dropdown trigger
+            if (link.href === "/notifications") return null; 
+
             const isActive = (link.href === "/" && pathname === link.href) || (link.href !== "/" && pathname.startsWith(link.href));
             return (
               <Link
@@ -71,7 +75,7 @@ export default function Header() {
             <div className="w-8 h-8 bg-muted rounded-full animate-pulse" />
           ) : user ? (
             <>
-              {/* Avatar Dropdown for Desktop */}
+              <NotificationIcon /> 
               <div className="hidden md:block">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -95,6 +99,9 @@ export default function Header() {
                     <DropdownMenuItem asChild>
                       <Link href="/profile"><User className="mr-2 h-4 w-4" /> Profile</Link>
                     </DropdownMenuItem>
+                     <DropdownMenuItem asChild>
+                       <Link href="/notifications"><Bell className="mr-2 h-4 w-4" /> Notifications</Link>
+                    </DropdownMenuItem>
                     <DropdownMenuItem asChild>
                       <Link href="/settings"><Settings className="mr-2 h-4 w-4" /> Settings</Link>
                     </DropdownMenuItem>
@@ -106,7 +113,6 @@ export default function Header() {
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
-              {/* Settings Icon for Mobile */}
               <div className="md:hidden">
                 <Button variant="ghost" size="icon" asChild>
                   <Link href="/settings">

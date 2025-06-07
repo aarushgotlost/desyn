@@ -21,6 +21,8 @@ import {
 import { revalidatePath } from 'next/cache';
 import type { UserProfile } from '@/contexts/AuthContext';
 import type { Post, Comment } from '@/types/data'; 
+import { createNotification } from '@/services/notificationService';
+import type { NotificationActor } from '@/types/notifications';
 
 async function revalidatePostPaths(postId: string, communityId?: string) {
   revalidatePath(`/posts/${postId}`);
@@ -29,11 +31,13 @@ async function revalidatePostPaths(postId: string, communityId?: string) {
     revalidatePath(`/communities/${communityId}`); 
   }
   revalidatePath('/profile'); 
+  revalidatePath('/notifications'); // Revalidate notifications page
 }
 
 export async function togglePostLike(
   postId: string,
-  userId: string
+  userId: string,
+  likerProfile?: Pick<UserProfile, 'uid' | 'displayName' | 'photoURL'>
 ): Promise<{ success: boolean; message: string; newLikesCount?: number; isLiked?: boolean }> {
   if (!userId) {
     return { success: false, message: 'User not authenticated.' };
@@ -67,6 +71,23 @@ export async function togglePostLike(
       await updateDoc(postRef, { likes: increment(1) });
       newLikesCount = (postData.likes || 0) + 1;
       isLiked = true;
+
+      // Create notification if someone else's post is liked
+      if (postData.authorId !== userId && likerProfile) {
+        const actor: NotificationActor = {
+          id: likerProfile.uid,
+          displayName: likerProfile.displayName,
+          avatarUrl: likerProfile.photoURL
+        };
+        await createNotification({
+          userId: postData.authorId,
+          type: 'new_like',
+          actor,
+          message: `${likerProfile.displayName || 'Someone'} liked your post: "${postData.title}"`,
+          link: `/posts/${postId}`,
+          relatedEntityId: postId,
+        });
+      }
     }
     
     await revalidatePostPaths(postId, postData.communityId);
@@ -152,6 +173,23 @@ export async function addCommentToPost(
     if (postSnap.exists()) {
         const postData = postSnap.data() as Post;
         await revalidatePostPaths(postId, postData.communityId);
+
+        // Create notification for the post author
+        if (postData.authorId !== commentData.authorId) {
+          const actor: NotificationActor = {
+            id: commentData.authorId,
+            displayName: commentData.authorName,
+            avatarUrl: commentData.authorAvatar
+          };
+          await createNotification({
+            userId: postData.authorId,
+            type: 'new_comment',
+            actor,
+            message: `${commentData.authorName} commented on your post: "${postData.title}"`,
+            link: `/posts/${postId}#comment-${newCommentRef.id}`,
+            relatedEntityId: postId,
+          });
+        }
     } else {
         await revalidatePostPaths(postId); 
     }
@@ -159,7 +197,7 @@ export async function addCommentToPost(
     const createdCommentForClient: Comment = {
       ...newCommentForFirestore,
       id: newCommentRef.id,
-      createdAt: new Date().toISOString(),
+      createdAt: new Date().toISOString(), // Ensure ISO string for client
     };
 
     return { success: true, message: 'Comment added!', commentId: newCommentRef.id, newComment: createdCommentForClient };
@@ -168,8 +206,6 @@ export async function addCommentToPost(
     return { success: false, message: error.message || 'Could not add comment.' };
   }
 }
-
-// togglePostSolvedStatus function removed
 
 export async function getCommentsForPost(postId: string): Promise<Comment[]> {
   const commentsColRef = collection(db, 'posts', postId, 'comments');
