@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileText, Image as ImageIcon, Code2, Loader2 } from "lucide-react";
+import { FileText, UploadCloud, Code2, Loader2 } from "lucide-react"; // ImageIcon replaced with UploadCloud
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -14,22 +14,38 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 
-// Mock communities for the select dropdown - In a real app, fetch this
 const mockUserCommunities = [
   { id: "1", name: "Next.js Developers" },
   { id: "2", name: "Firebase Experts" },
   { id: "3", name: "Frontend Wizards" },
-  // Add more or fetch dynamically
 ];
+
+const MAX_FILE_SIZE_MB = 5;
+const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+
+const imageFileSchema = z
+  .instanceof(FileList)
+  .optional()
+  .refine(
+    (fileList) => !fileList || fileList.length === 0 || (fileList.length === 1 && fileList[0].size <= MAX_FILE_SIZE_BYTES),
+    `Max file size is ${MAX_FILE_SIZE_MB}MB.`
+  )
+  .refine(
+    (fileList) => !fileList || fileList.length === 0 || (fileList.length === 1 && ACCEPTED_IMAGE_TYPES.includes(fileList[0].type)),
+    '.jpg, .jpeg, .png, .webp, .gif files are accepted.'
+  )
+  .transform((fileList) => (fileList && fileList.length > 0 ? fileList[0] : undefined));
 
 const postFormSchema = z.object({
   postTitle: z.string().min(5, { message: "Title must be at least 5 characters." }).max(150, {message: "Title must be 150 characters or less."}),
   communityId: z.string().min(1, { message: "Please select a community." }),
   postDescription: z.string().min(10, { message: "Description must be at least 10 characters." }),
   postCodeSnippet: z.string().optional(),
-  postImageURL: z.string().url({ message: "Please enter a valid URL for the image." }).optional().or(z.literal('')),
+  postImageFile: imageFileSchema, // Changed from postImageURL
   postTags: z.string().optional().transform(val => val ? val.split(',').map(tag => tag.trim()).filter(tag => tag !== '') : []),
 });
 
@@ -39,11 +55,9 @@ export default function CreatePostPage() {
   const { createPost, user, userProfile } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedCommunityName, setSelectedCommunityName] = useState<string | undefined>();
-
-  // TODO: In a real app, fetch user's communities or all communities
-  // For now, using mockUserCommunities
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   const form = useForm<PostFormInputs>({
     resolver: zodResolver(postFormSchema),
@@ -52,10 +66,25 @@ export default function CreatePostPage() {
       communityId: "",
       postDescription: "",
       postCodeSnippet: "",
-      postImageURL: "",
+      postImageFile: undefined,
       postTags: "",
     },
   });
+
+  const imageFileWatch = form.watch('postImageFile');
+
+  useEffect(() => {
+    let objectUrl: string | null = null;
+    if (imageFileWatch instanceof File) {
+      objectUrl = URL.createObjectURL(imageFileWatch);
+      setImagePreview(objectUrl);
+    } else {
+      setImagePreview(null);
+    }
+    return () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [imageFileWatch]);
 
    const handleCommunityChange = (communityId: string) => {
     form.setValue("communityId", communityId);
@@ -68,20 +97,29 @@ export default function CreatePostPage() {
       toast({ title: "Authentication Error", description: "You must be logged in to create a post.", variant: "destructive" });
       return;
     }
-    if (!selectedCommunityName) {
-      toast({ title: "Community Error", description: "Selected community name not found.", variant: "destructive" });
-      return;
+    // communityId is required by schema, so selectedCommunityName should be set if communityId is valid
+    if (!selectedCommunityName && data.communityId) {
+        const community = mockUserCommunities.find(c => c.id === data.communityId);
+        if (!community) {
+            toast({ title: "Community Error", description: "Selected community not found.", variant: "destructive" });
+            return;
+        }
+        setSelectedCommunityName(community.name); // Set it here if somehow missed by onValueChange
+    } else if (!data.communityId) {
+        toast({ title: "Community Error", description: "Please select a community.", variant: "destructive" });
+        return;
     }
 
-    setIsLoading(true);
+
+    setIsSubmitting(true);
     try {
       const newPostId = await createPost({
         title: data.postTitle,
         communityId: data.communityId,
-        communityName: selectedCommunityName, // Pass the name
+        communityName: selectedCommunityName!, // Should be set by now
         description: data.postDescription,
         codeSnippet: data.postCodeSnippet,
-        imageURL: data.postImageURL,
+        imageFile: data.postImageFile, // Pass the File object
         tags: data.postTags as string[],
       });
       toast({ title: "Post Created!", description: "Your post has been successfully published." });
@@ -93,7 +131,7 @@ export default function CreatePostPage() {
         variant: "destructive",
       });
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -180,17 +218,28 @@ export default function CreatePostPage() {
               
               <FormField
                 control={form.control}
-                name="postImageURL"
-                render={({ field }) => (
+                name="postImageFile"
+                render={({ field: { onChange, onBlur, name, ref } }) => (
                   <FormItem>
-                    <FormLabel>Image URL (Optional)</FormLabel>
+                    <FormLabel>Image (Optional)</FormLabel>
                     <FormControl>
                       <div className="flex items-center space-x-2">
-                        <Input placeholder="https://example.com/image.png" {...field} />
-                        <ImageIcon className="text-muted-foreground" />
+                        <Input 
+                          type="file"
+                          accept={ACCEPTED_IMAGE_TYPES.join(',')}
+                          onChange={(e) => onChange(e.target.files)}
+                          onBlur={onBlur}
+                          name={name}
+                          ref={ref}
+                          className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                        />
+                        <UploadCloud className="text-muted-foreground" />
                       </div>
                     </FormControl>
-                    <FormDescription>Provide a URL for an image related to your post. File upload will be added later.</FormDescription>
+                    {imagePreview && (
+                      <Image src={imagePreview} alt="Post image preview" width={200} height={100} className="mt-2 rounded-md object-cover border" data-ai-hint="post content image" />
+                    )}
+                    <FormDescription>Upload an image for your post (max {MAX_FILE_SIZE_MB}MB).</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -211,8 +260,8 @@ export default function CreatePostPage() {
                 )}
               />
               
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <><Code2 className="mr-2 h-4 w-4" /> Publish Post</>}
+              <Button type="submit" className="w-full" disabled={isSubmitting}>
+                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <><Code2 className="mr-2 h-4 w-4" /> Publish Post</>}
               </Button>
             </form>
           </Form>

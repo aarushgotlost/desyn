@@ -6,19 +6,37 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { PlusCircle, Loader2 } from "lucide-react";
+import { PlusCircle, Loader2, UploadCloud } from "lucide-react";
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+
+const MAX_FILE_SIZE_MB = 2;
+const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+
+const imageFileSchema = z
+  .instanceof(FileList)
+  .optional()
+  .refine(
+    (fileList) => !fileList || fileList.length === 0 || (fileList.length === 1 && fileList[0].size <= MAX_FILE_SIZE_BYTES),
+    `Max file size is ${MAX_FILE_SIZE_MB}MB.`
+  )
+  .refine(
+    (fileList) => !fileList || fileList.length === 0 || (fileList.length === 1 && ACCEPTED_IMAGE_TYPES.includes(fileList[0].type)),
+    '.jpg, .jpeg, .png, .webp, .gif files are accepted.'
+  )
+  .transform((fileList) => (fileList && fileList.length > 0 ? fileList[0] : undefined));
 
 const communityFormSchema = z.object({
   communityName: z.string().min(3, { message: "Community name must be at least 3 characters." }).max(50, { message: "Community name must be 50 characters or less." }),
-  communityIcon: z.string().url({ message: "Please enter a valid URL for the icon." }).optional().or(z.literal('')),
+  communityIconFile: imageFileSchema,
   communityDescription: z.string().min(10, { message: "Description must be at least 10 characters." }).max(500, { message: "Description must be 500 characters or less." }),
   communityTags: z.string().optional().transform(val => val ? val.split(',').map(tag => tag.trim()).filter(tag => tag !== '') : []),
 });
@@ -29,30 +47,46 @@ export default function CreateCommunityPage() {
   const { createCommunity, user } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [iconPreview, setIconPreview] = useState<string | null>(null);
 
   const form = useForm<CommunityFormInputs>({
     resolver: zodResolver(communityFormSchema),
     defaultValues: {
       communityName: "",
-      communityIcon: "",
+      communityIconFile: undefined,
       communityDescription: "",
       communityTags: "",
     },
   });
+
+  const iconFileWatch = form.watch('communityIconFile');
+
+  useEffect(() => {
+    let objectUrl: string | null = null;
+    if (iconFileWatch instanceof File) {
+      objectUrl = URL.createObjectURL(iconFileWatch);
+      setIconPreview(objectUrl);
+    } else {
+      setIconPreview(null);
+    }
+    return () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [iconFileWatch]);
 
   const onSubmit: SubmitHandler<CommunityFormInputs> = async (data) => {
     if (!user) {
       toast({ title: "Authentication Error", description: "You must be logged in to create a community.", variant: "destructive" });
       return;
     }
-    setIsLoading(true);
+    setIsSubmitting(true);
     try {
       const newCommunityId = await createCommunity({
         name: data.communityName,
-        iconURL: data.communityIcon,
+        iconFile: data.communityIconFile, // Pass the File object
         description: data.communityDescription,
-        tags: data.communityTags as string[], // Zod transform ensures it's string[]
+        tags: data.communityTags as string[],
       });
       toast({ title: "Community Created!", description: `${data.communityName} has been successfully created.` });
       router.push(`/communities/${newCommunityId}`);
@@ -63,7 +97,7 @@ export default function CreateCommunityPage() {
         variant: "destructive",
       });
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -98,14 +132,28 @@ export default function CreateCommunityPage() {
               
               <FormField
                 control={form.control}
-                name="communityIcon"
-                render={({ field }) => (
+                name="communityIconFile"
+                render={({ field: { onChange, onBlur, name, ref } }) => (
                   <FormItem>
-                    <FormLabel>Community Icon (URL)</FormLabel>
+                    <FormLabel>Community Icon (Optional)</FormLabel>
                     <FormControl>
-                      <Input placeholder="https://example.com/icon.png" {...field} />
+                      <div className="flex items-center space-x-2">
+                        <Input 
+                          type="file"
+                          accept={ACCEPTED_IMAGE_TYPES.join(',')}
+                          onChange={(e) => onChange(e.target.files)}
+                          onBlur={onBlur}
+                          name={name}
+                          ref={ref}
+                          className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                        />
+                        <UploadCloud className="text-muted-foreground" />
+                      </div>
                     </FormControl>
-                    <FormDescription>Provide a URL for the community icon. File upload will be added later.</FormDescription>
+                    {iconPreview && (
+                      <Image src={iconPreview} alt="Icon preview" width={80} height={80} className="mt-2 rounded-md object-cover border" data-ai-hint="community icon" />
+                    )}
+                    <FormDescription>Upload an icon for your community (max {MAX_FILE_SIZE_MB}MB).</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -140,8 +188,8 @@ export default function CreateCommunityPage() {
                 )}
               />
               
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Create Community"}
+              <Button type="submit" className="w-full" disabled={isSubmitting}>
+                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Create Community"}
               </Button>
             </form>
           </Form>

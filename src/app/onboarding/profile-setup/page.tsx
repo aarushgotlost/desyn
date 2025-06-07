@@ -14,14 +14,32 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { useAuth, type UserProfile } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import { Loader2, UserCircle } from 'lucide-react';
+import { Loader2, UserCircle, UploadCloud } from 'lucide-react';
 import Image from 'next/image';
+
+const MAX_FILE_SIZE_MB = 5;
+const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+
+const imageFileSchema = z
+  .instanceof(FileList)
+  .optional()
+  .refine(
+    (fileList) => !fileList || fileList.length === 0 || (fileList.length === 1 && fileList[0].size <= MAX_FILE_SIZE_BYTES),
+    `Max file size is ${MAX_FILE_SIZE_MB}MB.`
+  )
+  .refine(
+    (fileList) => !fileList || fileList.length === 0 || (fileList.length === 1 && ACCEPTED_IMAGE_TYPES.includes(fileList[0].type)),
+    '.jpg, .jpeg, .png, .webp, .gif files are accepted.'
+  )
+  .transform((fileList) => (fileList && fileList.length > 0 ? fileList[0] : undefined));
+
 
 const profileSetupSchema = z.object({
   displayName: z.string().min(2, { message: "Name must be at least 2 characters." }).max(50, { message: "Name cannot exceed 50 characters."}),
-  photoURL: z.string().url({ message: "Please enter a valid URL for your profile picture." }).optional().or(z.literal('')),
+  photoFile: imageFileSchema,
   bio: z.string().max(200, { message: "Bio cannot exceed 200 characters." }).optional(),
-  techStack: z.string().optional(), // Will be comma-separated string, converted to array in AuthContext
+  techStack: z.string().optional(), 
 });
 
 type ProfileSetupFormInputs = z.infer<typeof profileSetupSchema>;
@@ -30,38 +48,65 @@ export default function ProfileSetupPage() {
   const { user, userProfile, updateCurrentProfile, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   const form = useForm<ProfileSetupFormInputs>({
     resolver: zodResolver(profileSetupSchema),
     defaultValues: {
       displayName: '',
-      photoURL: '',
+      photoFile: undefined,
       bio: '',
       techStack: '',
     },
   });
 
+  const photoFileWatch = form.watch('photoFile');
+
   useEffect(() => {
     if (!authLoading && user) {
       form.reset({
         displayName: userProfile?.displayName || user.displayName || '',
-        photoURL: userProfile?.photoURL || user.photoURL || 'https://placehold.co/120x120.png',
+        // photoFile is for new uploads, initial preview is handled by previewUrl state
+        photoFile: undefined, 
         bio: userProfile?.bio || '',
         techStack: userProfile?.techStack?.join(', ') || '',
       });
+      setPreviewUrl(userProfile?.photoURL || null); // Set initial preview from existing profile
     }
      if (!authLoading && !user) {
-      router.replace('/login'); // Should not happen due to AuthGuard, but defensive
+      router.replace('/login'); 
     }
   }, [user, userProfile, authLoading, form, router]);
 
+
+  useEffect(() => {
+    let objectUrl: string | null = null;
+    if (photoFileWatch instanceof File) {
+      objectUrl = URL.createObjectURL(photoFileWatch);
+      setPreviewUrl(objectUrl);
+    } else if (!photoFileWatch && userProfile?.photoURL) {
+      // If file is cleared and there was an original profile URL, show original
+      setPreviewUrl(userProfile.photoURL);
+    } else if (!photoFileWatch) {
+      // If file is cleared and no original, clear preview
+      setPreviewUrl(null);
+    }
+  
+    return () => {
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [photoFileWatch, userProfile?.photoURL]);
+
+
   const onSubmit: SubmitHandler<ProfileSetupFormInputs> = async (data) => {
-    setIsLoading(true);
+    setIsSubmitting(true);
     try {
-      const profileUpdateData: Partial<UserProfile> = {
+      const profileUpdateData = {
         displayName: data.displayName,
-        photoURL: data.photoURL || null, // Ensure empty string becomes null
+        photoFile: data.photoFile, // Pass the File object
         bio: data.bio,
         techStack: data.techStack ? data.techStack.split(',').map(s => s.trim()).filter(s => s) : [],
         onboardingCompleted: true,
@@ -76,11 +121,11 @@ export default function ProfileSetupPage() {
         variant: "destructive",
       });
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
   
-  if (authLoading || (!user && !authLoading)) { // Show loading if auth is loading or user is unexpectedly null
+  if (authLoading || (!user && !authLoading)) { 
     return (
       <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center p-4">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -116,17 +161,28 @@ export default function ProfileSetupPage() {
 
               <FormField
                 control={form.control}
-                name="photoURL"
-                render={({ field }) => (
+                name="photoFile"
+                render={({ field: { onChange, onBlur, name, ref } }) => (
                   <FormItem>
-                    <FormLabel>Profile Picture URL</FormLabel>
+                    <FormLabel>Profile Picture</FormLabel>
                     <FormControl>
-                      <Input placeholder="https://example.com/your-image.png" {...field} />
+                      <div className="flex items-center space-x-2">
+                        <Input 
+                          type="file" 
+                          accept={ACCEPTED_IMAGE_TYPES.join(',')}
+                          onChange={(e) => onChange(e.target.files)} 
+                          onBlur={onBlur} 
+                          name={name} 
+                          ref={ref}
+                          className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                        />
+                         <UploadCloud className="text-muted-foreground" />
+                      </div>
                     </FormControl>
-                     {field.value && (
-                        <Image src={field.value} alt="Profile preview" width={80} height={80} className="mt-2 rounded-full object-cover" data-ai-hint="user avatar" onError={(e) => (e.currentTarget.src = 'https://placehold.co/80x80.png')} />
+                     {previewUrl && (
+                        <Image src={previewUrl} alt="Profile preview" width={80} height={80} className="mt-2 rounded-full object-cover border" data-ai-hint="user avatar" />
                      )}
-                    <FormDescription>Link to your avatar image.</FormDescription>
+                    <FormDescription>Upload your avatar (max {MAX_FILE_SIZE_MB}MB).</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -161,8 +217,8 @@ export default function ProfileSetupPage() {
                 )}
               />
               
-              <Button type="submit" className="w-full" disabled={isLoading || authLoading}>
-                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Save Profile & Continue"}
+              <Button type="submit" className="w-full" disabled={isSubmitting || authLoading}>
+                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Save Profile & Continue"}
               </Button>
             </form>
           </Form>
@@ -171,4 +227,3 @@ export default function ProfileSetupPage() {
     </div>
   );
 }
-
