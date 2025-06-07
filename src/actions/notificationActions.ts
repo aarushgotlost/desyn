@@ -1,6 +1,6 @@
 
 'use server';
-import { db }_ from '@/lib/firebase';
+import { db } from '@/lib/firebase';
 import { doc, updateDoc, collection, query, where, getDocs, writeBatch } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
 
