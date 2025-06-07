@@ -387,24 +387,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
 
         if (data.photoDataUrl !== undefined) {
-          if (data.photoDataUrl === null) { // User wants to remove avatar
-            if (auth.currentUser.photoURL !== null) { // Only update if it's currently set
+          if (data.photoDataUrl === null) { 
+            if (auth.currentUser.photoURL !== null) { 
               updatesForFirebaseAuth.photoURL = null;
               needsFirebaseAuthUpdate = true;
             }
-          } else if (typeof data.photoDataUrl === 'string' && !data.photoDataUrl.startsWith('data:')) { 
-            // If it's a string but NOT a data URI, assume it's a valid (short) URL.
-            // This is a less likely scenario for new uploads via the form, which produce data URIs.
-            if (data.photoDataUrl !== auth.currentUser.photoURL) {
-              updatesForFirebaseAuth.photoURL = data.photoDataUrl;
-              needsFirebaseAuthUpdate = true;
+          } else if (typeof data.photoDataUrl === 'string') {
+            if (data.photoDataUrl.trim() !== '' && !data.photoDataUrl.startsWith('data:')) {
+              if (data.photoDataUrl !== auth.currentUser.photoURL) {
+                updatesForFirebaseAuth.photoURL = data.photoDataUrl;
+                needsFirebaseAuthUpdate = true;
+              }
             }
           }
-          // If data.photoDataUrl is a data URI (starts with 'data:'), we do NOT update 
-          // Firebase Auth's photoURL with it to prevent the "Photo URL too long" error.
-          // The image will be in Firestore as a data URI and displayed from there.
         }
-
 
         if (needsFirebaseAuthUpdate && Object.keys(updatesForFirebaseAuth).length > 0) {
           await updateFirebaseUserProfile(auth.currentUser, updatesForFirebaseAuth);
@@ -438,11 +434,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!user) throw new Error("User not authenticated");
     setLoading(true);
     try {
-      let iconStorageURL: string | null = null;
-      // if (data.iconFile) {
-      //   iconStorageURL = await uploadImageToStorage(data.iconFile, `community_icons/${user.uid}/${Date.now()}_${data.iconFile.name}`);
-      // }
-
       const communityColRef = collection(db, 'communities');
       const communityPayload: { [key: string]: any } = {
         name: data.name,
@@ -452,7 +443,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         memberCount: 1,
         members: [user.uid],
         createdAt: serverTimestamp(),
-        iconURL: iconStorageURL,
+        iconURL: null, 
       };
 
       if (data.iconFile) {
@@ -495,12 +486,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
 
     try {
-      let imageStorageURL: string | null = null;
-      // if (data.imageFile) {
-      //   const filePath = `post_images/${user.uid}/${Date.now()}_${data.imageFile.name}`;
-      //   imageStorageURL = await uploadImageToStorage(data.imageFile, filePath);
-      // }
-
       const postColRef = collection(db, 'posts');
       const postPayload: { [key: string]: any } = {
         title: data.title,
@@ -515,7 +500,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         createdAt: serverTimestamp(),
         likes: 0,
         commentsCount: 0,
-        imageURL: imageStorageURL,
+        imageURL: null, 
       };
 
       if (data.imageFile) {
@@ -585,3 +570,4 @@ export const useAuth = () => {
   }
   return context;
 };
+
