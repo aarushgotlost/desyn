@@ -36,12 +36,12 @@ export default async function CommunitiesPage() {
             <Card key={community.id} className="flex flex-col overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300">
               <CardHeader className="flex flex-row items-start space-x-4 p-4">
                 <Image 
-                  src={community.iconURL || "https://placehold.co/80x80.png?text=No+Icon"} 
-                  alt={`${community.name} icon`} 
+                  src={community.iconURL || "https://placehold.co/60x60.png?text=Icon"} 
+                  alt={`${community.name} community icon`} 
                   width={60} 
                   height={60} 
                   className="rounded-lg object-cover"
-                  data-ai-hint="community logo"
+                  data-ai-hint="community icon small"
                 />
                 <div className="flex-1">
                   <Link href={`/communities/${community.id}`}>
@@ -72,10 +72,6 @@ export default async function CommunitiesPage() {
       ) : (
         <p className="text-muted-foreground col-span-full text-center py-10">No communities found. Why not create one?</p>
       )}
-       {/* Placeholder for pagination or "load more" */}
-       {/* <div className="text-center mt-8">
-        <Button variant="outline">Load More Communities</Button>
-      </div> */}
     </div>
   );
 }

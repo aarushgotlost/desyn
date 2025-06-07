@@ -10,7 +10,6 @@ import { getPostDetails } from "@/services/firestoreService";
 import type { Post } from "@/types/data";
 import { formatDistanceToNowStrict } from 'date-fns';
 import { LikeButton } from "@/components/posts/LikeButton";
-// Removed MarkAsSolvedButton import
 import { CommentForm } from "@/components/comments/CommentForm";
 import { CommentList } from "@/components/comments/CommentList";
 import { unstable_noStore as noStore } from 'next/cache';
@@ -41,8 +40,8 @@ export default async function PostDetailsPage({ params }: { params: { postId: st
               <Avatar className="h-8 w-8">
                 <AvatarImage 
                   src={post.authorAvatar || undefined} 
-                  alt={post.authorName} 
-                  data-ai-hint="user avatar"
+                  alt={post.authorName ? `${post.authorName}'s avatar` : 'User avatar'}
+                  data-ai-hint="user avatar small"
                 />
                 <AvatarFallback>{post.authorName?.substring(0,1).toUpperCase() || 'A'}</AvatarFallback>
               </Avatar>
@@ -59,11 +58,11 @@ export default async function PostDetailsPage({ params }: { params: { postId: st
             <div className="my-6 overflow-hidden rounded-lg shadow-md">
               <Image 
                 src={post.imageURL} 
-                alt={post.title} 
+                alt={post.title || "Post image"} 
                 width={800} 
                 height={400} 
                 className="w-full h-auto object-cover" 
-                data-ai-hint="post image content"
+                data-ai-hint="post image content large"
               />
             </div>
           )}
@@ -86,7 +85,6 @@ export default async function PostDetailsPage({ params }: { params: { postId: st
                 </Link>
             </Button>
           </div>
-          {/* MarkAsSolvedButton removed */}
         </CardFooter>
       </Card>
 

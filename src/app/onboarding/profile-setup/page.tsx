@@ -17,13 +17,13 @@ import { useRouter } from 'next/navigation';
 import { Loader2, UserCircle, UploadCloud, Trash2 } from 'lucide-react';
 import Image from 'next/image';
 
-const MAX_DATA_URL_SIZE_MB = 1; // Roughly 1MB limit for Firestore field
+const MAX_DATA_URL_SIZE_MB = 1; 
 const MAX_DATA_URL_SIZE_BYTES = MAX_DATA_URL_SIZE_MB * 1024 * 1024;
 const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
 
 const profileSetupSchema = z.object({
   displayName: z.string().min(2, { message: "Name must be at least 2 characters." }).max(50, { message: "Name cannot exceed 50 characters."}),
-  photoDataUrl: z.string().optional().nullable() // Store as Data URL string
+  photoDataUrl: z.string().optional().nullable() 
     .refine(
       (dataUrl) => !dataUrl || dataUrl.length <= MAX_DATA_URL_SIZE_BYTES,
       `Image size is too large (max ${MAX_DATA_URL_SIZE_MB}MB). Please choose a smaller image.`
@@ -70,13 +70,13 @@ export default function ProfileSetupPage() {
 
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setFileError(null); // Clear previous file errors
+    setFileError(null); 
     const file = event.target.files?.[0];
     if (file) {
       if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
         setFileError('Invalid file type. Please select an image (jpg, png, webp, gif).');
-        form.setValue('photoDataUrl', previewUrl); // Reset to previous or null
-        event.target.value = ''; // Clear the file input
+        form.setValue('photoDataUrl', previewUrl); 
+        event.target.value = ''; 
         return;
       }
       
@@ -85,8 +85,8 @@ export default function ProfileSetupPage() {
         const dataUrl = reader.result as string;
         if (dataUrl.length > MAX_DATA_URL_SIZE_BYTES) {
           setFileError(`Image is too large (max ${MAX_DATA_URL_SIZE_MB}MB). Please choose a smaller image or resize it.`);
-          form.setValue('photoDataUrl', previewUrl); // Reset to previous or null
-          event.target.value = ''; // Clear the file input
+          form.setValue('photoDataUrl', previewUrl); 
+          event.target.value = ''; 
           return;
         }
         setPreviewUrl(dataUrl);
@@ -97,17 +97,12 @@ export default function ProfileSetupPage() {
         event.target.value = ''; 
       };
       reader.readAsDataURL(file);
-    } else {
-      // No file selected, if user had a preview, keep it unless they explicitly remove
-      // form.setValue('photoDataUrl', null);
-      // setPreviewUrl(null); // Or keep previous if desired
     }
   };
 
   const handleRemoveImage = () => {
     setPreviewUrl(null);
     form.setValue('photoDataUrl', null, { shouldValidate: true });
-    // Clear the file input if it's holding a reference
     const fileInput = document.getElementById('photo-file-input') as HTMLInputElement;
     if (fileInput) fileInput.value = '';
      setFileError(null);
@@ -180,7 +175,7 @@ export default function ProfileSetupPage() {
                 <FormLabel>Profile Picture</FormLabel>
                 <div className="flex items-center space-x-3">
                     {previewUrl ? (
-                        <Image src={previewUrl} alt="Profile preview" width={80} height={80} className="rounded-full object-cover border" data-ai-hint="user avatar"/>
+                        <Image src={previewUrl} alt="Profile picture preview" width={80} height={80} className="rounded-full object-cover border" data-ai-hint="user avatar preview"/>
                     ) : (
                         <div className="w-20 h-20 rounded-full bg-muted border flex items-center justify-center">
                             <UserCircle className="w-10 h-10 text-muted-foreground" />
@@ -193,9 +188,10 @@ export default function ProfileSetupPage() {
                           accept={ACCEPTED_IMAGE_TYPES.join(',')}
                           onChange={handleFileChange}
                           className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                          aria-label="Upload profile picture"
                       />
                        {previewUrl && (
-                        <Button type="button" variant="outline" size="sm" onClick={handleRemoveImage}>
+                        <Button type="button" variant="outline" size="sm" onClick={handleRemoveImage} aria-label="Remove profile picture">
                           <Trash2 className="mr-2 h-4 w-4" /> Remove Image
                         </Button>
                       )}
@@ -203,7 +199,6 @@ export default function ProfileSetupPage() {
                 </div>
                 <FormDescription className="mt-1">Upload your avatar (max {MAX_DATA_URL_SIZE_MB}MB). Larger images may impact performance.</FormDescription>
                  {fileError && <p className="text-sm font-medium text-destructive">{fileError}</p>}
-                 {/* Display Zod validation error for photoDataUrl field */}
                  <FormField
                     control={form.control}
                     name="photoDataUrl"
@@ -250,5 +245,3 @@ export default function ProfileSetupPage() {
     </div>
   );
 }
-
-    

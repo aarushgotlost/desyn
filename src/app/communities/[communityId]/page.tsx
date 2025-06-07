@@ -12,7 +12,6 @@ import { CommunityJoinButton } from '@/components/communities/CommunityJoinButto
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CommunityChatInterface } from "@/components/communities/CommunityChatInterface";
 import { LikeButton } from "@/components/posts/LikeButton";
-// Removed MarkAsSolvedButton import
 import { unstable_noStore as noStore } from 'next/cache';
 
 export default async function CommunityPage({ params }: { params: { communityId: string } }) {
@@ -33,12 +32,12 @@ export default async function CommunityPage({ params }: { params: { communityId:
         <CardHeader className="bg-muted/30 p-6">
           <div className="flex flex-col md:flex-row items-start gap-6">
             <Image 
-              src={community.iconURL || "https://placehold.co/100x100.png?text=No+Icon"} 
-              alt={`${community.name} icon`} 
+              src={community.iconURL || "https://placehold.co/100x100.png?text=Icon"} 
+              alt={`${community.name} community icon`} 
               width={100} 
               height={100} 
               className="rounded-xl border object-cover"
-              data-ai-hint="community logo"
+              data-ai-hint="community icon large"
             />
             <div className="flex-1">
               <CardTitle className="text-3xl font-bold font-headline mb-1">{community.name}</CardTitle>
@@ -88,12 +87,12 @@ export default async function CommunityPage({ params }: { params: { communityId:
                         <div className="flex items-center space-x-3 mb-2">
                           <Link href={`/profile/${post.authorId}`} className="flex-shrink-0"> 
                             <Image 
-                                src={post.authorAvatar || "https://placehold.co/40x40.png?text=N/A"} 
-                                alt={post.authorName} 
+                                src={post.authorAvatar || "https://placehold.co/40x40.png?text=User"} 
+                                alt={post.authorName ? `${post.authorName}'s avatar` : 'User avatar'} 
                                 width={40} 
                                 height={40} 
                                 className="rounded-full object-cover"
-                                data-ai-hint="profile avatar"
+                                data-ai-hint="user avatar small"
                             />
                           </Link>
                           <div>
@@ -112,11 +111,11 @@ export default async function CommunityPage({ params }: { params: { communityId:
                             <Link href={`/posts/${post.id}`}>
                               <Image 
                                 src={post.imageURL} 
-                                alt={post.title} 
+                                alt={post.title || "Post image"} 
                                 width={600} 
                                 height={300} 
                                 className="w-full h-auto object-cover" 
-                                data-ai-hint="post image"
+                                data-ai-hint="post image content"
                               />
                             </Link>
                           </div>
@@ -146,7 +145,6 @@ export default async function CommunityPage({ params }: { params: { communityId:
                              </Link>
                           </Button>
                         </div>
-                        {/* MarkAsSolvedButton removed */}
                     </CardFooter>
                 </Card>
               );

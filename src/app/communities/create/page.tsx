@@ -84,7 +84,7 @@ export default function CreateCommunityPage() {
     try {
       const newCommunityId = await createCommunity({
         name: data.communityName,
-        iconFile: data.communityIconFile, // Pass the File object
+        iconFile: data.communityIconFile, 
         description: data.communityDescription,
         tags: data.communityTags as string[],
       });
@@ -151,7 +151,7 @@ export default function CreateCommunityPage() {
                       </div>
                     </FormControl>
                     {iconPreview && (
-                      <Image src={iconPreview} alt="Icon preview" width={80} height={80} className="mt-2 rounded-md object-cover border" data-ai-hint="community icon" />
+                      <Image src={iconPreview} alt="Community icon preview" width={80} height={80} className="mt-2 rounded-md object-cover border" data-ai-hint="community icon preview" />
                     )}
                     <FormDescription>Upload an icon for your community (max {MAX_FILE_SIZE_MB}MB).</FormDescription>
                     <FormMessage />

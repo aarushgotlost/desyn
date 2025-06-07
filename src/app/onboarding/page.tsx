@@ -3,31 +3,30 @@ import { OnboardingClient } from '@/components/onboarding/OnboardingClient';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Image from 'next/image';
 
-// These steps are now purely informational, profile setup is handled separately.
 const informationalOnboardingSteps = [
   {
     title: "Connect with Developers",
     description: "Find and connect with developers from around the globe. Share your ideas and collaborate on exciting projects.",
     image: "https://placehold.co/400x300.png",
-    imageHint: "network connection"
+    imageHint: "developer network connection"
   },
   {
     title: "Solve Bugs Together",
     description: "Post your coding challenges and get help from the community. Offer your expertise to solve others' bugs.",
     image: "https://placehold.co/400x300.png",
-    imageHint: "code bug"
+    imageHint: "team coding bug"
   },
   {
     title: "Join Communities",
     description: "Explore and join communities based on your interests, favorite technologies, or programming languages.",
     image: "https://placehold.co/400x300.png",
-    imageHint: "people group"
+    imageHint: "community group people"
   },
   {
     title: "Share Your Knowledge",
     description: "Create posts, share code snippets, and write articles to showcase your skills and help others learn.",
     image: "https://placehold.co/400x300.png",
-    imageHint: "sharing knowledge"
+    imageHint: "knowledge sharing ideas"
   },
 ];
 
@@ -36,14 +35,11 @@ export default function OnboardingPage() {
     <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center p-4 bg-gradient-to-br from-primary/10 via-background to-background">
        <Card className="w-full max-w-2xl shadow-2xl overflow-hidden">
         <CardHeader className="text-center bg-muted/50 p-6">
-          <Image src="/logo.svg" alt="Desyn Logo" width={70} height={70} className="mx-auto mb-4" data-ai-hint="logo letter D C"/>
+          <Image src="/logo.svg" alt="Desyn App Logo" width={70} height={70} className="mx-auto mb-4" data-ai-hint="application logo D C large"/>
           <CardTitle className="text-3xl font-headline text-primary">Welcome to Desyn!</CardTitle>
           <CardDescription className="text-lg text-muted-foreground">Your journey to connect, learn, and grow starts here.</CardDescription>
         </CardHeader>
         <CardContent className="p-6 md:p-10">
-          {/* OnboardingClient now just shows these informational slides */}
-          {/* The "Sign Up" / "Log In" buttons at the end will now act as simple links */}
-          {/* Actual profile setup is handled by /onboarding/profile-setup and AuthGuard */}
           <OnboardingClient steps={informationalOnboardingSteps} />
         </CardContent>
       </Card>

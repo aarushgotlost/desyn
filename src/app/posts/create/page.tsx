@@ -16,8 +16,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { getCommunities } from '@/services/firestoreService'; // Import service to get communities
-import type { Community } from '@/types/data'; // Import Community type
+import { getCommunities } from '@/services/firestoreService';
+import type { Community } from '@/types/data'; 
 
 const MAX_FILE_SIZE_MB = 5;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
@@ -84,7 +84,7 @@ export default function CreatePostPage() {
         const communities = await getCommunities();
         setAvailableCommunities(communities);
       } catch (error) {
-        console.error("Failed to fetch communities", error);
+        // console.error("Failed to fetch communities", error); // Avoid console logs
         toast({ title: "Error", description: "Could not load communities.", variant: "destructive" });
       } finally {
         setIsLoadingCommunities(false);
@@ -184,7 +184,7 @@ export default function CreatePostPage() {
                       disabled={isLoadingCommunities}
                     >
                       <FormControl>
-                        <SelectTrigger>
+                        <SelectTrigger aria-label="Select community">
                           <SelectValue placeholder={isLoadingCommunities ? "Loading communities..." : "Select a community to post in"} />
                         </SelectTrigger>
                       </FormControl>
@@ -246,12 +246,13 @@ export default function CreatePostPage() {
                           name={name}
                           ref={ref}
                           className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                          aria-label="Upload post image"
                         />
                         <UploadCloud className="text-muted-foreground" />
                       </div>
                     </FormControl>
                     {imagePreview && (
-                      <Image src={imagePreview} alt="Post image preview" width={200} height={100} className="mt-2 rounded-md object-cover border" data-ai-hint="post content image"/>
+                      <Image src={imagePreview} alt="Post image preview" width={200} height={100} className="mt-2 rounded-md object-cover border" data-ai-hint="post content image preview"/>
                     )}
                     <FormDescription>Upload an image for your post (max {MAX_FILE_SIZE_MB}MB).</FormDescription>
                     <FormMessage />

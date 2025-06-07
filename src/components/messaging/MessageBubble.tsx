@@ -31,9 +31,9 @@ export function MessageBubble({ message, currentUserId, isCommunityChat = false 
   let messageTimestamp = 'Sending...';
   if (message.createdAt) {
     try {
-      messageTimestamp = format(new Date(message.createdAt), 'p'); // Parse ISO string
+      messageTimestamp = format(new Date(message.createdAt), 'p'); 
     } catch (e) {
-      console.warn("Failed to parse message createdAt string: ", message.createdAt);
+      // console.warn("Failed to parse message createdAt string: ", message.createdAt); // Avoid console logs
     }
   }
   
@@ -41,7 +41,7 @@ export function MessageBubble({ message, currentUserId, isCommunityChat = false 
     <div className={`flex items-start space-x-2 py-2 ${isCurrentUser ? 'justify-end' : ''}`}>
       {!isCurrentUser && (
         <Avatar className="h-8 w-8 self-start">
-          <AvatarImage src={message.senderAvatar || undefined} alt={message.senderName || 'User'} data-ai-hint="user avatar" />
+          <AvatarImage src={message.senderAvatar || undefined} alt={message.senderName || 'User avatar'} data-ai-hint="sender avatar small" />
           <AvatarFallback>{getInitials(message.senderName)}</AvatarFallback>
         </Avatar>
       )}
@@ -62,7 +62,7 @@ export function MessageBubble({ message, currentUserId, isCommunityChat = false 
       </div>
       {isCurrentUser && (
         <Avatar className="h-8 w-8 self-start">
-          <AvatarImage src={message.senderAvatar || undefined} alt={message.senderName || 'User'} data-ai-hint="user avatar" />
+          <AvatarImage src={message.senderAvatar || undefined} alt={message.senderName || 'User avatar'} data-ai-hint="current user avatar small" />
           <AvatarFallback>{getInitials(message.senderName)}</AvatarFallback>
         </Avatar>
       )}

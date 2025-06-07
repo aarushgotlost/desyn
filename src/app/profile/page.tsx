@@ -15,6 +15,7 @@ import { format, formatDistanceToNowStrict } from 'date-fns';
 import { getUserPosts, getUserJoinedCommunities } from "@/services/firestoreService"; 
 import type { Post, Community } from "@/types/data";
 import { useToast } from "@/hooks/use-toast";
+import { unstable_noStore as noStore } from 'next/cache';
 
 
 const getInitials = (name: string | null | undefined): string => {
@@ -23,6 +24,7 @@ const getInitials = (name: string | null | undefined): string => {
 };
 
 export default function ProfilePage() {
+  noStore(); // Ensure dynamic data fetching
   const { user: currentUser, userProfile: currentUserProfile, loading: authLoading } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
@@ -87,7 +89,7 @@ export default function ProfilePage() {
         <CardContent className="pt-0">
           <div className="flex flex-col md:flex-row items-center md:items-end -mt-16 md:-mt-20 space-y-4 md:space-y-0 md:space-x-6 px-6 pb-6 border-b">
             <Avatar className="h-32 w-32 md:h-40 md:w-40 border-4 border-background shadow-lg">
-              <AvatarImage src={photoURL || undefined} alt={displayName || "User"} data-ai-hint="profile picture"/>
+              <AvatarImage src={photoURL || undefined} alt={displayName || "User profile picture"} data-ai-hint="profile picture user"/>
               <AvatarFallback className="text-4xl">{getInitials(displayName)}</AvatarFallback>
             </Avatar>
             <div className="flex-1 text-center md:text-left">
@@ -161,7 +163,6 @@ export default function ProfilePage() {
                 </CardHeader>
                 <CardFooter className="text-xs text-muted-foreground flex justify-between">
                   <span><ThumbsUp size={12} className="inline mr-1"/>{post.likes || 0} Likes &bull; <MessageIcon size={12} className="inline mr-1"/>{post.commentsCount || 0} Comments</span>
-                  {/* isSolved status display removed */}
                 </CardFooter>
               </Card>
             );
@@ -177,7 +178,7 @@ export default function ProfilePage() {
                 {joinedCommunities.map(community => (
                 <Card key={community.id} className="shadow-md hover:shadow-lg transition-shadow">
                     <CardContent className="p-4 flex items-center space-x-3">
-                    <Image src={community.iconURL || "https://placehold.co/40x40.png?text=N/A"} alt={community.name} width={40} height={40} className="rounded-md object-cover" data-ai-hint="community logo"/>
+                    <Image src={community.iconURL || "https://placehold.co/40x40.png?text=Icon"} alt={`${community.name} community icon`} width={40} height={40} className="rounded-md object-cover" data-ai-hint="community logo small"/>
                     <div>
                         <Link href={`/communities/${community.id}`}>
                         <h3 className="font-semibold text-sm hover:text-primary">{community.name}</h3>

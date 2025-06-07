@@ -46,7 +46,7 @@ export default function ChatPage({ params }: { params: { chatId: string } }) {
 
       if (isNearBottom || lastMessageIsOurs) {
           const timer = setTimeout(() => {
-              if (scrollableElement) { // Check again as component might unmount
+              if (scrollableElement) { 
                 scrollableElement.scrollTop = scrollableElement.scrollHeight;
               }
           }, 0);
@@ -73,19 +73,19 @@ export default function ChatPage({ params }: { params: { chatId: string } }) {
           setOtherParticipant(otherP || null);
         }
       } else {
-        console.error("Chat not found");
+        // console.error("Chat not found"); // Avoid console logs in prod
         router.push('/messages');
       }
     };
     fetchChatDetails();
 
     setIsLoadingMessages(true);
-    initialLoadDoneRef.current = false; // Reset for potential chatId changes
+    initialLoadDoneRef.current = false; 
     const unsubscribe = getChatMessages(chatId, (newMessages) => {
       setMessages(newMessages);
       setIsLoadingMessages(false);
     }, (error) => {
-      console.error("Error fetching chat messages:", error);
+      // console.error("Error fetching chat messages:", error); // Avoid console logs in prod
       setIsLoadingMessages(false);
     });
 
@@ -101,9 +101,8 @@ export default function ChatPage({ params }: { params: { chatId: string } }) {
     try {
       await sendMessage(chatId, userProfile, newMessageText);
       setNewMessageText('');
-      // The useEffect for [messages] will handle scrolling for our own message
     } catch (error) {
-      console.error("Error sending message:", error);
+      // console.error("Error sending message:", error); // Avoid console logs in prod
     } finally {
       setIsSending(false);
     }
@@ -125,12 +124,12 @@ export default function ChatPage({ params }: { params: { chatId: string } }) {
     <Card className="h-[calc(100vh-8rem-4rem)] md:h-[calc(100vh-8rem-1rem)] flex flex-col shadow-xl">
       <CardHeader className="border-b p-4">
         <div className="flex items-center space-x-3">
-          <Button variant="ghost" size="icon" className="md:hidden" onClick={() => router.push('/messages')}>
+          <Button variant="ghost" size="icon" className="md:hidden" onClick={() => router.push('/messages')} aria-label="Back to chats">
             <ArrowLeft className="h-5 w-5" />
           </Button>
           {otherParticipant && (
             <Avatar>
-              <AvatarImage src={otherParticipant.photoURL || undefined} alt={otherParticipant.displayName || 'User'} data-ai-hint="user avatar" />
+              <AvatarImage src={otherParticipant.photoURL || undefined} alt={otherParticipant.displayName || 'User avatar'} data-ai-hint="chat partner avatar" />
               <AvatarFallback>{getInitials(otherParticipant.displayName)}</AvatarFallback>
             </Avatar>
           )}
@@ -146,7 +145,6 @@ export default function ChatPage({ params }: { params: { chatId: string } }) {
         {messages.map((msg) => (
           <MessageBubble key={msg.id} message={msg} currentUserId={user.uid} />
         ))}
-        {/* Removed messagesEndRef as we scroll chatContentRef directly */}
       </CardContent>
       <CardFooter className="border-t p-4">
         <form onSubmit={handleSendMessage} className="flex w-full items-center space-x-2">
@@ -157,8 +155,9 @@ export default function ChatPage({ params }: { params: { chatId: string } }) {
             onChange={(e) => setNewMessageText(e.target.value)}
             className="flex-1"
             disabled={isSending || !chatId}
+            aria-label="Chat message input"
           />
-          <Button type="submit" size="icon" disabled={!newMessageText.trim() || isSending || !chatId}>
+          <Button type="submit" size="icon" disabled={!newMessageText.trim() || isSending || !chatId} aria-label="Send message">
             {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
           </Button>
         </form>

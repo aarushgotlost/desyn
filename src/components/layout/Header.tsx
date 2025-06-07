@@ -14,10 +14,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, User, Settings, PlusCircle, Users, HomeIcon, Bell } from 'lucide-react'; // Added Bell
+import { LogOut, User, Settings, PlusCircle, Users, HomeIcon, Bell } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { NotificationIcon } from '@/components/notifications/NotificationIcon'; // Import NotificationIcon
+import { NotificationIcon } from '@/components/notifications/NotificationIcon'; 
 
 export default function Header() {
   const { user, userProfile, logout, loading } = useAuth();
@@ -27,7 +27,8 @@ export default function Header() {
     { href: "/", label: "Home", icon: HomeIcon, authRequired: false },
     { href: "/communities", label: "Communities", icon: Users, authRequired: false },
     { href: "/posts/create", label: "Create Post", icon: PlusCircle, authRequired: true },
-    { href: "/notifications", label: "Notifications", icon: Bell, authRequired: true }, // Added Notifications link
+    // Notifications link is handled by NotificationIcon for desktop dropdown.
+    // For mobile, it's in BottomNavigationBar or could be added to user dropdown if needed.
   ];
 
   const getInitials = (name: string | null | undefined) => {
@@ -35,24 +36,22 @@ export default function Header() {
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
   }
 
-  if (['/login', '/signup', '/forgot-password', '/onboarding', '/onboarding/profile-setup'].includes(pathname)) {
+  const authRestrictedPages = ['/login', '/signup', '/forgot-password', '/onboarding', '/onboarding/profile-setup'];
+  if (authRestrictedPages.includes(pathname)) {
     return null;
   }
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center justify-between">
-        <Link href="/" className="flex items-center gap-2 ml-2">
-          <Image src="/logo.svg" alt="Desyn Logo" width={30} height={30} data-ai-hint="logo letter D C" />
+        <Link href="/" className="flex items-center gap-2">
+          <Image src="/logo.svg" alt="Desyn App Logo" width={30} height={30} data-ai-hint="application logo D C small" />
           <span className="font-bold text-xl font-headline">Desyn</span>
         </Link>
         
         <nav className="hidden md:flex items-center space-x-6 text-sm font-medium">
           {navLinks.map(link => {
             if (link.authRequired && !user) return null;
-            // Special handling for notifications link to avoid conflict with NotificationIcon dropdown trigger
-            if (link.href === "/notifications") return null; 
-
             const isActive = (link.href === "/" && pathname === link.href) || (link.href !== "/" && pathname.startsWith(link.href));
             return (
               <Link
@@ -79,9 +78,9 @@ export default function Header() {
               <div className="hidden md:block">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+                    <Button variant="ghost" className="relative h-8 w-8 rounded-full" aria-label="User menu">
                       <Avatar className="h-8 w-8">
-                        <AvatarImage src={userProfile?.photoURL || user.photoURL || undefined} alt={userProfile?.displayName || user.displayName || "User"} />
+                        <AvatarImage src={userProfile?.photoURL || user.photoURL || undefined} alt={userProfile?.displayName || user.displayName || "User avatar"} />
                         <AvatarFallback>{getInitials(userProfile?.displayName || user.displayName)}</AvatarFallback>
                       </Avatar>
                     </Button>
@@ -113,11 +112,11 @@ export default function Header() {
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
+              {/* Mobile settings link - keep or remove based on whether NotificationIcon is sufficient or if more settings are needed quickly */}
               <div className="md:hidden">
-                <Button variant="ghost" size="icon" asChild>
+                <Button variant="ghost" size="icon" asChild aria-label="Open settings">
                   <Link href="/settings">
                     <Settings className="h-5 w-5" />
-                    <span className="sr-only">Settings</span>
                   </Link>
                 </Button>
               </div>

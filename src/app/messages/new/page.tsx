@@ -32,7 +32,7 @@ export default function NewMessagePage() {
   const [filteredUsers, setFilteredUsers] = useState<DisplayUser[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
-  const [isCreatingChat, setIsCreatingChat] = useState<string | null>(null); // Store UID of user being chatted with
+  const [isCreatingChat, setIsCreatingChat] = useState<string | null>(null); 
 
   useEffect(() => {
     async function fetchUsers() {
@@ -46,7 +46,7 @@ export default function NewMessagePage() {
         setUsers(allUsers); 
         setFilteredUsers(allUsers);
       } catch (error) {
-        console.error("Error fetching users:", error);
+        // console.error("Error fetching users:", error); // Avoid console logs
         toast({ title: "Error", description: "Could not load users.", variant: "destructive" });
       } finally {
         setIsLoadingUsers(false);
@@ -72,7 +72,6 @@ export default function NewMessagePage() {
     if (!currentUserProfile || !selectedUser.uid || selectedUser.uid === currentUserProfile.uid) return;
     setIsCreatingChat(selectedUser.uid);
     try {
-      // Create plain objects for the server action, containing only necessary fields for ChatParticipant
       const plainCurrentUserProfileArg = {
         uid: currentUserProfile.uid,
         displayName: currentUserProfile.displayName,
@@ -85,15 +84,13 @@ export default function NewMessagePage() {
           photoURL: selectedUser.photoURL,
       };
 
-      // Cast to UserProfile to satisfy the Server Action's signature.
-      // The Server Action internally only uses fields compatible with ChatParticipant.
       const chatId = await getOrCreateDirectChat(
         plainCurrentUserProfileArg as UserProfile, 
         plainOtherUserProfileArg as UserProfile
       );
       router.push(`/messages/${chatId}`);
     } catch (error: any) {
-      console.error("Error creating or getting chat:", error);
+      // console.error("Error creating or getting chat:", error); // Avoid console logs
       toast({ title: "Error", description: error.message || "Could not start chat.", variant: "destructive"});
     } finally {
       setIsCreatingChat(null);
@@ -151,6 +148,7 @@ export default function NewMessagePage() {
               value={searchTerm}
               onChange={handleSearch}
               disabled={isLoadingUsers || !!isCreatingChat}
+              aria-label="Search users"
             />
           </div>
 
@@ -177,7 +175,7 @@ export default function NewMessagePage() {
                   className="p-3 flex items-center space-x-3 hover:bg-muted/50 transition-colors"
                 >
                   <Avatar className="h-10 w-10">
-                    <AvatarImage src={user.photoURL || undefined} alt={user.displayName || "User"} data-ai-hint="user avatar" />
+                    <AvatarImage src={user.photoURL || undefined} alt={user.displayName ? `${user.displayName}'s avatar` : "User avatar"} data-ai-hint="user avatar small" />
                     <AvatarFallback>{getInitials(user.displayName)}</AvatarFallback>
                   </Avatar>
                   <div className="flex-1">
@@ -189,6 +187,7 @@ export default function NewMessagePage() {
                     variant="outline" 
                     onClick={() => !isCreatingChat && handleSelectUser(user)}
                     disabled={!!isCreatingChat && isCreatingChat !== user.uid}
+                    aria-label={`Chat with ${user.displayName || "user"}`}
                   >
                     {isCreatingChat === user.uid ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <MessageSquare className="mr-2 h-4 w-4" />}
                     {isCreatingChat === user.uid ? 'Starting...' : 'Chat'}
