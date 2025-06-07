@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState, useRef, FormEvent } from 'react';
+import { use, useEffect, useState, useRef, FormEvent } from 'react'; // Added 'use'
 import { useAuth } from '@/contexts/AuthContext';
 import { sendMessage } from '@/services/chatService'; // sendMessage is a Server Action
 import { getChatMessages } from '@/services/chatSubscriptionService'; // getChatMessages is for client-side listeners
@@ -11,7 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Send, Loader2, ArrowLeft } from 'lucide-react';
-import { useRouter } from 'next/navigation'; 
+import { useRouter } from 'next/navigation';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { MessageBubble, getInitials } from '@/components/messaging/MessageBubble';
@@ -27,7 +27,11 @@ export default function ChatPage({ params }: { params: { chatId: string } }) {
   const [otherParticipant, setOtherParticipant] = useState<ChatParticipant | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const chatId = params.chatId;
+  // As per Next.js warning, `params` (the prop) is treated as a Promise and should be unwrapped.
+  // The `as unknown as Promise<...>` cast is to align with the warning's implication,
+  // as the declared prop type `params: { chatId: string }` doesn't reflect it being a promise.
+  const resolvedParams = use(params as unknown as Promise<{ chatId: string }>);
+  const chatId = resolvedParams.chatId;
 
   useEffect(() => {
     if (messagesEndRef.current) {
@@ -43,6 +47,7 @@ export default function ChatPage({ params }: { params: { chatId: string } }) {
     }
 
     const fetchChatDetails = async () => {
+      if (!chatId) return; // Ensure chatId is resolved
       const chatDocRef = doc(db, 'chats', chatId);
       const chatSnap = await getDoc(chatDocRef);
       if (chatSnap.exists()) {
@@ -60,6 +65,10 @@ export default function ChatPage({ params }: { params: { chatId: string } }) {
     fetchChatDetails();
 
     setIsLoadingMessages(true);
+    if (!chatId) { // Prevent subscription if chatId is not yet available
+        setIsLoadingMessages(false);
+        return;
+    }
     const unsubscribe = getChatMessages(chatId, (newMessages) => {
       setMessages(newMessages);
       setIsLoadingMessages(false);
@@ -75,7 +84,7 @@ export default function ChatPage({ params }: { params: { chatId: string } }) {
 
   const handleSendMessage = async (e: FormEvent) => {
     e.preventDefault();
-    if (!newMessageText.trim() || !user || !userProfile || isSending) return;
+    if (!newMessageText.trim() || !user || !userProfile || isSending || !chatId) return;
 
     setIsSending(true);
     try {
@@ -138,9 +147,9 @@ export default function ChatPage({ params }: { params: { chatId: string } }) {
             value={newMessageText}
             onChange={(e) => setNewMessageText(e.target.value)}
             className="flex-1"
-            disabled={isSending}
+            disabled={isSending || !chatId}
           />
-          <Button type="submit" size="icon" disabled={!newMessageText.trim() || isSending}>
+          <Button type="submit" size="icon" disabled={!newMessageText.trim() || isSending || !chatId}>
             {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
           </Button>
         </form>
