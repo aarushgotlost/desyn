@@ -4,13 +4,13 @@ import { getFirestore, type Firestore } from 'firebase/firestore';
 import { getStorage, type FirebaseStorage } from 'firebase/storage';
 
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "your-api-key",
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "your-project-id.firebaseapp.com",
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "your-project-id",
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "your-project-id.appspot.com",
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "your-sender-id",
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "your-app-id",
-  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID || "G-your-measurement-id",
+  apiKey: "AIzaSyDXpHoGCjeavDoJog2gSVj6lfPnVFY5oGs",
+  authDomain: "desyn-dcef7.firebaseapp.com",
+  projectId: "desyn-dcef7",
+  storageBucket: "desyn-dcef7.appspot.com", // Corrected common typo: firebasestorage.app to appspot.com
+  messagingSenderId: "655959843333",
+  appId: "1:655959843333:web:950355b7bfa7ec6fb8726c",
+  measurementId: "G-K1HYBSY780",
 };
 
 let app: FirebaseApp;
