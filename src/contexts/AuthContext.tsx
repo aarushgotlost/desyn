@@ -15,7 +15,7 @@ import {
   updateProfile as updateFirebaseUserProfile,
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, serverTimestamp, collection, addDoc, DocumentReference, query, where, getDocs, updateDoc, Timestamp } from 'firebase/firestore';
-import { useRouter } from 'next/navigation'; // Added missing import
+import { useRouter } from 'next/navigation';
 
 export interface UserProfile {
   uid: string;
@@ -26,9 +26,9 @@ export interface UserProfile {
   techStack?: string[];
   interests?: string[];
   onboardingCompleted: boolean;
-  createdAt?: Timestamp | Date;
-  lastLogin?: Timestamp | Date;
-  updatedAt?: Timestamp | Date;
+  createdAt?: string; // ISO string
+  lastLogin?: string; // ISO string
+  updatedAt?: string; // ISO string
   followersCount?: number;
   followingCount?: number;
 }
@@ -97,11 +97,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const userDocRef = doc(db, 'users', firebaseUser.uid);
         const userDocSnap = await getDoc(userDocRef);
         if (userDocSnap.exists()) {
-          const profileData = userDocSnap.data() as UserProfile;
+          let profileData = userDocSnap.data() as UserProfile;
+           // Convert Timestamps from Firestore to ISO strings if they are not already
+          const dateFields: (keyof UserProfile)[] = ['createdAt', 'lastLogin', 'updatedAt'];
+          dateFields.forEach(field => {
+            const val = profileData[field];
+            if (val && typeof (val as any).toDate === 'function') { // Firestore Timestamp
+              (profileData as any)[field] = (val as Timestamp).toDate().toISOString();
+            } else if (val instanceof Date) { // JS Date
+              (profileData as any)[field] = val.toISOString();
+            }
+          });
           if (typeof profileData.onboardingCompleted === 'undefined') {
             profileData.onboardingCompleted = false;
           }
-          // Ensure follower/following counts exist
           profileData.followersCount = profileData.followersCount || 0;
           profileData.followingCount = profileData.followingCount || 0;
           setUserProfile(profileData);
@@ -113,12 +122,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             displayName: firebaseUser.displayName,
             photoURL: initialPhotoURL,
             onboardingCompleted: false,
-            createdAt: serverTimestamp(),
-            lastLogin: serverTimestamp(),
+            createdAt: new Date().toISOString(), // Use ISO string
+            lastLogin: new Date().toISOString(), // Use ISO string
             followersCount: 0,
             followingCount: 0,
           };
-          await setDoc(userDocRef, newUserProfile);
+          await setDoc(userDocRef, {
+            ...newUserProfile,
+            createdAt: serverTimestamp(), // Write as serverTimestamp
+            lastLogin: serverTimestamp(), // Write as serverTimestamp
+          });
           setUserProfile(newUserProfile);
         }
         await setDoc(userDocRef, { lastLogin: serverTimestamp() }, { merge: true });
@@ -137,13 +150,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const userDocRef = doc(db, 'users', firebaseUser.uid);
     const userDocSnap = await getDoc(userDocRef);
 
-    let profileData: UserProfile;
+    let profileDataToSet: Omit<UserProfile, 'createdAt' | 'lastLogin'> & { createdAt: Timestamp, lastLogin: Timestamp };
+    let clientProfileData: UserProfile;
 
     if (!userDocSnap.exists()) {
       const { email, displayName } = firebaseUser;
       const initialPhotoURL = additionalData.photoURL !== undefined ? additionalData.photoURL : firebaseUser.photoURL;
 
-      profileData = {
+      profileDataToSet = {
         uid: firebaseUser.uid,
         email,
         displayName: additionalData.displayName || displayName,
@@ -152,32 +166,55 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         techStack: additionalData.techStack || [],
         interests: additionalData.interests || [],
         onboardingCompleted: additionalData.onboardingCompleted || false,
-        createdAt: serverTimestamp(),
-        lastLogin: serverTimestamp(),
-        followersCount: 0, // Initialize
-        followingCount: 0, // Initialize
+        followersCount: 0,
+        followingCount: 0,
         ...additionalData,
+        createdAt: serverTimestamp() as Timestamp, // For Firestore
+        lastLogin: serverTimestamp() as Timestamp, // For Firestore
+      };
+      clientProfileData = {
+        ...profileDataToSet,
+        createdAt: new Date().toISOString(), // For immediate client state
+        lastLogin: new Date().toISOString(), // For immediate client state
       };
       try {
-        await setDoc(userDocRef, profileData);
+        await setDoc(userDocRef, profileDataToSet);
       } catch (error) {
         console.error("Error creating user profile: ", error);
         throw error;
       }
     } else {
-       profileData = userDocSnap.data() as UserProfile;
-        if (typeof profileData.onboardingCompleted === 'undefined') {
-            profileData.onboardingCompleted = false; 
-            await setDoc(userDocRef, { onboardingCompleted: false, lastLogin: serverTimestamp() }, { merge: true });
-        } else {
-            await setDoc(userDocRef, { lastLogin: serverTimestamp() }, { merge: true });
+       let existingData = userDocSnap.data() as any;
+        clientProfileData = {
+            ...existingData,
+            id: userDocSnap.id, // ensure id is present
+            createdAt: (existingData.createdAt as Timestamp)?.toDate ? (existingData.createdAt as Timestamp).toDate().toISOString() : new Date().toISOString(),
+            lastLogin: (existingData.lastLogin as Timestamp)?.toDate ? (existingData.lastLogin as Timestamp).toDate().toISOString() : new Date().toISOString(),
+            updatedAt: (existingData.updatedAt as Timestamp)?.toDate ? (existingData.updatedAt as Timestamp).toDate().toISOString() : undefined,
+            onboardingCompleted: typeof existingData.onboardingCompleted === 'undefined' ? false : existingData.onboardingCompleted,
+            followersCount: existingData.followersCount || 0,
+            followingCount: existingData.followingCount || 0,
+        } as UserProfile;
+        
+        const updatePayload: { onboardingCompleted?: boolean, lastLogin: Timestamp, followersCount?: number, followingCount?: number } = {
+            lastLogin: serverTimestamp() as Timestamp,
+        };
+        if (typeof clientProfileData.onboardingCompleted === 'undefined') {
+            updatePayload.onboardingCompleted = false;
+            clientProfileData.onboardingCompleted = false;
         }
-        // Ensure counts exist if fetching an older profile
-        profileData.followersCount = profileData.followersCount || 0;
-        profileData.followingCount = profileData.followingCount || 0;
+        if (typeof clientProfileData.followersCount !== 'number') {
+            updatePayload.followersCount = 0;
+            clientProfileData.followersCount = 0;
+        }
+        if (typeof clientProfileData.followingCount !== 'number') {
+            updatePayload.followingCount = 0;
+            clientProfileData.followingCount = 0;
+        }
+        await setDoc(userDocRef, updatePayload , { merge: true });
     }
-    setUserProfile(profileData); 
-    return profileData; 
+    setUserProfile(clientProfileData); 
+    return clientProfileData; 
   };
 
   const signInWithGoogle = async () => {
@@ -211,7 +248,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const result = await createUserWithEmailAndPassword(auth, email, password);
       if (result.user) {
         await updateFirebaseUserProfile(result.user, { displayName: name }); 
-        await createUserProfileDocument(result.user, { displayName: name, interests, onboardingCompleted: false, photoURL: null, followersCount: 0, followingCount: 0 });
+        await createUserProfileDocument(result.user, { displayName: name, interests, onboardingCompleted: false, photoURL: null });
         router.push('/onboarding/profile-setup');
       }
     } catch (error) {
@@ -230,14 +267,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const userDocRef = doc(db, 'users', result.user.uid);
         const userDocSnap = await getDoc(userDocRef);
         if (userDocSnap.exists()) {
-            const profile = userDocSnap.data() as UserProfile;
-             if (typeof profile.onboardingCompleted === 'undefined') {
-                profile.onboardingCompleted = false; 
-            }
-            profile.followersCount = profile.followersCount || 0;
-            profile.followingCount = profile.followingCount || 0;
-            setUserProfile(profile); 
-            if (!profile.onboardingCompleted) {
+            let profile = userDocSnap.data() as any;
+            const clientProfile = {
+                ...profile,
+                id: userDocSnap.id,
+                createdAt: (profile.createdAt as Timestamp)?.toDate ? (profile.createdAt as Timestamp).toDate().toISOString() : new Date().toISOString(),
+                lastLogin: (profile.lastLogin as Timestamp)?.toDate ? (profile.lastLogin as Timestamp).toDate().toISOString() : new Date().toISOString(),
+                updatedAt: (profile.updatedAt as Timestamp)?.toDate ? (profile.updatedAt as Timestamp).toDate().toISOString() : undefined,
+                onboardingCompleted: typeof profile.onboardingCompleted === 'undefined' ? false : profile.onboardingCompleted,
+                followersCount: profile.followersCount || 0,
+                followingCount: profile.followingCount || 0,
+            } as UserProfile;
+            
+            setUserProfile(clientProfile); 
+            if (!clientProfile.onboardingCompleted) {
                 router.push('/onboarding/profile-setup');
             } else {
                 router.push('/');
@@ -286,22 +329,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const userDocRef = doc(db, 'users', user.uid);
       const newFirestorePhotoURL = data.photoDataUrl !== undefined ? data.photoDataUrl : userProfile?.photoURL;
 
-      const profileUpdateForFirestore: Partial<UserProfile> = {
+      const profileUpdateForFirestore: Partial<UserProfile & {updatedAt: Timestamp}> = { // Use Partial<UserProfile> for Firestore update
         displayName: data.displayName,
         bio: data.bio,
         techStack: data.techStack,
         photoURL: newFirestorePhotoURL, 
         onboardingCompleted: data.onboardingCompleted,
-        updatedAt: serverTimestamp(),
+        updatedAt: serverTimestamp() as Timestamp,
       };
 
+      // Remove undefined fields before sending to Firestore
       Object.keys(profileUpdateForFirestore).forEach(key => {
-        const typedKey = key as keyof Partial<UserProfile>;
+        const typedKey = key as keyof typeof profileUpdateForFirestore;
         if (profileUpdateForFirestore[typedKey] === undefined) {
           delete profileUpdateForFirestore[typedKey];
         }
       });
-
+      
       await updateDoc(userDocRef, profileUpdateForFirestore);
 
       if (auth.currentUser) {
@@ -313,12 +357,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           needsFirebaseAuthUpdate = true;
         }
         
-        // Only update Firebase Auth photoURL if user explicitly REMOVES the photo
+        // Only update Firebase Auth photoURL if user explicitly REMOVES the photo (sets photoDataUrl to null)
         // Do NOT attempt to set a Data URL to Firebase Auth photoURL
-        if (data.photoDataUrl === null && auth.currentUser.photoURL !== null) {
+        if (data.photoDataUrl === null && auth.currentUser.photoURL !== null) { // User explicitly cleared photo
             updatesForFirebaseAuth.photoURL = null;
             needsFirebaseAuthUpdate = true;
         }
+        // If data.photoDataUrl is a Data URL string, newFirestorePhotoURL will hold it.
+        // We do *not* pass this to updatesForFirebaseAuth.photoURL.
+        // If data.photoDataUrl is undefined, it means user didn't touch the photo input.
+        // In this case, newFirestorePhotoURL would be userProfile?.photoURL (the existing one).
+        // And we don't update Firebase Auth photoURL unless it was explicitly cleared.
         
         if (needsFirebaseAuthUpdate) {
           await updateFirebaseUserProfile(auth.currentUser, updatesForFirebaseAuth);
@@ -327,10 +376,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       const updatedDoc = await getDoc(userDocRef);
       if (updatedDoc.exists()) {
-        const updatedProfileData = updatedDoc.data() as UserProfile;
-        updatedProfileData.followersCount = updatedProfileData.followersCount || 0;
-        updatedProfileData.followingCount = updatedProfileData.followingCount || 0;
-        setUserProfile(updatedProfileData);
+        let updatedProfileData = updatedDoc.data() as any;
+        const clientProfile = {
+            ...updatedProfileData,
+            id: updatedDoc.id,
+            createdAt: (updatedProfileData.createdAt as Timestamp)?.toDate ? (updatedProfileData.createdAt as Timestamp).toDate().toISOString() : new Date().toISOString(),
+            lastLogin: (updatedProfileData.lastLogin as Timestamp)?.toDate ? (updatedProfileData.lastLogin as Timestamp).toDate().toISOString() : new Date().toISOString(),
+            updatedAt: (updatedProfileData.updatedAt as Timestamp)?.toDate ? (updatedProfileData.updatedAt as Timestamp).toDate().toISOString() : new Date().toISOString(),
+            followersCount: updatedProfileData.followersCount || 0,
+            followingCount: updatedProfileData.followingCount || 0,
+        } as UserProfile;
+        setUserProfile(clientProfile);
       }
     } catch (error) {
       console.error("Error updating profile: ", error);
@@ -450,5 +506,3 @@ export const useAuth = () => {
   }
   return context;
 };
-
-    

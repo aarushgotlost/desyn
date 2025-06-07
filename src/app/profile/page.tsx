@@ -7,13 +7,12 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Image from "next/image";
 import Link from "next/link";
-import { Edit3, Mail, Users, FileText, CalendarDays, Loader2, UserPlus, Check, ThumbsUp, MessageCircle as MessageIcon } from "lucide-react";
+import { Edit3, Mail, Users, FileText, CalendarDays, Loader2, Check, ThumbsUp, MessageCircle as MessageIcon } from "lucide-react"; // Removed UserPlus
 import { useAuth } from "@/contexts/AuthContext"; 
 import { useRouter } from "next/navigation"; 
 import { useState, useEffect } from "react"; 
 import { format, formatDistanceToNowStrict } from 'date-fns';
-import { getUserPosts, getUserJoinedCommunities, isFollowing as checkIsFollowing } from "@/services/firestoreService";
-import { followUser, unfollowUser } from "@/actions/userActions";
+import { getUserPosts, getUserJoinedCommunities } from "@/services/firestoreService"; // Removed checkIsFollowing and actions for now
 import type { Post, Community } from "@/types/data";
 import { useToast } from "@/hooks/use-toast";
 
@@ -23,31 +22,15 @@ const getInitials = (name: string | null | undefined): string => {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0,2);
 };
 
-// This page currently shows the logged-in user's own profile.
-// A dynamic route /profile/[userId] would be needed for viewing other users' profiles.
-// The follow button logic is included as a placeholder for that future page.
-interface ProfilePageProps {
-  // params?: { userId?: string }; // For a future dynamic route
-}
-
-export default function ProfilePage({ /* params */ }: ProfilePageProps) {
+export default function ProfilePage() {
   const { user: currentUser, userProfile: currentUserProfile, loading: authLoading } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
 
-  // const targetUserId = params?.userId; // For future dynamic profile page
-  // const isOwnProfile = !targetUserId || targetUserId === currentUser?.uid;
-  const isOwnProfile = true; // For now, this page is always the current user's profile
-
-  // const [profileToDisplay, setProfileToDisplay] = useState<UserProfile | null>(null);
-  // const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [userPosts, setUserPosts] = useState<Post[]>([]);
   const [joinedCommunities, setJoinedCommunities] = useState<Community[]>([]);
   const [isLoadingActivity, setIsLoadingActivity] = useState(true);
-  // const [isFollowingUser, setIsFollowingUser] = useState(false);
-  // const [isFollowPending, setIsFollowPending] = useState(false);
 
-  // For this page, we use currentUserProfile directly
   const profileToDisplay = currentUserProfile;
   const isLoadingProfile = authLoading;
 
@@ -79,63 +62,22 @@ export default function ProfilePage({ /* params */ }: ProfilePageProps) {
     }
   }, [profileToDisplay, toast]);
 
-  // Follow logic would be relevant for /profile/[userId]
-  /*
-  useEffect(() => {
-    async function checkFollowStatus() {
-      if (!isOwnProfile && currentUser && targetUserId) {
-        const following = await checkIsFollowing(currentUser.uid, targetUserId);
-        setIsFollowingUser(following);
-      }
-    }
-    if (profileToDisplay) {
-      checkFollowStatus();
-    }
-  }, [currentUser, targetUserId, isOwnProfile, profileToDisplay]);
-
-  const handleFollowToggle = async () => {
-    if (!currentUser || !targetUserId || isOwnProfile) return;
-    setIsFollowPending(true);
-    try {
-      let result;
-      if (isFollowingUser) {
-        result = await unfollowUser(currentUser.uid, targetUserId);
-      } else {
-        result = await followUser(currentUser.uid, targetUserId);
-      }
-      if (result.success) {
-        setIsFollowingUser(!isFollowingUser);
-        // Optimistically update counts or re-fetch profileToDisplay for updated counts
-        setProfileToDisplay(prev => prev ? ({
-            ...prev,
-            followersCount: isFollowingUser ? (prev.followersCount || 1) - 1 : (prev.followersCount || 0) + 1
-        }) : null);
-        toast({ title: result.message });
-      } else {
-        toast({ title: "Error", description: result.message, variant: "destructive" });
-      }
-    } catch (error: any) {
-      toast({ title: "Error", description: error.message || "Could not perform action.", variant: "destructive" });
-    } finally {
-      setIsFollowPending(false);
-    }
-  };
-  */
 
   if (isLoadingProfile && !profileToDisplay) {
     return <div className="flex justify-center items-center h-[calc(100vh-10rem)]"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
   }
 
-  if (!currentUser && !authLoading) { // If not loading and no user, redirect
+  if (!currentUser && !authLoading) { 
     router.replace('/login');
     return <div className="flex justify-center items-center h-[calc(100vh-10rem)]"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
   }
   
-  if (!profileToDisplay) { // Should be covered by above, but as a fallback
+  if (!profileToDisplay) { 
      return <div className="text-center py-10">Profile not found.</div>;
   }
   
   const { displayName, email, photoURL, bio, techStack, createdAt, followersCount, followingCount } = profileToDisplay;
+  const joinedDate = createdAt ? new Date(createdAt) : null; // Convert ISO string to Date
 
   return (
     <div className="space-y-8">
@@ -153,10 +95,10 @@ export default function ProfilePage({ /* params */ }: ProfilePageProps) {
               <p className="text-muted-foreground">@{email?.split('@')[0] || 'username'}</p>
               <div className="mt-2 flex flex-wrap justify-center md:justify-start items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
                 {email && <span className="flex items-center"><Mail size={14} className="mr-1.5" /> {email}</span>}
-                {createdAt && (
+                {joinedDate && (
                     <span className="flex items-center">
                         <CalendarDays size={14} className="mr-1.5" /> 
-                        Joined {format(createdAt instanceof Date ? createdAt : (createdAt as Timestamp).toDate(), 'MMMM yyyy')}
+                        Joined {format(joinedDate, 'MMMM yyyy')}
                     </span>
                 )}
                  <span className="flex items-center"><Users size={14} className="mr-1.5" /> {followersCount || 0} Followers</span>
@@ -164,22 +106,11 @@ export default function ProfilePage({ /* params */ }: ProfilePageProps) {
               </div>
             </div>
             <div className="flex flex-col sm:flex-row gap-2 self-center md:self-end">
-                {isOwnProfile ? (
-                    <Button variant="outline" asChild>
-                    <Link href="/onboarding/profile-setup"> 
-                        <Edit3 size={16} className="mr-2" /> Edit Profile
-                    </Link>
-                    </Button>
-                ) : (
-                  <>
-                    {/* <Button variant={isFollowingUser ? "outline" : "default"} onClick={handleFollowToggle} disabled={isFollowPending || !currentUser}>
-                        {isFollowPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : isFollowingUser ? <Check className="mr-2 h-4 w-4" /> : <UserPlus className="mr-2 h-4 w-4" />}
-                        {isFollowPending ? "Processing..." : isFollowingUser ? "Following" : "Follow"}
-                    </Button> */}
-                    {/* Placeholder for Message button to other users */}
-                    {/* <Button variant="outline"> Message </Button> */}
-                  </>
-                )}
+                <Button variant="outline" asChild>
+                  <Link href="/onboarding/profile-setup"> 
+                      <Edit3 size={16} className="mr-2" /> Edit Profile
+                  </Link>
+                </Button>
             </div>
           </div>
           
@@ -201,7 +132,7 @@ export default function ProfilePage({ /* params */ }: ProfilePageProps) {
                     </div>
                 </>
             )}
-             {!bio && (!techStack || techStack.length === 0) && isOwnProfile && (
+             {!bio && (!techStack || techStack.length === 0) && (
                 <p className="text-muted-foreground text-center py-4">No bio or tech stack added yet. <Link href="/onboarding/profile-setup" className="text-primary hover:underline">Complete your profile!</Link></p>
             )}
           </div>
@@ -216,23 +147,26 @@ export default function ProfilePage({ /* params */ }: ProfilePageProps) {
         <TabsContent value="posts" className="mt-6 space-y-4">
           {isLoadingActivity ? (
              <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
-          ) : userPosts.length > 0 ? userPosts.map(post => (
-            <Card key={post.id} className="shadow-md hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <Link href={`/posts/${post.id}`}>
-                  <CardTitle className="text-lg hover:text-primary">{post.title}</CardTitle>
-                </Link>
-                <CardDescription className="text-xs">
-                  In <Link href={`/communities/${post.communityId}`} className="text-primary hover:underline">{post.communityName}</Link> &bull; {post.createdAt ? formatDistanceToNowStrict(post.createdAt instanceof Date ? post.createdAt : (post.createdAt as Timestamp).toDate(), {addSuffix: true}) : 'N/A'}
-                </CardDescription>
-              </CardHeader>
-              <CardFooter className="text-xs text-muted-foreground flex justify-between">
-                <span><ThumbsUp size={12} className="inline mr-1"/>{post.likes || 0} Likes &bull; <MessageIcon size={12} className="inline mr-1"/>{post.commentsCount || 0} Comments</span>
-                {post.isSolved && <span className="text-green-600 flex items-center"><Check size={14} className="mr-1"/>Solved</span>}
-              </CardFooter>
-            </Card>
-          )) : (
-            <p className="text-center text-muted-foreground py-8">{isOwnProfile ? "You haven't created any posts yet." : "This user hasn't created any posts yet."}</p>
+          ) : userPosts.length > 0 ? userPosts.map(post => {
+            const postCreatedAt = new Date(post.createdAt); // Convert ISO string to Date
+            return (
+              <Card key={post.id} className="shadow-md hover:shadow-lg transition-shadow">
+                <CardHeader>
+                  <Link href={`/posts/${post.id}`}>
+                    <CardTitle className="text-lg hover:text-primary">{post.title}</CardTitle>
+                  </Link>
+                  <CardDescription className="text-xs">
+                    In <Link href={`/communities/${post.communityId}`} className="text-primary hover:underline">{post.communityName}</Link> &bull; {formatDistanceToNowStrict(postCreatedAt, {addSuffix: true})}
+                  </CardDescription>
+                </CardHeader>
+                <CardFooter className="text-xs text-muted-foreground flex justify-between">
+                  <span><ThumbsUp size={12} className="inline mr-1"/>{post.likes || 0} Likes &bull; <MessageIcon size={12} className="inline mr-1"/>{post.commentsCount || 0} Comments</span>
+                  {post.isSolved && <span className="text-green-600 flex items-center"><Check size={14} className="mr-1"/>Solved</span>}
+                </CardFooter>
+              </Card>
+            );
+          }) : (
+            <p className="text-center text-muted-foreground py-8">You haven't created any posts yet.</p>
           )}
         </TabsContent>
         <TabsContent value="communities" className="mt-6 space-y-4">
@@ -255,12 +189,10 @@ export default function ProfilePage({ /* params */ }: ProfilePageProps) {
                 ))}
             </div>
            ) : (
-            <p className="col-span-full text-center text-muted-foreground py-8">{isOwnProfile ? "You haven't joined any communities yet." : "This user hasn't joined any communities yet."}</p>
+            <p className="col-span-full text-center text-muted-foreground py-8">You haven't joined any communities yet.</p>
            )}
         </TabsContent>
       </Tabs>
     </div>
   );
 }
-
-    

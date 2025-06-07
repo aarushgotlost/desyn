@@ -19,7 +19,7 @@ export default async function CommunityPage({ params }: { params: { communityId:
   noStore();
   const community: Community | null = await getCommunityDetails(params.communityId);
   const posts: Post[] = await getPostsForCommunity(params.communityId);
-  const currentUserId = await getCurrentUserId(); // Placeholder, auth usually handled client-side for button states
+  const currentUserId = await getCurrentUserId(); 
 
   if (!community) {
     return <div className="text-center py-10">Community not found.</div>;
@@ -57,7 +57,7 @@ export default async function CommunityPage({ params }: { params: { communityId:
             <div className="flex flex-col md:items-end space-y-2 md:space-y-0 md:space-x-2 md:flex-row self-start pt-2">
               <CommunityJoinButton 
                 communityId={community.id} 
-                initialIsJoined={initialIsJoined} // This will be determined by AuthContext on client for accuracy
+                initialIsJoined={initialIsJoined} 
                 memberCount={community.memberCount || 0}
               />
             </div>
@@ -81,12 +81,12 @@ export default async function CommunityPage({ params }: { params: { communityId:
           </div>
           <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-1">
             {posts.length > 0 ? posts.map((post) => {
-              const postCreatedAt = post.createdAt instanceof Date ? post.createdAt : (post.createdAt as any)?.toDate ? (post.createdAt as any).toDate() : new Date();
+              const postCreatedAt = new Date(post.createdAt); // Convert ISO string to Date
               return (
                 <Card key={post.id} className="overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300">
                     <CardHeader>
                         <div className="flex items-center space-x-3 mb-2">
-                          <Link href={`/profile/${post.authorId}`} className="flex-shrink-0"> {/* TODO: Make /profile/[userId] dynamic */}
+                          <Link href={`/profile/${post.authorId}`} className="flex-shrink-0"> 
                             <Image 
                                 src={post.authorAvatar || "https://placehold.co/40x40.png?text=N/A"} 
                                 alt={post.authorName} 
@@ -139,7 +139,7 @@ export default async function CommunityPage({ params }: { params: { communityId:
                     </CardContent>
                     <CardFooter className="flex justify-between items-center">
                         <div className="flex space-x-2 text-muted-foreground">
-                          <LikeButton postId={post.id} initialLikesCount={post.likes} size="sm" />
+                          <LikeButton postId={post.id} initialLikesCount={post.likes || 0} size="sm" />
                           <Button variant="ghost" size="sm" className="flex items-center space-x-1 text-muted-foreground text-xs" asChild>
                              <Link href={`/posts/${post.id}#comments`}>
                                <MessageCircle size={14} /> <span>{post.commentsCount || 0}</span>
@@ -163,4 +163,3 @@ export default async function CommunityPage({ params }: { params: { communityId:
     </div>
   );
 }
-

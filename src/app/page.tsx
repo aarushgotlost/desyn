@@ -2,7 +2,7 @@
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
-import { MessageCircle } from "lucide-react"; // ThumbsUp and CheckCircle will come from specific components
+import { MessageCircle } from "lucide-react"; 
 import { getRecentPosts } from "@/services/firestoreService";
 import type { Post } from "@/types/data";
 import Link from "next/link";
@@ -24,12 +24,12 @@ export default async function HomePage() {
       {posts.length > 0 ? (
         <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-1">
           {posts.map((post) => {
-            const postCreatedAt = post.createdAt instanceof Date ? post.createdAt : (post.createdAt as any)?.toDate ? (post.createdAt as any).toDate() : new Date();
+            const postCreatedAt = new Date(post.createdAt); // Convert ISO string to Date
             return (
               <Card key={post.id} className="overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300">
                 <CardHeader>
                   <div className="flex items-center space-x-3 mb-2">
-                    <Link href={`/profile/${post.authorId}`} className="flex-shrink-0"> {/* TODO: Make /profile/[userId] dynamic */}
+                    <Link href={`/profile/${post.authorId}`} className="flex-shrink-0"> 
                       <Image 
                         src={post.authorAvatar || "https://placehold.co/40x40.png?text=N/A"} 
                         alt={post.authorName} 
@@ -82,10 +82,10 @@ export default async function HomePage() {
                 </CardContent>
                 <CardFooter className="flex justify-between items-center">
                   <div className="flex space-x-2 text-muted-foreground">
-                    <LikeButton postId={post.id} initialLikesCount={post.likes} size="sm" />
+                    <LikeButton postId={post.id} initialLikesCount={post.likes || 0} />
                     <Button variant="ghost" size="sm" className="flex items-center space-x-1 text-muted-foreground text-xs" asChild>
                        <Link href={`/posts/${post.id}#comments`}>
-                         <MessageCircle size={14} /> <span>{post.commentsCount} Comments</span>
+                         <MessageCircle size={14} /> <span>{post.commentsCount || 0} Comments</span>
                        </Link>
                     </Button>
                   </div>
@@ -101,4 +101,3 @@ export default async function HomePage() {
     </div>
   );
 }
-

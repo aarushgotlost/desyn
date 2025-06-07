@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { ChatMessage } from '@/types/messaging'; // Assuming ChatMessage can be a base for CommunityChatMessage too
+import type { ChatMessage, CommunityChatMessage } from '@/types/messaging';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { format } from 'date-fns';
 
@@ -13,16 +13,16 @@ export const getInitials = (name: string | null | undefined): string => {
 };
 
 interface MessageBubbleProps {
-  message: { // Can be ChatMessage or CommunityChatMessage
+  message: { 
     id: string;
     senderId: string;
     senderName: string | null;
     senderAvatar?: string | null;
     text: string;
-    createdAt: any; // Firestore Timestamp or Date
+    createdAt: string; // ISO string
   };
   currentUserId: string;
-  isCommunityChat?: boolean; // To slightly alter styling or info if needed
+  isCommunityChat?: boolean; 
 }
 
 export function MessageBubble({ message, currentUserId, isCommunityChat = false }: MessageBubbleProps) {
@@ -30,16 +30,10 @@ export function MessageBubble({ message, currentUserId, isCommunityChat = false 
 
   let messageTimestamp = 'Sending...';
   if (message.createdAt) {
-    if (message.createdAt.toDate) { // Firestore Timestamp
-      messageTimestamp = format(message.createdAt.toDate(), 'p');
-    } else if (message.createdAt instanceof Date) { // Already a JS Date
-      messageTimestamp = format(message.createdAt, 'p');
-    } else { // Fallback for other potential date representations
-      try {
-        messageTimestamp = format(new Date(message.createdAt), 'p');
-      } catch (e) {
-        // Keep 'Sending...' or some error indicator
-      }
+    try {
+      messageTimestamp = format(new Date(message.createdAt), 'p'); // Parse ISO string
+    } catch (e) {
+      console.warn("Failed to parse message createdAt string: ", message.createdAt);
     }
   }
   

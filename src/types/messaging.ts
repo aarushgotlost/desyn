@@ -1,6 +1,4 @@
 
-import type { Timestamp } from 'firebase/firestore';
-
 export interface ChatParticipant {
   uid: string;
   displayName: string | null;
@@ -9,34 +7,31 @@ export interface ChatParticipant {
 
 export interface ChatSession {
   id: string;
-  participants: ChatParticipant[]; // Array of participant UIDs
-  participantUids: string[]; // For querying
+  participants: ChatParticipant[]; 
+  participantUids: string[]; 
   lastMessageText?: string;
-  lastMessageAt?: Timestamp;
+  lastMessageAt?: string; // ISO string
   lastMessageSenderId?: string;
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
-  // For potential future use like unread counts per user
-  // unreadCounts?: { [userId: string]: number };
+  createdAt: string; // ISO string
+  updatedAt: string; // ISO string
 }
 
 export interface ChatMessage {
   id: string;
   chatId: string;
   senderId: string;
-  senderName: string | null; // Denormalized for display
-  senderAvatar?: string | null; // Denormalized for display
+  senderName: string | null; 
+  senderAvatar?: string | null; 
   text: string;
-  createdAt: Timestamp;
-  // readBy?: string[]; // For read receipts, future enhancement
+  createdAt: string; // ISO string
 }
 
 export interface CommunityChatMessage {
-  id: string; // Document ID
+  id: string; 
   communityId: string;
   senderId: string;
   senderName: string | null;
   senderAvatar?: string | null;
   text: string;
-  createdAt: Timestamp;
+  createdAt: string; // ISO string
 }

@@ -1,6 +1,6 @@
 
 import { db, auth } from '@/lib/firebase'; 
-import type { Community, Post, Comment } from '@/types/data'; // Added Comment
+import type { Community, Post, Comment } from '@/types/data';
 import type { UserProfile } from '@/contexts/AuthContext';
 import {
   collection,
@@ -12,34 +12,39 @@ import {
   limit,
   where,
   Timestamp,
-  onSnapshot, // Added for real-time comment fetching if needed client-side directly
+  onSnapshot,
 } from 'firebase/firestore';
 import { unstable_noStore as noStore } from 'next/cache';
 
 
 export async function getCurrentUserId(): Promise<string | null> {
-  noStore(); // This is a server-side utility, but auth state is best read client-side
-  // For server components, if you absolutely need user ID, you'd get it from auth state passed down
-  // or by using a library that bridges server-side auth.
-  // For now, this function is a placeholder as direct auth.currentUser access is client-side.
-  // Client components will use useAuth() hook.
+  noStore();
   return null; 
 }
 
-const processDoc = <T extends { id: string; createdAt?: Timestamp | Date; updatedAt?: Timestamp | Date; lastLogin?: Timestamp | Date; lastMessageAt?: Timestamp | Date; members?: string[]; authorAvatar?: string | null; photoURL?: string | null }>(docSnap: any): T => {
+const processDoc = <T extends { id: string; createdAt?: string | Timestamp | Date; updatedAt?: string | Timestamp | Date; lastLogin?: string | Timestamp | Date; lastMessageAt?: string | Timestamp | Date; members?: string[]; authorAvatar?: string | null; photoURL?: string | null }>(docSnap: any): T => {
   const data = docSnap.data();
   const processedData: any = {
     id: docSnap.id,
     ...data,
   };
 
-  // Convert Firestore Timestamps to JS Date objects for serializability and client-side use
   const dateFields: (keyof T)[] = ['createdAt', 'updatedAt', 'lastLogin', 'lastMessageAt'];
   dateFields.forEach(field => {
-    if (data[field] && typeof (data[field] as Timestamp).toDate === 'function') {
-      processedData[field] = (data[field] as Timestamp).toDate();
-    } else if (data[field]) { // If it's already a string or number from a previous toDate() or serverTimestamp direct value
-        processedData[field] = new Date(data[field]);
+    const fieldValue = data[field];
+    if (fieldValue && typeof (fieldValue as Timestamp).toDate === 'function') {
+      processedData[field] = (fieldValue as Timestamp).toDate().toISOString();
+    } else if (fieldValue instanceof Date) {
+      processedData[field] = fieldValue.toISOString();
+    } else if (typeof fieldValue === 'string') { // Already an ISO string
+      processedData[field] = fieldValue;
+    } else if (fieldValue) { // Fallback for numbers or other convertible types
+        try {
+            processedData[field] = new Date(fieldValue).toISOString();
+        } catch (e) {
+            console.warn(`Could not convert field ${String(field)} to ISOString:`, fieldValue);
+            processedData[field] = fieldValue; // Keep original if conversion fails
+        }
     }
   });
 
@@ -50,11 +55,10 @@ const processDoc = <T extends { id: string; createdAt?: Timestamp | Date; update
     processedData.members = []; 
   }
 
-  // Ensure avatar/photoURL fields are at least null if not present
-  if ('authorId' in data) { // Check if it's a Post-like object
+  if ('authorId' in data) { 
       processedData.authorAvatar = data.authorAvatar || null;
   }
-  if ('uid' in data) { // Check if it's a UserProfile-like object
+  if ('uid' in data) { 
       processedData.photoURL = data.photoURL || null;
   }
 
@@ -112,8 +116,6 @@ export async function getPostDetails(postId: string): Promise<Post | null> {
 }
 
 
-// This function is for initial server-side fetch of comments if needed.
-// Real-time updates should be handled by a client-side onSnapshot listener (e.g., in CommentList.tsx)
 export async function getCommentsForPostSSR(postId: string): Promise<Comment[]> {
   noStore();
   const commentsColRef = collection(db, 'posts', postId, 'comments');
@@ -122,25 +124,30 @@ export async function getCommentsForPostSSR(postId: string): Promise<Comment[]> 
   return snapshot.docs.map(docSnap => processDoc<Comment>(docSnap));
 }
 
-// Function to set up a real-time listener for comments (to be used client-side)
 export function getCommentsForPostRealtime(
   postId: string,
   callback: (comments: Comment[]) => void,
   onError?: (error: Error) => void
 ): () => void {
-  // This function should NOT have 'noStore()' as it's for client-side real-time updates.
   const commentsColRef = collection(db, 'posts', postId, 'comments');
   const q = query(commentsColRef, orderBy('createdAt', 'asc'));
 
   const unsubscribe = onSnapshot(q, (snapshot) => {
-    const comments = snapshot.docs.map(docSnap => processDoc<Comment>(docSnap));
+    const comments = snapshot.docs.map(docSnap => {
+      const data = docSnap.data();
+      return {
+        id: docSnap.id,
+        ...data,
+        createdAt: (data.createdAt as Timestamp)?.toDate ? (data.createdAt as Timestamp).toDate().toISOString() : new Date(data.createdAt as any).toISOString(),
+      } as Comment;
+    });
     callback(comments);
   }, (error) => {
     console.error("Error fetching comments in real-time: ", error);
     if (onError) onError(error);
   });
 
-  return unsubscribe; // Return the unsubscribe function
+  return unsubscribe; 
 }
 
 
@@ -210,7 +217,7 @@ export async function getFollowers(userId: string, count: number = 10): Promise<
         const followerData = followerDoc.data();
         const userProfileDoc = await getDoc(doc(db, 'users', followerData.userId));
         if (userProfileDoc.exists()) {
-            const profile = userProfileDoc.data();
+            const profile = processDoc<UserProfile>(userProfileDoc); // Use processDoc here
             followerProfiles.push({
                 uid: userProfileDoc.id,
                 displayName: profile.displayName,
@@ -233,7 +240,7 @@ export async function getFollowing(userId: string, count: number = 10): Promise<
         const followingData = followingDoc.data();
         const userProfileDoc = await getDoc(doc(db, 'users', followingData.userId));
         if (userProfileDoc.exists()) {
-            const profile = userProfileDoc.data();
+            const profile = processDoc<UserProfile>(userProfileDoc); // Use processDoc here
             followingProfiles.push({
                 uid: userProfileDoc.id,
                 displayName: profile.displayName,
@@ -254,5 +261,3 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
     }
     return null;
 }
-
-    

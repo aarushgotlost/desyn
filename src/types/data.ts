@@ -1,20 +1,18 @@
 
-import type { Timestamp } from 'firebase/firestore';
-
 export interface Community {
-  id: string; // Document ID
+  id: string; 
   name: string;
   description: string;
   iconURL?: string | null;
   tags: string[];
-  createdBy: string; // UID
+  createdBy: string; 
   memberCount: number;
-  members: string[]; // Array of UIDs - UIDs of users who have joined
-  createdAt: Timestamp | Date; // Can be Timestamp from Firestore or Date object after processing
+  members: string[]; 
+  createdAt: string; // ISO string
 }
 
 export interface Post {
-  id: string; // Document ID
+  id: string; 
   title: string;
   communityId: string;
   communityName: string;
@@ -25,30 +23,18 @@ export interface Post {
   authorId: string;
   authorName: string;
   authorAvatar?: string | null;
-  createdAt: Timestamp | Date; // Can be Timestamp from Firestore or Date object after processing
+  createdAt: string; // ISO string
   likes: number;
   commentsCount: number;
   isSolved: boolean;
 }
 
 export interface Comment {
-  id: string; // Document ID
+  id: string; 
   postId: string;
   authorId: string;
   authorName: string;
   authorAvatar?: string | null;
   text: string;
-  createdAt: Timestamp | Date; // Can be Timestamp from Firestore or Date object after processing
-  // replies?: Reply[]; // Future enhancement
+  createdAt: string; // ISO string
 }
-
-// Example Reply structure (for future use)
-// export interface Reply {
-//   id: string;
-//   commentId: string;
-//   authorId: string;
-//   authorName: string;
-//   authorAvatar?: string | null;
-//   text: string;
-//   createdAt: Timestamp | Date;
-// }

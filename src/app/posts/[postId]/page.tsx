@@ -3,11 +3,10 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import Image from "next/image";
 import Link from "next/link";
-import { ThumbsUp, MessageSquare, CheckCircle, Send, CornerDownRight } from "lucide-react";
-import { getPostDetails, getCurrentUserId } from "@/services/firestoreService"; // getCurrentUserId might not be needed here if auth context is used in client components
+import { MessageSquare } from "lucide-react";
+import { getPostDetails } from "@/services/firestoreService"; 
 import type { Post } from "@/types/data";
 import { formatDistanceToNowStrict } from 'date-fns';
 import { LikeButton } from "@/components/posts/LikeButton";
@@ -18,15 +17,14 @@ import { unstable_noStore as noStore } from 'next/cache';
 
 
 export default async function PostDetailsPage({ params }: { params: { postId: string } }) {
-  noStore(); // Ensure fresh data on each request for this dynamic page
+  noStore(); 
   const post: Post | null = await getPostDetails(params.postId);
-  // const currentUserId = await getCurrentUserId(); // Using auth context in client components is preferred
 
   if (!post) {
     return <div className="text-center py-10">Post not found.</div>;
   }
 
-  const postCreatedAt = post.createdAt instanceof Date ? post.createdAt : (post.createdAt as any)?.toDate ? (post.createdAt as any).toDate() : new Date();
+  const postCreatedAt = new Date(post.createdAt); // Convert ISO string to Date
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
@@ -39,7 +37,7 @@ export default async function PostDetailsPage({ params }: { params: { postId: st
           </div>
           <CardTitle className="text-3xl lg:text-4xl font-bold font-headline">{post.title}</CardTitle>
           <div className="flex items-center space-x-3 text-sm text-muted-foreground mt-2">
-            <Link href={`/profile/${post.authorId}`} className="flex items-center space-x-2 hover:text-primary"> {/* TODO: Make /profile/[userId] dynamic */}
+            <Link href={`/profile/${post.authorId}`} className="flex items-center space-x-2 hover:text-primary"> 
               <Avatar className="h-8 w-8">
                 <AvatarImage 
                   src={post.authorAvatar || undefined} 
@@ -81,10 +79,10 @@ export default async function PostDetailsPage({ params }: { params: { postId: st
         </CardContent>
         <CardFooter className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 py-6 border-t">
           <div className="flex space-x-2 text-muted-foreground">
-            <LikeButton postId={post.id} initialLikesCount={post.likes} size="default" />
+            <LikeButton postId={post.id} initialLikesCount={post.likes || 0} size="default" />
             <Button variant="outline" size="default" className="flex items-center space-x-1.5 text-muted-foreground" asChild>
                 <Link href="#comments">
-                    <MessageSquare size={18} /> <span>{post.commentsCount} Comments</span>
+                    <MessageSquare size={18} /> <span>{post.commentsCount || 0} Comments</span>
                 </Link>
             </Button>
           </div>
@@ -94,14 +92,13 @@ export default async function PostDetailsPage({ params }: { params: { postId: st
 
       <Card className="shadow-lg" id="comments">
         <CardHeader>
-          <CardTitle className="text-xl font-headline">Comments ({post.commentsCount})</CardTitle>
+          <CardTitle className="text-xl font-headline">Comments ({post.commentsCount || 0})</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
           <CommentList postId={post.id} />
         </CardContent>
-        <CommentForm postId={post.id} /> {/* Form is part of the card, typically after content */}
+        <CommentForm postId={post.id} /> 
       </Card>
     </div>
   );
 }
-

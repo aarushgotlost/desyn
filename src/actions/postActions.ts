@@ -14,19 +14,21 @@ import {
   serverTimestamp,
   Timestamp,
   runTransaction,
+  query, // Added query
+  orderBy, // Added orderBy
+  getDocs, // Added getDocs
 } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
 import type { UserProfile } from '@/contexts/AuthContext';
-import type { Post, Comment } from '@/types/data'; // Ensure Post type is imported
+import type { Post, Comment } from '@/types/data'; 
 
-// Helper function to revalidate common paths
 async function revalidatePostPaths(postId: string, communityId?: string) {
   revalidatePath(`/posts/${postId}`);
-  revalidatePath('/'); // Revalidate home feed
+  revalidatePath('/'); 
   if (communityId) {
-    revalidatePath(`/communities/${communityId}`); // Revalidate specific community feed
+    revalidatePath(`/communities/${communityId}`); 
   }
-  revalidatePath('/profile'); // Revalidate current user's profile page in case their posts list needs update
+  revalidatePath('/profile'); 
 }
 
 export async function togglePostLike(
@@ -56,13 +58,11 @@ export async function togglePostLike(
     const likeSnap = await getDoc(likeRef);
 
     if (likeSnap.exists()) {
-      // User has liked it, so unlike
       await deleteDoc(likeRef);
       await updateDoc(postRef, { likes: increment(-1) });
       newLikesCount = (postData.likes || 0) - 1;
       isLiked = false;
     } else {
-      // User has not liked it, so like
       await setDoc(likeRef, { userId, createdAt: serverTimestamp() });
       await updateDoc(postRef, { likes: increment(1) });
       newLikesCount = (postData.likes || 0) + 1;
@@ -85,11 +85,10 @@ export async function togglePostLike(
 
 export async function getPostLikeStatus(
   postId: string,
-  userId: string | undefined // userId can be undefined if user is not logged in
+  userId: string | undefined 
 ): Promise<{ isLiked: boolean; likesCount: number }> {
   const postRef = doc(db, 'posts', postId);
   
-  // Attempt to get post likes even if user is not logged in
   if (!userId) {
     const postSnap = await getDoc(postRef);
     return { isLiked: false, likesCount: postSnap.exists() ? (postSnap.data() as Post).likes || 0 : 0 };
@@ -103,14 +102,13 @@ export async function getPostLikeStatus(
     return { isLiked: likeSnap.exists(), likesCount };
   } catch (error) {
     console.error('Error fetching like status:', error);
-    // Attempt to get post likes count even on error, default isLiked to false
     try {
         const postSnapOnError = await getDoc(postRef);
         const likesCountOnError = postSnapOnError.exists() ? (postSnapOnError.data() as Post).likes || 0 : 0;
         return { isLiked: false, likesCount: likesCountOnError };
     } catch (finalError) {
         console.error('Error fetching post data on like status error:', finalError);
-        return { isLiked: false, likesCount: 0 }; // Default to not liked and 0 count on final error
+        return { isLiked: false, likesCount: 0 };
     }
   }
 }
@@ -135,18 +133,17 @@ export async function addCommentToPost(
 
   try {
     const batch = writeBatch(db);
-    const commentTimestamp = serverTimestamp();
-
-    const newCommentRef = doc(commentsColRef); // Auto-generate ID
-    const newComment: Omit<Comment, 'id' | 'createdAt'> & { createdAt: Timestamp } = { // Omit id, ensure createdAt is Timestamp for return
+    
+    const newCommentRef = doc(commentsColRef); 
+    const newCommentForFirestore = { 
       postId,
       text: commentData.text.trim(),
       authorId: commentData.authorId,
       authorName: commentData.authorName,
       authorAvatar: commentData.authorAvatar || null,
-      createdAt: commentTimestamp as Timestamp, // Cast for type consistency before commit, Firestore handles it
+      createdAt: serverTimestamp(), // Firestore will handle this
     };
-    batch.set(newCommentRef, newComment); // Firestore will use serverTimestamp here
+    batch.set(newCommentRef, newCommentForFirestore); 
     batch.update(postRef, { commentsCount: increment(1) });
 
     await batch.commit();
@@ -159,17 +156,13 @@ export async function addCommentToPost(
         await revalidatePostPaths(postId); 
     }
     
-    // Construct a Comment object to return for optimistic updates on the client
-    const createdComment: Comment = {
-      ...newComment,
+    const createdCommentForClient: Comment = {
+      ...newCommentForFirestore,
       id: newCommentRef.id,
-      // For optimistic client-side update, convert serverTimestamp to Date, or use a placeholder
-      // Firestore Timestamps on the client might need .toDate() after fetch
-      // For now, we pass it as is; client can handle. Or use new Date() for immediate display.
-      // createdAt: new Date() // Or pass as Timestamp and let client handle
+      createdAt: new Date().toISOString(), // For optimistic client-side update, provide ISO string
     };
 
-    return { success: true, message: 'Comment added!', commentId: newCommentRef.id, newComment: createdComment };
+    return { success: true, message: 'Comment added!', commentId: newCommentRef.id, newComment: createdCommentForClient };
   } catch (error: any) {
     console.error('Error adding comment:', error);
     return { success: false, message: error.message || 'Could not add comment.' };
@@ -217,23 +210,15 @@ export async function togglePostSolvedStatus(
 }
 
 export async function getCommentsForPost(postId: string): Promise<Comment[]> {
-  // This function is for a one-time fetch if needed,
-  // but real-time updates are usually handled client-side with onSnapshot.
-  // For now, this can be used by server components if needed, or adapted for client.
-  // Real-time fetching is already in `src/services/chatSubscriptionService.ts` (wrong file, should be `firestoreService.ts` or a new one)
-  // Let's assume CommentList.tsx will use a client-side subscription.
-  // This function might not be strictly necessary if CommentList uses onSnapshot directly.
-  // However, if we need to fetch initial comments server-side for PostDetailsPage, this is where it'd go.
-  // For now, I'll keep it simple. Real-time is in CommentList.
   const commentsColRef = collection(db, 'posts', postId, 'comments');
   const q = query(commentsColRef, orderBy('createdAt', 'asc'));
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => {
-    const data = doc.data();
+  return snapshot.docs.map(docSnap => {
+    const data = docSnap.data();
     return {
-      id: doc.id,
+      id: docSnap.id,
       ...data,
-      createdAt: (data.createdAt as Timestamp)?.toDate ? (data.createdAt as Timestamp).toDate() : new Date(data.createdAt), // Ensure it's a Date object
+      createdAt: (data.createdAt as Timestamp)?.toDate ? (data.createdAt as Timestamp).toDate().toISOString() : new Date(data.createdAt as any).toISOString(), 
     } as Comment;
   });
 }

@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { MessageSquareText, UserPlus, Loader2, AlertTriangle, Search } from 'lucide-react';
 import { formatDistanceToNowStrict } from 'date-fns';
 import { Input } from '@/components/ui/input';
-import { useRouter } from 'next/navigation'; // Added useRouter
+import { useRouter } from 'next/navigation'; 
 
 function ChatListItem({ session, currentUserUid }: { session: ChatSession; currentUserUid: string }) {
   const otherParticipant = session.participants.find(p => p.uid !== currentUserUid);
@@ -23,6 +23,8 @@ function ChatListItem({ session, currentUserUid }: { session: ChatSession; curre
     if (!name) return '?';
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
   };
+
+  const lastMessageDate = session.lastMessageAt ? new Date(session.lastMessageAt) : null; // Convert ISO string to Date
 
   return (
     <Link href={`/messages/${session.id}`} passHref>
@@ -35,9 +37,9 @@ function ChatListItem({ session, currentUserUid }: { session: ChatSession; curre
           <div className="flex-1 min-w-0">
             <div className="flex justify-between items-start">
               <p className="font-semibold truncate">{otherParticipant.displayName || 'Unknown User'}</p>
-              {session.lastMessageAt && (
+              {lastMessageDate && (
                 <p className="text-xs text-muted-foreground whitespace-nowrap">
-                  {formatDistanceToNowStrict(session.lastMessageAt.toDate(), { addSuffix: true })}
+                  {formatDistanceToNowStrict(lastMessageDate, { addSuffix: true })}
                 </p>
               )}
             </div>
@@ -54,7 +56,7 @@ function ChatListItem({ session, currentUserUid }: { session: ChatSession; curre
 
 export default function MessagesPage() {
   const { user, userProfile, loading: authLoading } = useAuth();
-  const router = useRouter(); // Initialize useRouter
+  const router = useRouter(); 
   const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
   const [isLoadingSessions, setIsLoadingSessions] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -72,7 +74,7 @@ export default function MessagesPage() {
       setChatSessions(sessions);
       setIsLoadingSessions(false);
       setError(null);
-    }, (err) => { // Add error callback for getUserChatSessions
+    }, (err) => { 
       console.error("Error fetching chat sessions:", err);
       setError("Failed to load chat sessions. Please try again.");
       setIsLoadingSessions(false);
@@ -127,7 +129,7 @@ export default function MessagesPage() {
   }
 
   const handleNewChat = () => {
-    router.push('/messages/new'); // Navigate to new chat user selection page
+    router.push('/messages/new'); 
   };
 
   return (
