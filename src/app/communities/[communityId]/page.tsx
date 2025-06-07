@@ -5,19 +5,26 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import Image from "next/image";
 import { MessageCircle, ThumbsUp, CheckCircle, Users, PlusCircle } from "lucide-react";
 import Link from "next/link";
-import { getCommunityDetails, getPostsForCommunity } from "@/services/firestoreService";
+import { getCommunityDetails, getPostsForCommunity, getCurrentUserId } from "@/services/firestoreService"; // Assuming getCurrentUserId can be created or use a helper
 import type { Community, Post } from "@/types/data";
 import { formatDistanceToNowStrict } from 'date-fns';
+import { CommunityJoinButton } from '@/components/communities/CommunityJoinButton'; // Import the new button
+import { auth } from '@/lib/firebase'; // To get current user on server if possible, or pass from client
 
 export default async function CommunityPage({ params }: { params: { communityId: string } }) {
   const community: Community | null = await getCommunityDetails(params.communityId);
   const posts: Post[] = await getPostsForCommunity(params.communityId);
+  
+  // For Server Components, getting the current user is tricky without a dedicated server-side auth library like NextAuth.js.
+  // For Firebase, `auth.currentUser` is client-side.
+  // We'll pass the community's members array to the client button, which will use `useAuth`
+  const currentUserId = await getCurrentUserId(); // This is a placeholder for actual server-side user ID retrieval
 
   if (!community) {
     return <div className="text-center py-10">Community not found.</div>;
   }
 
-  const isJoined = false; // Placeholder: Add logic to check if current user has joined
+  const initialIsJoined = currentUserId ? community.members?.includes(currentUserId) || false : false;
 
   return (
     <div className="space-y-8">
@@ -47,9 +54,12 @@ export default async function CommunityPage({ params }: { params: { communityId:
               </div>
             </div>
             <div className="flex flex-col md:items-end space-y-2 md:space-y-0 md:space-x-2 md:flex-row self-start pt-2">
-              <Button variant={isJoined ? "outline" : "default"} disabled> {/* Join/Leave functionality pending */}
-                {isJoined ? "Leave Community" : "Join Community"}
-              </Button>
+              {/* Replace existing Button with CommunityJoinButton */}
+              <CommunityJoinButton 
+                communityId={community.id} 
+                initialIsJoined={initialIsJoined}
+                memberCount={community.memberCount || 0}
+              />
             </div>
           </div>
         </CardHeader>
@@ -141,3 +151,4 @@ export default async function CommunityPage({ params }: { params: { communityId:
     </div>
   );
 }
+

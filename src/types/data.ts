@@ -9,7 +9,7 @@ export interface Community {
   tags: string[];
   createdBy: string; // UID
   memberCount: number;
-  members: string[]; // Array of UIDs
+  members: string[]; // Array of UIDs - UIDs of users who have joined
   createdAt: Timestamp;
 }
 
