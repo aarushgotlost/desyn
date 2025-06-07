@@ -3,48 +3,25 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { HomeIcon, Users, PlusCircle, MessageSquare, User, Bell } from 'lucide-react'; // Added Bell
+import { HomeIcon, Users, PlusCircle, MessageSquare, User } from 'lucide-react'; // Removed Bell
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
-import { Badge } from '@/components/ui/badge'; // Import Badge
-import { useEffect, useState } from 'react';
-import { getUnreadNotificationsCount } from '@/services/notificationService';
+// Badge and notification count logic removed as the item is gone.
 
 const navItems = [
   { href: "/", label: "Home", icon: HomeIcon, authRequired: false },
   { href: "/communities", label: "Communities", icon: Users, authRequired: false },
   { href: "/posts/create", label: "Create", icon: PlusCircle, authRequired: true },
   { href: "/messages", label: "Messages", icon: MessageSquare, authRequired: true },
-  { href: "/notifications", label: "Alerts", icon: Bell, authRequired: true, showBadge: true }, // Updated label, added showBadge
+  // { href: "/notifications", label: "Alerts", icon: Bell, authRequired: true, showBadge: true }, // Removed
   { href: "/profile", label: "Profile", icon: User, authRequired: true },
 ];
 
 export function BottomNavigationBar() {
   const pathname = usePathname();
   const { user, loading } = useAuth();
-  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
 
-  useEffect(() => {
-    let unsubscribe: (() => void) | null = null;
-    if (user && !loading) {
-      // Initial fetch
-      getUnreadNotificationsCount(user.uid).then(setUnreadNotificationCount);
-      
-      // Simple polling as Firestore real-time listeners for count might be overkill for just a badge
-      // For a more robust solution, consider using Firestore listeners if frequent updates are crucial
-      const intervalId = setInterval(async () => {
-        if (user) { // Check user again inside interval, as it might change
-          const count = await getUnreadNotificationsCount(user.uid);
-          setUnreadNotificationCount(count);
-        }
-      }, 30000); // Poll every 30 seconds
-
-      return () => clearInterval(intervalId);
-    } else if (!user && !loading) {
-      setUnreadNotificationCount(0); // Reset if user logs out
-    }
-    return () => { if (unsubscribe) unsubscribe(); };
-  }, [user, loading]);
+  // Unread notification count logic removed as the item is gone.
 
   if (loading) { 
     return null;
@@ -59,7 +36,7 @@ export function BottomNavigationBar() {
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-background border-t border-border shadow-t-lg z-40">
-      <div className="container mx-auto grid grid-cols-6 items-center h-16 px-0 sm:px-1"> {/* Grid for 6 items */}
+      <div className="container mx-auto grid grid-cols-5 items-center h-16 px-0 sm:px-1"> {/* Grid for 5 items */}
         {navItems.map(item => {
           if (item.authRequired && !user) {
             return (
@@ -82,11 +59,7 @@ export function BottomNavigationBar() {
             >
               <item.icon className={cn("h-5 w-5 sm:h-6 sm:w-6 mb-0.5", isActive ? "text-primary" : "")} />
               <span className="text-[10px] sm:text-xs">{item.label}</span>
-              {item.showBadge && unreadNotificationCount > 0 && (
-                <Badge variant="destructive" className="absolute top-1 right-1 sm:right-2 h-4 w-4 min-w-[0.8rem] p-0.5 text-[8px] sm:text-[9px] flex items-center justify-center rounded-full">
-                  {unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}
-                </Badge>
-              )}
+              {/* Badge logic removed */}
             </Link>
           );
         })}
