@@ -26,7 +26,7 @@ export interface Post {
   createdAt: string; // ISO string
   likes: number;
   commentsCount: number;
-  isSolved: boolean;
+  // isSolved: boolean; // Removed isSolved
 }
 
 export interface Comment {

@@ -7,12 +7,12 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Image from "next/image";
 import Link from "next/link";
-import { Edit3, Mail, Users, FileText, CalendarDays, Loader2, Check, ThumbsUp, MessageCircle as MessageIcon } from "lucide-react"; // Removed UserPlus
+import { Edit3, Mail, Users, FileText, CalendarDays, Loader2, ThumbsUp, MessageCircle as MessageIcon } from "lucide-react"; 
 import { useAuth } from "@/contexts/AuthContext"; 
 import { useRouter } from "next/navigation"; 
 import { useState, useEffect } from "react"; 
 import { format, formatDistanceToNowStrict } from 'date-fns';
-import { getUserPosts, getUserJoinedCommunities } from "@/services/firestoreService"; // Removed checkIsFollowing and actions for now
+import { getUserPosts, getUserJoinedCommunities } from "@/services/firestoreService"; 
 import type { Post, Community } from "@/types/data";
 import { useToast } from "@/hooks/use-toast";
 
@@ -77,7 +77,7 @@ export default function ProfilePage() {
   }
   
   const { displayName, email, photoURL, bio, techStack, createdAt, followersCount, followingCount } = profileToDisplay;
-  const joinedDate = createdAt ? new Date(createdAt) : null; // Convert ISO string to Date
+  const joinedDate = createdAt ? new Date(createdAt) : null; 
 
   return (
     <div className="space-y-8">
@@ -148,7 +148,7 @@ export default function ProfilePage() {
           {isLoadingActivity ? (
              <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
           ) : userPosts.length > 0 ? userPosts.map(post => {
-            const postCreatedAt = new Date(post.createdAt); // Convert ISO string to Date
+            const postCreatedAt = post.createdAt ? new Date(post.createdAt) : new Date();
             return (
               <Card key={post.id} className="shadow-md hover:shadow-lg transition-shadow">
                 <CardHeader>
@@ -161,7 +161,7 @@ export default function ProfilePage() {
                 </CardHeader>
                 <CardFooter className="text-xs text-muted-foreground flex justify-between">
                   <span><ThumbsUp size={12} className="inline mr-1"/>{post.likes || 0} Likes &bull; <MessageIcon size={12} className="inline mr-1"/>{post.commentsCount || 0} Comments</span>
-                  {post.isSolved && <span className="text-green-600 flex items-center"><Check size={14} className="mr-1"/>Solved</span>}
+                  {/* isSolved status display removed */}
                 </CardFooter>
               </Card>
             );

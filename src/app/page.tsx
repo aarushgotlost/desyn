@@ -8,7 +8,7 @@ import type { Post } from "@/types/data";
 import Link from "next/link";
 import { formatDistanceToNowStrict } from 'date-fns';
 import { LikeButton } from "@/components/posts/LikeButton";
-import { MarkAsSolvedButton } from "@/components/posts/MarkAsSolvedButton";
+// Removed MarkAsSolvedButton import
 import { unstable_noStore as noStore } from 'next/cache';
 
 
@@ -24,7 +24,7 @@ export default async function HomePage() {
       {posts.length > 0 ? (
         <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-1">
           {posts.map((post) => {
-            const postCreatedAt = new Date(post.createdAt); // Convert ISO string to Date
+            const postCreatedAt = post.createdAt ? new Date(post.createdAt) : new Date();
             return (
               <Card key={post.id} className="overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300">
                 <CardHeader>
@@ -89,7 +89,7 @@ export default async function HomePage() {
                        </Link>
                     </Button>
                   </div>
-                  <MarkAsSolvedButton postId={post.id} initialIsSolved={post.isSolved} authorId={post.authorId} size="sm" />
+                  {/* MarkAsSolvedButton removed from here */}
                 </CardFooter>
               </Card>
             );

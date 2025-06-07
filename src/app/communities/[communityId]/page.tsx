@@ -12,7 +12,7 @@ import { CommunityJoinButton } from '@/components/communities/CommunityJoinButto
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CommunityChatInterface } from "@/components/communities/CommunityChatInterface";
 import { LikeButton } from "@/components/posts/LikeButton";
-import { MarkAsSolvedButton } from "@/components/posts/MarkAsSolvedButton";
+// Removed MarkAsSolvedButton import
 import { unstable_noStore as noStore } from 'next/cache';
 
 export default async function CommunityPage({ params }: { params: { communityId: string } }) {
@@ -81,7 +81,7 @@ export default async function CommunityPage({ params }: { params: { communityId:
           </div>
           <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-1">
             {posts.length > 0 ? posts.map((post) => {
-              const postCreatedAt = new Date(post.createdAt); // Convert ISO string to Date
+              const postCreatedAt = post.createdAt ? new Date(post.createdAt) : new Date();
               return (
                 <Card key={post.id} className="overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300">
                     <CardHeader>
@@ -146,7 +146,7 @@ export default async function CommunityPage({ params }: { params: { communityId:
                              </Link>
                           </Button>
                         </div>
-                        <MarkAsSolvedButton postId={post.id} initialIsSolved={post.isSolved} authorId={post.authorId} size="sm" />
+                        {/* MarkAsSolvedButton removed */}
                     </CardFooter>
                 </Card>
               );

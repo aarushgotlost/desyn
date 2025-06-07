@@ -26,9 +26,9 @@ export interface UserProfile {
   techStack?: string[];
   interests?: string[];
   onboardingCompleted: boolean;
-  createdAt?: string; // ISO string
-  lastLogin?: string; // ISO string
-  updatedAt?: string; // ISO string
+  createdAt?: string; 
+  lastLogin?: string; 
+  updatedAt?: string; 
   followersCount?: number;
   followingCount?: number;
 }
@@ -97,15 +97,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const userDocRef = doc(db, 'users', firebaseUser.uid);
         const userDocSnap = await getDoc(userDocRef);
         if (userDocSnap.exists()) {
-          let profileData = userDocSnap.data() as UserProfile;
-           // Convert Timestamps from Firestore to ISO strings if they are not already
+          let profileData = userDocSnap.data() as any; 
           const dateFields: (keyof UserProfile)[] = ['createdAt', 'lastLogin', 'updatedAt'];
           dateFields.forEach(field => {
             const val = profileData[field];
-            if (val && typeof (val as any).toDate === 'function') { // Firestore Timestamp
-              (profileData as any)[field] = (val as Timestamp).toDate().toISOString();
-            } else if (val instanceof Date) { // JS Date
-              (profileData as any)[field] = val.toISOString();
+            if (val && typeof (val as Timestamp).toDate === 'function') { 
+              profileData[field] = (val as Timestamp).toDate().toISOString();
+            } else if (val instanceof Date) { 
+              profileData[field] = val.toISOString();
+            } else if (typeof val === 'string') {
+              profileData[field] = val;
+            } else if (val) {
+                 try {
+                    profileData[field] = new Date(val).toISOString();
+                } catch (e) {
+                    console.warn(`Could not convert field ${String(field)} to ISOString:`, val);
+                    profileData[field] = val; 
+                }
             }
           });
           if (typeof profileData.onboardingCompleted === 'undefined') {
@@ -113,7 +121,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           }
           profileData.followersCount = profileData.followersCount || 0;
           profileData.followingCount = profileData.followingCount || 0;
-          setUserProfile(profileData);
+          setUserProfile(profileData as UserProfile);
         } else {
           const initialPhotoURL = firebaseUser.photoURL;
           const newUserProfile: UserProfile = {
@@ -122,15 +130,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             displayName: firebaseUser.displayName,
             photoURL: initialPhotoURL,
             onboardingCompleted: false,
-            createdAt: new Date().toISOString(), // Use ISO string
-            lastLogin: new Date().toISOString(), // Use ISO string
+            createdAt: new Date().toISOString(), 
+            lastLogin: new Date().toISOString(), 
             followersCount: 0,
             followingCount: 0,
           };
           await setDoc(userDocRef, {
             ...newUserProfile,
-            createdAt: serverTimestamp(), // Write as serverTimestamp
-            lastLogin: serverTimestamp(), // Write as serverTimestamp
+            createdAt: serverTimestamp(), 
+            lastLogin: serverTimestamp(), 
           });
           setUserProfile(newUserProfile);
         }
@@ -144,13 +152,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [router]);
 
   const createUserProfileDocument = async (firebaseUser: FirebaseUser, additionalData: Partial<UserProfile> = {}) => {
     const userDocRef = doc(db, 'users', firebaseUser.uid);
     const userDocSnap = await getDoc(userDocRef);
 
-    let profileDataToSet: Omit<UserProfile, 'createdAt' | 'lastLogin'> & { createdAt: Timestamp, lastLogin: Timestamp };
+    let profileDataToSet: Omit<UserProfile, 'createdAt' | 'lastLogin' | 'updatedAt'> & { createdAt: Timestamp, lastLogin: Timestamp, updatedAt?: Timestamp };
     let clientProfileData: UserProfile;
 
     if (!userDocSnap.exists()) {
@@ -169,13 +177,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         followersCount: 0,
         followingCount: 0,
         ...additionalData,
-        createdAt: serverTimestamp() as Timestamp, // For Firestore
-        lastLogin: serverTimestamp() as Timestamp, // For Firestore
+        createdAt: serverTimestamp() as Timestamp, 
+        lastLogin: serverTimestamp() as Timestamp, 
       };
       clientProfileData = {
         ...profileDataToSet,
-        createdAt: new Date().toISOString(), // For immediate client state
-        lastLogin: new Date().toISOString(), // For immediate client state
+        createdAt: new Date().toISOString(), 
+        lastLogin: new Date().toISOString(), 
       };
       try {
         await setDoc(userDocRef, profileDataToSet);
@@ -187,7 +195,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
        let existingData = userDocSnap.data() as any;
         clientProfileData = {
             ...existingData,
-            id: userDocSnap.id, // ensure id is present
+            uid: userDocSnap.id, 
             createdAt: (existingData.createdAt as Timestamp)?.toDate ? (existingData.createdAt as Timestamp).toDate().toISOString() : new Date().toISOString(),
             lastLogin: (existingData.lastLogin as Timestamp)?.toDate ? (existingData.lastLogin as Timestamp).toDate().toISOString() : new Date().toISOString(),
             updatedAt: (existingData.updatedAt as Timestamp)?.toDate ? (existingData.updatedAt as Timestamp).toDate().toISOString() : undefined,
@@ -270,7 +278,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             let profile = userDocSnap.data() as any;
             const clientProfile = {
                 ...profile,
-                id: userDocSnap.id,
+                uid: userDocSnap.id,
                 createdAt: (profile.createdAt as Timestamp)?.toDate ? (profile.createdAt as Timestamp).toDate().toISOString() : new Date().toISOString(),
                 lastLogin: (profile.lastLogin as Timestamp)?.toDate ? (profile.lastLogin as Timestamp).toDate().toISOString() : new Date().toISOString(),
                 updatedAt: (profile.updatedAt as Timestamp)?.toDate ? (profile.updatedAt as Timestamp).toDate().toISOString() : undefined,
@@ -306,10 +314,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       setLoading(true);
       await signOut(auth);
+      setUser(null);
+      setUserProfile(null);
       router.push('/login');
     } catch (error) {
       console.error("Error signing out: ", error);
       throw error;
+    } finally {
+        setLoading(false);
     }
   };
 
@@ -327,18 +339,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     try {
       const userDocRef = doc(db, 'users', user.uid);
-      const newFirestorePhotoURL = data.photoDataUrl !== undefined ? data.photoDataUrl : userProfile?.photoURL;
-
-      const profileUpdateForFirestore: Partial<UserProfile & {updatedAt: Timestamp}> = { // Use Partial<UserProfile> for Firestore update
+      
+      const profileUpdateForFirestore: Partial<UserProfile & {updatedAt: Timestamp}> = {
         displayName: data.displayName,
         bio: data.bio,
         techStack: data.techStack,
-        photoURL: newFirestorePhotoURL, 
         onboardingCompleted: data.onboardingCompleted,
         updatedAt: serverTimestamp() as Timestamp,
       };
+      
+      // Handle photoURL separately for Firestore
+      if (data.photoDataUrl !== undefined) { // If photoDataUrl is part of the input (even if null)
+        profileUpdateForFirestore.photoURL = data.photoDataUrl;
+      }
 
-      // Remove undefined fields before sending to Firestore
       Object.keys(profileUpdateForFirestore).forEach(key => {
         const typedKey = key as keyof typeof profileUpdateForFirestore;
         if (profileUpdateForFirestore[typedKey] === undefined) {
@@ -357,19 +371,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           needsFirebaseAuthUpdate = true;
         }
         
-        // Only update Firebase Auth photoURL if user explicitly REMOVES the photo (sets photoDataUrl to null)
-        // Do NOT attempt to set a Data URL to Firebase Auth photoURL
-        if (data.photoDataUrl === null && auth.currentUser.photoURL !== null) { // User explicitly cleared photo
+        if (data.photoDataUrl === null && auth.currentUser.photoURL !== null) { 
             updatesForFirebaseAuth.photoURL = null;
             needsFirebaseAuthUpdate = true;
         }
-        // If data.photoDataUrl is a Data URL string, newFirestorePhotoURL will hold it.
-        // We do *not* pass this to updatesForFirebaseAuth.photoURL.
-        // If data.photoDataUrl is undefined, it means user didn't touch the photo input.
-        // In this case, newFirestorePhotoURL would be userProfile?.photoURL (the existing one).
-        // And we don't update Firebase Auth photoURL unless it was explicitly cleared.
         
-        if (needsFirebaseAuthUpdate) {
+        if (needsFirebaseAuthUpdate && Object.keys(updatesForFirebaseAuth).length > 0) {
           await updateFirebaseUserProfile(auth.currentUser, updatesForFirebaseAuth);
         }
       }
@@ -379,7 +386,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         let updatedProfileData = updatedDoc.data() as any;
         const clientProfile = {
             ...updatedProfileData,
-            id: updatedDoc.id,
+            uid: updatedDoc.id,
             createdAt: (updatedProfileData.createdAt as Timestamp)?.toDate ? (updatedProfileData.createdAt as Timestamp).toDate().toISOString() : new Date().toISOString(),
             lastLogin: (updatedProfileData.lastLogin as Timestamp)?.toDate ? (updatedProfileData.lastLogin as Timestamp).toDate().toISOString() : new Date().toISOString(),
             updatedAt: (updatedProfileData.updatedAt as Timestamp)?.toDate ? (updatedProfileData.updatedAt as Timestamp).toDate().toISOString() : new Date().toISOString(),
@@ -465,7 +472,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         createdAt: serverTimestamp(),
         likes: 0,
         commentsCount: 0,
-        isSolved: false,
+        // isSolved: false, // Removed isSolved
         imageURL: imageStorageURL,
       };
 

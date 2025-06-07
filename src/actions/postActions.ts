@@ -14,9 +14,9 @@ import {
   serverTimestamp,
   Timestamp,
   runTransaction,
-  query, // Added query
-  orderBy, // Added orderBy
-  getDocs, // Added getDocs
+  query, 
+  orderBy, 
+  getDocs, 
 } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
 import type { UserProfile } from '@/contexts/AuthContext';
@@ -141,7 +141,7 @@ export async function addCommentToPost(
       authorId: commentData.authorId,
       authorName: commentData.authorName,
       authorAvatar: commentData.authorAvatar || null,
-      createdAt: serverTimestamp(), // Firestore will handle this
+      createdAt: serverTimestamp(), 
     };
     batch.set(newCommentRef, newCommentForFirestore); 
     batch.update(postRef, { commentsCount: increment(1) });
@@ -159,7 +159,7 @@ export async function addCommentToPost(
     const createdCommentForClient: Comment = {
       ...newCommentForFirestore,
       id: newCommentRef.id,
-      createdAt: new Date().toISOString(), // For optimistic client-side update, provide ISO string
+      createdAt: new Date().toISOString(),
     };
 
     return { success: true, message: 'Comment added!', commentId: newCommentRef.id, newComment: createdCommentForClient };
@@ -169,45 +169,7 @@ export async function addCommentToPost(
   }
 }
 
-export async function togglePostSolvedStatus(
-  postId: string,
-  userId: string
-): Promise<{ success: boolean; message: string; isSolved?: boolean }> {
-  if (!userId) {
-    return { success: false, message: 'User not authenticated.' };
-  }
-  if (!postId) {
-    return { success: false, message: 'Post ID is missing.' };
-  }
-
-  const postRef = doc(db, 'posts', postId);
-
-  try {
-    const postSnap = await getDoc(postRef);
-    if (!postSnap.exists()) {
-      return { success: false, message: 'Post not found.' };
-    }
-
-    const postData = postSnap.data() as Post;
-    if (postData.authorId !== userId) {
-      return { success: false, message: 'Only the post author can mark it as solved.' };
-    }
-
-    const newSolvedStatus = !postData.isSolved;
-    await updateDoc(postRef, { isSolved: newSolvedStatus });
-
-    await revalidatePostPaths(postId, postData.communityId);
-
-    return {
-      success: true,
-      message: newSolvedStatus ? 'Post marked as solved.' : 'Post marked as unsolved.',
-      isSolved: newSolvedStatus,
-    };
-  } catch (error: any) {
-    console.error('Error toggling post solved status:', error);
-    return { success: false, message: error.message || 'Could not update solved status.' };
-  }
-}
+// togglePostSolvedStatus function removed
 
 export async function getCommentsForPost(postId: string): Promise<Comment[]> {
   const commentsColRef = collection(db, 'posts', postId, 'comments');

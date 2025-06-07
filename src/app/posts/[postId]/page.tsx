@@ -10,7 +10,7 @@ import { getPostDetails } from "@/services/firestoreService";
 import type { Post } from "@/types/data";
 import { formatDistanceToNowStrict } from 'date-fns';
 import { LikeButton } from "@/components/posts/LikeButton";
-import { MarkAsSolvedButton } from "@/components/posts/MarkAsSolvedButton";
+// Removed MarkAsSolvedButton import
 import { CommentForm } from "@/components/comments/CommentForm";
 import { CommentList } from "@/components/comments/CommentList";
 import { unstable_noStore as noStore } from 'next/cache';
@@ -24,7 +24,7 @@ export default async function PostDetailsPage({ params }: { params: { postId: st
     return <div className="text-center py-10">Post not found.</div>;
   }
 
-  const postCreatedAt = new Date(post.createdAt); // Convert ISO string to Date
+  const postCreatedAt = post.createdAt ? new Date(post.createdAt) : new Date();
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
@@ -86,7 +86,7 @@ export default async function PostDetailsPage({ params }: { params: { postId: st
                 </Link>
             </Button>
           </div>
-          <MarkAsSolvedButton postId={post.id} initialIsSolved={post.isSolved} authorId={post.authorId} size="default"/>
+          {/* MarkAsSolvedButton removed */}
         </CardFooter>
       </Card>
 
