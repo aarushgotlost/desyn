@@ -34,8 +34,9 @@ export default function AuthGuard({ children }: AuthGuardProps) {
       if (userProfile && !userProfile.onboardingCompleted && !isProfileSetupPage) {
         // If onboarding is not complete, and they are not on the profile setup page, redirect them there.
         router.replace('/onboarding/profile-setup');
-      } else if (userProfile && userProfile.onboardingCompleted && (pathIsAuthRestricted || isProfileSetupPage)) {
-        // If onboarding is complete, redirect away from auth-restricted pages and profile setup page.
+      } else if (userProfile && userProfile.onboardingCompleted && pathIsAuthRestricted) {
+        // If onboarding is complete, redirect away from auth-restricted pages (login, signup, etc.).
+        // Users can still access /onboarding/profile-setup to edit their profile.
         router.replace('/');
       } else if (!userProfile && !isProfileSetupPage) {
         // Edge case: user exists, but profile is somehow null (shouldn't happen with current AuthContext logic)
