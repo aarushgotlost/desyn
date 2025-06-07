@@ -10,7 +10,7 @@ export interface Community {
   createdBy: string; // UID
   memberCount: number;
   members: string[]; // Array of UIDs - UIDs of users who have joined
-  createdAt: Timestamp;
+  createdAt: Timestamp | Date; // Can be Timestamp from Firestore or Date object after processing
 }
 
 export interface Post {
@@ -25,8 +25,30 @@ export interface Post {
   authorId: string;
   authorName: string;
   authorAvatar?: string | null;
-  createdAt: Timestamp;
+  createdAt: Timestamp | Date; // Can be Timestamp from Firestore or Date object after processing
   likes: number;
   commentsCount: number;
   isSolved: boolean;
 }
+
+export interface Comment {
+  id: string; // Document ID
+  postId: string;
+  authorId: string;
+  authorName: string;
+  authorAvatar?: string | null;
+  text: string;
+  createdAt: Timestamp | Date; // Can be Timestamp from Firestore or Date object after processing
+  // replies?: Reply[]; // Future enhancement
+}
+
+// Example Reply structure (for future use)
+// export interface Reply {
+//   id: string;
+//   commentId: string;
+//   authorId: string;
+//   authorName: string;
+//   authorAvatar?: string | null;
+//   text: string;
+//   createdAt: Timestamp | Date;
+// }

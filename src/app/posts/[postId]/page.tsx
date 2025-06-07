@@ -4,36 +4,29 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Textarea } from "@/components/ui/textarea";
 import Image from "next/image";
 import Link from "next/link";
 import { ThumbsUp, MessageSquare, CheckCircle, Send, CornerDownRight } from "lucide-react";
-import { getPostDetails } from "@/services/firestoreService";
+import { getPostDetails, getCurrentUserId } from "@/services/firestoreService"; // getCurrentUserId might not be needed here if auth context is used in client components
 import type { Post } from "@/types/data";
 import { formatDistanceToNowStrict } from 'date-fns';
+import { LikeButton } from "@/components/posts/LikeButton";
+import { MarkAsSolvedButton } from "@/components/posts/MarkAsSolvedButton";
+import { CommentForm } from "@/components/comments/CommentForm";
+import { CommentList } from "@/components/comments/CommentList";
+import { unstable_noStore as noStore } from 'next/cache';
 
-// Mock comments until comment functionality is implemented
-const mockComments = [
-  { 
-    id: "c1", 
-    author: { name: "Bob The Commenter", avatar: "https://placehold.co/32x32.png?text=BC", profileLink: "/profile/bob" }, 
-    text: "Great tutorial! Server actions are a game changer.", 
-    timestamp: "1h ago",
-    replies: [
-      {id: "r1", author: { name: "Alice Wonderland", avatar: "https://placehold.co/32x32.png?text=AW", profileLink: "/profile/alice" }, text: "Thanks Bob! Glad you found it helpful.", timestamp: "30m ago"}
-    ]
-  },
-];
 
 export default async function PostDetailsPage({ params }: { params: { postId: string } }) {
+  noStore(); // Ensure fresh data on each request for this dynamic page
   const post: Post | null = await getPostDetails(params.postId);
+  // const currentUserId = await getCurrentUserId(); // Using auth context in client components is preferred
 
   if (!post) {
     return <div className="text-center py-10">Post not found.</div>;
   }
 
-  // Placeholder for user-specific interactions
-  const isLikedByUser = false; 
+  const postCreatedAt = post.createdAt instanceof Date ? post.createdAt : (post.createdAt as any)?.toDate ? (post.createdAt as any).toDate() : new Date();
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
@@ -46,22 +39,21 @@ export default async function PostDetailsPage({ params }: { params: { postId: st
           </div>
           <CardTitle className="text-3xl lg:text-4xl font-bold font-headline">{post.title}</CardTitle>
           <div className="flex items-center space-x-3 text-sm text-muted-foreground mt-2">
-            {/* TODO: Link to actual user profile page based on post.authorId */}
-            <div className="flex items-center space-x-2 hover:text-primary">
+            <Link href={`/profile/${post.authorId}`} className="flex items-center space-x-2 hover:text-primary"> {/* TODO: Make /profile/[userId] dynamic */}
               <Avatar className="h-8 w-8">
                 <AvatarImage 
-                  src={post.authorAvatar || "https://placehold.co/40x40.png?text=N/A"} 
+                  src={post.authorAvatar || undefined} 
                   alt={post.authorName} 
                   data-ai-hint="user avatar"
                 />
                 <AvatarFallback>{post.authorName?.substring(0,1).toUpperCase() || 'A'}</AvatarFallback>
               </Avatar>
               <span>{post.authorName}</span>
-            </div>
+            </Link>
             <span>&bull;</span>
             <span>Posted in <Link href={`/communities/${post.communityId}`} className="hover:text-primary">{post.communityName}</Link></span>
             <span>&bull;</span>
-            <span>{post.createdAt ? formatDistanceToNowStrict(post.createdAt, { addSuffix: true }) : 'N/A'}</span>
+            <span>{formatDistanceToNowStrict(postCreatedAt, { addSuffix: true })}</span>
           </div>
         </CardHeader>
         <CardContent className="prose prose-sm sm:prose-base lg:prose-lg dark:prose-invert max-w-none space-y-6">
@@ -77,106 +69,39 @@ export default async function PostDetailsPage({ params }: { params: { postId: st
               />
             </div>
           )}
-          {/* Using dangerouslySetInnerHTML for description if it might contain markdown later. For now, simple text. */}
-          <p>{post.description}</p>
+          <p className="text-foreground/80">{post.description}</p>
           {post.codeSnippet && (
             <div>
-              <h3 className="font-semibold mb-1">Code Example:</h3>
-              <pre className="bg-muted p-4 rounded-md text-sm overflow-x-auto font-code">
+              <h3 className="font-semibold mb-1 text-foreground">Code Example:</h3>
+              <pre className="bg-muted p-4 rounded-md text-sm overflow-x-auto font-code text-foreground/90">
                 <code>{post.codeSnippet}</code>
               </pre>
             </div>
           )}
         </CardContent>
         <CardFooter className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 py-6 border-t">
-          <div className="flex space-x-4 text-muted-foreground">
-            <Button variant={isLikedByUser ? "default" : "outline"} size="sm" className="flex items-center space-x-1.5" disabled> {/* Like functionality pending */}
-              <ThumbsUp size={18} /> <span>{post.likes}</span>
-            </Button>
-            <Button variant="outline" size="sm" className="flex items-center space-x-1.5" disabled> {/* Comment count functionality pending */}
-              <MessageSquare size={18} /> <span>{post.commentsCount} Comments</span>
+          <div className="flex space-x-2 text-muted-foreground">
+            <LikeButton postId={post.id} initialLikesCount={post.likes} size="default" />
+            <Button variant="outline" size="default" className="flex items-center space-x-1.5 text-muted-foreground" asChild>
+                <Link href="#comments">
+                    <MessageSquare size={18} /> <span>{post.commentsCount} Comments</span>
+                </Link>
             </Button>
           </div>
-          {post.isSolved ? (
-            <div className="flex items-center text-green-500 font-medium">
-              <CheckCircle size={20} className="mr-1.5" /> Solved
-            </div>
-          ) : (
-            <Button variant="outline" size="sm" className="text-green-600 border-green-600 hover:bg-green-50 hover:text-green-700" disabled> {/* Mark as solved functionality pending */}
-              <CheckCircle size={18} className="mr-1.5" /> Mark as Solved
-            </Button>
-          )}
+          <MarkAsSolvedButton postId={post.id} initialIsSolved={post.isSolved} authorId={post.authorId} size="default"/>
         </CardFooter>
       </Card>
 
-      {/* Comments Section - Still uses mock data */}
-      <Card className="shadow-lg">
+      <Card className="shadow-lg" id="comments">
         <CardHeader>
           <CardTitle className="text-xl font-headline">Comments ({post.commentsCount})</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="flex items-start space-x-3">
-            <Avatar>
-              <AvatarImage src="https://placehold.co/40x40.png?text=U" alt="Current User" data-ai-hint="current user avatar"/>
-              <AvatarFallback>U</AvatarFallback>
-            </Avatar>
-            <div className="flex-1 space-y-2">
-              <Textarea placeholder="Add a comment..." rows={3} disabled /> {/* Comment submission pending */}
-              <Button size="sm" disabled>
-                <Send size={16} className="mr-2" /> Post Comment
-              </Button>
-            </div>
-          </div>
-
-          <Separator />
-
-          <div className="space-y-6">
-            {mockComments.map(comment => (
-              <div key={comment.id} className="space-y-3">
-                <div className="flex items-start space-x-3">
-                  <Link href={comment.author.profileLink}>
-                    <Avatar className="h-8 w-8">
-                      <AvatarImage src={comment.author.avatar} alt={comment.author.name} data-ai-hint="commenter avatar"/>
-                      <AvatarFallback>{comment.author.name.substring(0,1)}</AvatarFallback>
-                    </Avatar>
-                  </Link>
-                  <div className="flex-1 bg-muted/50 p-3 rounded-lg">
-                    <div className="flex items-center justify-between text-xs mb-1">
-                      <Link href={comment.author.profileLink} className="font-semibold text-foreground hover:text-primary">{comment.author.name}</Link>
-                      <span className="text-muted-foreground">{comment.timestamp}</span>
-                    </div>
-                    <p className="text-sm text-foreground/90">{comment.text}</p>
-                  </div>
-                </div>
-                {comment.replies && comment.replies.length > 0 && (
-                  <div className="ml-8 pl-3 border-l-2 border-muted space-y-3">
-                    {comment.replies.map(reply => (
-                       <div key={reply.id} className="flex items-start space-x-3">
-                         <Link href={reply.author.profileLink}>
-                           <Avatar className="h-6 w-6">
-                             <AvatarImage src={reply.author.avatar} alt={reply.author.name} data-ai-hint="replier avatar"/>
-                             <AvatarFallback>{reply.author.name.substring(0,1)}</AvatarFallback>
-                           </Avatar>
-                         </Link>
-                         <div className="flex-1 bg-muted/30 p-2 rounded-lg">
-                           <div className="flex items-center justify-between text-xs mb-0.5">
-                             <Link href={reply.author.profileLink} className="font-semibold text-foreground hover:text-primary text-xs">{reply.author.name}</Link>
-                             <span className="text-muted-foreground text-xs">{reply.timestamp}</span>
-                           </div>
-                           <p className="text-xs text-foreground/90">{reply.text}</p>
-                         </div>
-                       </div>
-                    ))}
-                  </div>
-                )}
-                 <Button variant="ghost" size="sm" className="ml-11 text-xs text-muted-foreground hover:text-primary" disabled>
-                    <CornerDownRight size={12} className="mr-1"/> Reply
-                </Button>
-              </div>
-            ))}
-          </div>
+          <CommentList postId={post.id} />
         </CardContent>
+        <CommentForm postId={post.id} /> {/* Form is part of the card, typically after content */}
       </Card>
     </div>
   );
 }
+

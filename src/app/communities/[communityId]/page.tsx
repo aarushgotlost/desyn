@@ -3,7 +3,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import Image from "next/image";
-import { MessageCircle, ThumbsUp, CheckCircle, Users, PlusCircle, MessageSquareTextIcon } from "lucide-react";
+import { MessageCircle, Users, PlusCircle, MessageSquareTextIcon } from "lucide-react";
 import Link from "next/link";
 import { getCommunityDetails, getPostsForCommunity, getCurrentUserId } from "@/services/firestoreService"; 
 import type { Community, Post } from "@/types/data";
@@ -11,12 +11,15 @@ import { formatDistanceToNowStrict } from 'date-fns';
 import { CommunityJoinButton } from '@/components/communities/CommunityJoinButton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CommunityChatInterface } from "@/components/communities/CommunityChatInterface";
-import { PostCard } from '@/components/posts/PostCard'; // Assuming you'll create/use this
+import { LikeButton } from "@/components/posts/LikeButton";
+import { MarkAsSolvedButton } from "@/components/posts/MarkAsSolvedButton";
+import { unstable_noStore as noStore } from 'next/cache';
 
 export default async function CommunityPage({ params }: { params: { communityId: string } }) {
+  noStore();
   const community: Community | null = await getCommunityDetails(params.communityId);
   const posts: Post[] = await getPostsForCommunity(params.communityId);
-  const currentUserId = await getCurrentUserId(); // This is a placeholder
+  const currentUserId = await getCurrentUserId(); // Placeholder, auth usually handled client-side for button states
 
   if (!community) {
     return <div className="text-center py-10">Community not found.</div>;
@@ -54,7 +57,7 @@ export default async function CommunityPage({ params }: { params: { communityId:
             <div className="flex flex-col md:items-end space-y-2 md:space-y-0 md:space-x-2 md:flex-row self-start pt-2">
               <CommunityJoinButton 
                 communityId={community.id} 
-                initialIsJoined={initialIsJoined}
+                initialIsJoined={initialIsJoined} // This will be determined by AuthContext on client for accuracy
                 memberCount={community.memberCount || 0}
               />
             </div>
@@ -77,44 +80,51 @@ export default async function CommunityPage({ params }: { params: { communityId:
             </Button>
           </div>
           <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-1">
-            {posts.length > 0 ? posts.map((post) => (
-                // Using PostCard directly here for brevity
+            {posts.length > 0 ? posts.map((post) => {
+              const postCreatedAt = post.createdAt instanceof Date ? post.createdAt : (post.createdAt as any)?.toDate ? (post.createdAt as any).toDate() : new Date();
+              return (
                 <Card key={post.id} className="overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300">
                     <CardHeader>
                         <div className="flex items-center space-x-3 mb-2">
-                        <Image 
-                            src={post.authorAvatar || "https://placehold.co/40x40.png?text=N/A"} 
-                            alt={post.authorName} 
-                            width={40} 
-                            height={40} 
-                            className="rounded-full object-cover"
-                            data-ai-hint="profile avatar"
-                        />
-                        <div>
-                            <CardTitle className="text-lg font-headline hover:text-primary">
-                            <Link href={`/posts/${post.id}`}>{post.title}</Link>
-                            </CardTitle>
-                            <p className="text-xs text-muted-foreground">
-                            Posted by {post.authorName} &bull; {post.createdAt ? formatDistanceToNowStrict(new Date(post.createdAt as any), { addSuffix: true }) : 'N/A'}
-                            </p>
-                        </div>
+                          <Link href={`/profile/${post.authorId}`} className="flex-shrink-0"> {/* TODO: Make /profile/[userId] dynamic */}
+                            <Image 
+                                src={post.authorAvatar || "https://placehold.co/40x40.png?text=N/A"} 
+                                alt={post.authorName} 
+                                width={40} 
+                                height={40} 
+                                className="rounded-full object-cover"
+                                data-ai-hint="profile avatar"
+                            />
+                          </Link>
+                          <div>
+                              <CardTitle className="text-lg font-headline hover:text-primary">
+                              <Link href={`/posts/${post.id}`}>{post.title}</Link>
+                              </CardTitle>
+                              <p className="text-xs text-muted-foreground">
+                              Posted by <Link href={`/profile/${post.authorId}`} className="hover:text-primary font-medium">{post.authorName}</Link> &bull; {formatDistanceToNowStrict(postCreatedAt, { addSuffix: true })}
+                              </p>
+                          </div>
                         </div>
                     </CardHeader>
                     <CardContent>
                         {post.imageURL && (
-                        <div className="mb-3 overflow-hidden rounded-md">
-                            <Image 
-                            src={post.imageURL} 
-                            alt={post.title} 
-                            width={600} 
-                            height={300} 
-                            className="w-full h-auto object-cover" 
-                            data-ai-hint="post image"
-                            />
-                        </div>
+                          <div className="mb-3 overflow-hidden rounded-md">
+                            <Link href={`/posts/${post.id}`}>
+                              <Image 
+                                src={post.imageURL} 
+                                alt={post.title} 
+                                width={600} 
+                                height={300} 
+                                className="w-full h-auto object-cover" 
+                                data-ai-hint="post image"
+                              />
+                            </Link>
+                          </div>
                         )}
                         <CardDescription className="mb-3 text-foreground/80 text-sm">
-                        {post.description.substring(0,150)}{post.description.length > 150 && '...'}
+                          <Link href={`/posts/${post.id}`} className="hover:text-primary/80">
+                            {post.description.substring(0,150)}{post.description.length > 150 && '...'}
+                          </Link>
                         </CardDescription>
                         {post.codeSnippet && (
                         <pre className="bg-muted p-2 rounded-md text-xs overflow-x-auto font-code mb-3">
@@ -128,30 +138,19 @@ export default async function CommunityPage({ params }: { params: { communityId:
                         </div>
                     </CardContent>
                     <CardFooter className="flex justify-between items-center">
-                        <div className="flex space-x-3 text-muted-foreground">
-                        {/* LikeButton would go here, passing postId and initialLikesCount */}
-                        <Button variant="ghost" size="sm" className="flex items-center space-x-1 text-xs" disabled> 
-                            <ThumbsUp size={14} /> <span>{post.likes || 0}</span>
-                        </Button>
-                        <Button variant="ghost" size="sm" className="flex items-center space-x-1 text-xs" asChild>
-                           <Link href={`/posts/${post.id}#comments`}>
-                             <MessageCircle size={14} /> <span>{post.commentsCount || 0}</span>
-                           </Link>
-                        </Button>
+                        <div className="flex space-x-2 text-muted-foreground">
+                          <LikeButton postId={post.id} initialLikesCount={post.likes} size="sm" />
+                          <Button variant="ghost" size="sm" className="flex items-center space-x-1 text-muted-foreground text-xs" asChild>
+                             <Link href={`/posts/${post.id}#comments`}>
+                               <MessageCircle size={14} /> <span>{post.commentsCount || 0}</span>
+                             </Link>
+                          </Button>
                         </div>
-                        {/* MarkAsSolvedButton would go here */}
-                         {post.isSolved ? (
-                            <div className="flex items-center text-green-600 text-xs">
-                            <CheckCircle size={14} className="mr-1" /> Solved
-                            </div>
-                        ) : (
-                            <Button variant="outline" size="sm" className="text-xs" disabled>
-                            Mark as Solved
-                            </Button>
-                        )}
+                        <MarkAsSolvedButton postId={post.id} initialIsSolved={post.isSolved} authorId={post.authorId} size="sm" />
                     </CardFooter>
                 </Card>
-            )) : (
+              );
+            }) : (
               <p className="text-muted-foreground col-span-full text-center py-10">No posts in this community yet. Be the first to create one!</p>
             )}
           </div>
@@ -164,3 +163,4 @@ export default async function CommunityPage({ params }: { params: { communityId:
     </div>
   );
 }
+
