@@ -2,23 +2,18 @@
 'use server';
 import { db } from '@/lib/firebase';
 import type { UserProfile } from '@/contexts/AuthContext';
-import type { ChatMessage, ChatSession, ChatParticipant } from '@/types/messaging';
+import type { ChatSession, ChatParticipant } from '@/types/messaging';
 import {
   collection,
   query,
   where,
   getDocs,
   addDoc,
-  orderBy,
-  onSnapshot,
   doc,
   setDoc,
   serverTimestamp,
   Timestamp,
   writeBatch,
-  limit,
-  QuerySnapshot,
-  DocumentData,
 } from 'firebase/firestore';
 
 // Helper to create participant objects
@@ -83,7 +78,14 @@ export async function sendMessage(
   const chatDocRef = doc(db, 'chats', chatId);
   const messagesColRef = collection(chatDocRef, 'messages');
 
-  const newMessage: Omit<ChatMessage, 'id' | 'createdAt'> = {
+  const newMessage: {
+    chatId: string;
+    senderId: string;
+    senderName: string | null;
+    senderAvatar?: string | null;
+    text: string;
+    // createdAt will be added with serverTimestamp
+  } = { // Omitting 'id' and 'createdAt' from type as they are handled by Firestore/auto-gen
     chatId,
     senderId: senderProfile.uid,
     senderName: senderProfile.displayName,
@@ -106,44 +108,4 @@ export async function sendMessage(
   });
 
   await batch.commit();
-}
-
-export function getUserChatSessions(
-  userId: string,
-  onUpdate: (sessions: ChatSession[]) => void
-): () => void {
-  const chatsRef = collection(db, 'chats');
-  const q = query(
-    chatsRef,
-    where('participantUids', 'array-contains', userId),
-    orderBy('lastMessageAt', 'desc')
-  );
-
-  const unsubscribe = onSnapshot(q, (querySnapshot: QuerySnapshot<DocumentData>) => {
-    const sessions: ChatSession[] = [];
-    querySnapshot.forEach((docSnap) => {
-      sessions.push({ id: docSnap.id, ...docSnap.data() } as ChatSession);
-    });
-    onUpdate(sessions);
-  });
-
-  return unsubscribe;
-}
-
-export function getChatMessages(
-  chatId: string,
-  onUpdate: (messages: ChatMessage[]) => void
-): () => void {
-  const messagesColRef = collection(db, 'chats', chatId, 'messages');
-  const q = query(messagesColRef, orderBy('createdAt', 'asc'), limit(50)); // Get last 50 messages
-
-  const unsubscribe = onSnapshot(q, (querySnapshot: QuerySnapshot<DocumentData>) => {
-    const messages: ChatMessage[] = [];
-    querySnapshot.forEach((docSnap) => {
-      messages.push({ id: docSnap.id, ...docSnap.data() } as ChatMessage);
-    });
-    onUpdate(messages);
-  });
-
-  return unsubscribe;
 }

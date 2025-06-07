@@ -3,7 +3,8 @@
 
 import { useEffect, useState, useRef, FormEvent } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getChatMessages, sendMessage } from '@/services/chatService';
+import { sendMessage } from '@/services/chatService'; // sendMessage is a Server Action
+import { getChatMessages } from '@/services/chatSubscriptionService'; // getChatMessages is for client-side listeners
 import type { ChatMessage, ChatParticipant } from '@/types/messaging';
 import { Card, CardContent, CardDescription, CardHeader, CardFooter, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -11,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Send, Loader2, ArrowLeft } from 'lucide-react';
 import { format } from 'date-fns';
-import { useRouter } from 'next/navigation'; // Corrected import
+import { useRouter } from 'next/navigation'; 
 import Link from 'next/link';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';

@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-import { getUserChatSessions } from '@/services/chatService';
+import { getUserChatSessions } from '@/services/chatSubscriptionService'; // Updated import
 import type { ChatSession } from '@/types/messaging';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
