@@ -16,7 +16,8 @@ import {
 
 export function getUserChatSessions(
   userId: string,
-  onUpdate: (sessions: ChatSession[]) => void
+  onUpdate: (sessions: ChatSession[]) => void,
+  onError?: (error: Error) => void // Optional error callback
 ): () => void {
   const chatsRef = collection(db, 'chats');
   const q = query(
@@ -31,6 +32,12 @@ export function getUserChatSessions(
       sessions.push({ id: docSnap.id, ...docSnap.data() } as ChatSession);
     });
     onUpdate(sessions);
+  },
+  (error) => { // Firestore onSnapshot error handling
+    console.error("Error in getUserChatSessions snapshot: ", error);
+    if (onError) {
+      onError(error);
+    }
   });
 
   return unsubscribe;
@@ -38,7 +45,8 @@ export function getUserChatSessions(
 
 export function getChatMessages(
   chatId: string,
-  onUpdate: (messages: ChatMessage[]) => void
+  onUpdate: (messages: ChatMessage[]) => void,
+  onError?: (error: Error) => void // Optional error callback
 ): () => void {
   const messagesColRef = collection(db, 'chats', chatId, 'messages');
   const q = query(messagesColRef, orderBy('createdAt', 'asc'), limit(50)); // Get last 50 messages
@@ -49,6 +57,12 @@ export function getChatMessages(
       messages.push({ id: docSnap.id, ...docSnap.data() } as ChatMessage);
     });
     onUpdate(messages);
+  },
+  (error) => { // Firestore onSnapshot error handling
+    console.error("Error in getChatMessages snapshot: ", error);
+    if (onError) {
+      onError(error);
+    }
   });
 
   return unsubscribe;

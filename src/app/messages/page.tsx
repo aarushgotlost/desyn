@@ -4,19 +4,20 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-import { getUserChatSessions } from '@/services/chatSubscriptionService'; // Updated import
+import { getUserChatSessions } from '@/services/chatSubscriptionService';
 import type { ChatSession } from '@/types/messaging';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { MessageSquareText, UserPlus, Loader2, AlertTriangle, Search } from 'lucide-react'; // Added UserPlus
+import { MessageSquareText, UserPlus, Loader2, AlertTriangle, Search } from 'lucide-react';
 import { formatDistanceToNowStrict } from 'date-fns';
 import { Input } from '@/components/ui/input';
+import { useRouter } from 'next/navigation'; // Added useRouter
 
 function ChatListItem({ session, currentUserUid }: { session: ChatSession; currentUserUid: string }) {
   const otherParticipant = session.participants.find(p => p.uid !== currentUserUid);
 
-  if (!otherParticipant) return null; // Should not happen in a 1-on-1 chat
+  if (!otherParticipant) return null;
 
   const getInitials = (name: string | null | undefined) => {
     if (!name) return '?';
@@ -53,6 +54,7 @@ function ChatListItem({ session, currentUserUid }: { session: ChatSession; curre
 
 export default function MessagesPage() {
   const { user, userProfile, loading: authLoading } = useAuth();
+  const router = useRouter(); // Initialize useRouter
   const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
   const [isLoadingSessions, setIsLoadingSessions] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -70,6 +72,10 @@ export default function MessagesPage() {
       setChatSessions(sessions);
       setIsLoadingSessions(false);
       setError(null);
+    }, (err) => { // Add error callback for getUserChatSessions
+      console.error("Error fetching chat sessions:", err);
+      setError("Failed to load chat sessions. Please try again.");
+      setIsLoadingSessions(false);
     });
 
     return () => {
@@ -121,8 +127,7 @@ export default function MessagesPage() {
   }
 
   const handleNewChat = () => {
-    // TODO: Implement navigation to a user search/selection page or open a modal
-    alert('New chat functionality (e.g., search for users) coming soon!');
+    router.push('/messages/new'); // Navigate to new chat user selection page
   };
 
   return (
@@ -163,7 +168,7 @@ export default function MessagesPage() {
               <MessageSquareText size={48} className="mx-auto text-muted-foreground mb-4 opacity-50" />
               <h3 className="text-lg font-semibold text-foreground mb-1">No Chats Yet</h3>
               <p className="text-sm text-muted-foreground">
-                Start a conversation from a user's profile or by clicking "New Chat".
+                Start a conversation by clicking "New Chat" or from a user's profile.
               </p>
             </div>
           )}
