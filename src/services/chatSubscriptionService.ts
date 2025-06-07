@@ -1,7 +1,7 @@
 
 // This file should NOT have 'use server';
 import { db } from '@/lib/firebase';
-import type { ChatMessage, ChatSession } from '@/types/messaging';
+import type { ChatMessage, ChatSession, CommunityChatMessage } from '@/types/messaging';
 import {
   collection,
   query,
@@ -49,7 +49,7 @@ export function getChatMessages(
   onError?: (error: Error) => void // Optional error callback
 ): () => void {
   const messagesColRef = collection(db, 'chats', chatId, 'messages');
-  const q = query(messagesColRef, orderBy('createdAt', 'asc'), limit(50)); // Get last 50 messages
+  const q = query(messagesColRef, orderBy('createdAt', 'asc'), limit(100)); // Get last 100 messages
 
   const unsubscribe = onSnapshot(q, (querySnapshot: QuerySnapshot<DocumentData>) => {
     const messages: ChatMessage[] = [];
@@ -60,6 +60,32 @@ export function getChatMessages(
   },
   (error) => { // Firestore onSnapshot error handling
     console.error("Error in getChatMessages snapshot: ", error);
+    if (onError) {
+      onError(error);
+    }
+  });
+
+  return unsubscribe;
+}
+
+
+export function getCommunityChatMessages(
+  communityId: string,
+  onUpdate: (messages: CommunityChatMessage[]) => void,
+  onError?: (error: Error) => void
+): () => void {
+  const messagesColRef = collection(db, 'communities', communityId, 'messages');
+  const q = query(messagesColRef, orderBy('createdAt', 'asc'), limit(100)); // Get last 100 messages
+
+  const unsubscribe = onSnapshot(q, (querySnapshot: QuerySnapshot<DocumentData>) => {
+    const messages: CommunityChatMessage[] = [];
+    querySnapshot.forEach((docSnap) => {
+      messages.push({ id: docSnap.id, ...docSnap.data() } as CommunityChatMessage);
+    });
+    onUpdate(messages);
+  },
+  (error) => {
+    console.error("Error in getCommunityChatMessages snapshot: ", error);
     if (onError) {
       onError(error);
     }

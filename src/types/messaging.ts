@@ -30,3 +30,13 @@ export interface ChatMessage {
   createdAt: Timestamp;
   // readBy?: string[]; // For read receipts, future enhancement
 }
+
+export interface CommunityChatMessage {
+  id: string; // Document ID
+  communityId: string;
+  senderId: string;
+  senderName: string | null;
+  senderAvatar?: string | null;
+  text: string;
+  createdAt: Timestamp;
+}

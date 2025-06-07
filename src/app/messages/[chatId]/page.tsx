@@ -11,48 +11,10 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Send, Loader2, ArrowLeft } from 'lucide-react';
-import { format } from 'date-fns';
 import { useRouter } from 'next/navigation'; 
-import Link from 'next/link';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-
-
-const getInitials = (name: string | null | undefined): string => {
-  if (!name) return '?';
-  return name.split(' ').map(n => n[0]).join('').toUpperCase();
-};
-
-function MessageBubble({ message, isCurrentUser }: { message: ChatMessage; isCurrentUser: boolean }) {
-  return (
-    <div className={`flex items-end space-x-2 ${isCurrentUser ? 'justify-end' : ''}`}>
-      {!isCurrentUser && (
-        <Avatar className="h-8 w-8 self-start">
-          <AvatarImage src={message.senderAvatar || undefined} alt={message.senderName || 'User'} data-ai-hint="user avatar" />
-          <AvatarFallback>{getInitials(message.senderName)}</AvatarFallback>
-        </Avatar>
-      )}
-      <div
-        className={`max-w-[70%] p-3 rounded-xl ${
-          isCurrentUser
-            ? 'bg-primary text-primary-foreground rounded-br-none'
-            : 'bg-muted text-foreground rounded-bl-none'
-        }`}
-      >
-        <p className="text-sm">{message.text}</p>
-        <p className={`text-xs mt-1 ${isCurrentUser ? 'text-primary-foreground/70' : 'text-muted-foreground/70'}`}>
-          {message.createdAt ? format(message.createdAt.toDate(), 'p') : 'Sending...'}
-        </p>
-      </div>
-      {isCurrentUser && (
-        <Avatar className="h-8 w-8 self-start">
-          <AvatarImage src={message.senderAvatar || undefined} alt={message.senderName || 'User'} data-ai-hint="user avatar" />
-          <AvatarFallback>{getInitials(message.senderName)}</AvatarFallback>
-        </Avatar>
-      )}
-    </div>
-  );
-}
+import { MessageBubble, getInitials } from '@/components/messaging/MessageBubble';
 
 
 export default function ChatPage({ params }: { params: { chatId: string } }) {
@@ -101,6 +63,10 @@ export default function ChatPage({ params }: { params: { chatId: string } }) {
     const unsubscribe = getChatMessages(chatId, (newMessages) => {
       setMessages(newMessages);
       setIsLoadingMessages(false);
+    }, (error) => {
+      console.error("Error fetching chat messages:", error);
+      setIsLoadingMessages(false);
+      // Optionally show toast to user
     });
 
     return () => unsubscribe();
@@ -123,7 +89,7 @@ export default function ChatPage({ params }: { params: { chatId: string } }) {
     }
   };
 
-  if (authLoading || isLoadingMessages) {
+  if (authLoading || (isLoadingMessages && messages.length === 0)) { // Show loader if auth is loading or if messages are loading and none are displayed yet
     return (
       <div className="flex justify-center items-center h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -155,12 +121,12 @@ export default function ChatPage({ params }: { params: { chatId: string } }) {
           </div>
         </div>
       </CardHeader>
-      <CardContent className="flex-1 overflow-y-auto p-4 space-y-4">
+      <CardContent className="flex-1 overflow-y-auto p-4 space-y-0.5"> {/* Reduced space-y for tighter bubbles */}
         {messages.length === 0 && !isLoadingMessages && (
           <p className="text-center text-muted-foreground py-8">No messages yet. Start the conversation!</p>
         )}
         {messages.map((msg) => (
-          <MessageBubble key={msg.id} message={msg} isCurrentUser={msg.senderId === user.uid} />
+          <MessageBubble key={msg.id} message={msg} currentUserId={user.uid} />
         ))}
         <div ref={messagesEndRef} />
       </CardContent>
