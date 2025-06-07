@@ -30,26 +30,40 @@ export function BottomNavigationBar() {
     return null;
   }
 
-  // Filter out authRequired items if user is not logged in for the purpose of grid calculation
-  const visibleNavItems = navItems.filter(item => !(item.authRequired && !user));
+  const itemsToRender = navItems.filter(item => !(item.authRequired && !user));
+  const numCols = itemsToRender.length;
 
+  // Explicitly map number of columns to Tailwind classes
+  const gridColClass = {
+    1: 'grid-cols-1',
+    2: 'grid-cols-2',
+    3: 'grid-cols-3', // Should not happen with current navItems logic
+    4: 'grid-cols-4', // Should not happen
+    5: 'grid-cols-5',
+  }[numCols] || 'grid-cols-5'; // Fallback, though numCols should be 2 or 5
+
+  // If after login, numCols is not 5, or if logged out numCols is not 2,
+  // there's an issue with `user` state or `navItems` definition / `authRequired` logic.
+  // But this explicit class mapping ensures Tailwind generates the necessary CSS.
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-background border-t border-border shadow-t-lg z-40">
       <div className={cn(
         "container mx-auto grid items-center h-16 px-0 sm:px-1",
-        `grid-cols-${visibleNavItems.length}` // Dynamically set grid columns
+        gridColClass // Use the explicitly determined grid class
       )}>
         {navItems.map(item => {
+          // Filter out items that shouldn't be rendered based on auth state
           if (item.authRequired && !user) {
-            // This item won't be rendered if auth is required and user is not logged in
             return null; 
           }
+
           const isActive = (item.href === "/" && pathname === item.href) || 
                            (item.href !== "/" && pathname.startsWith(item.href) && !(item.href === "/messages" && isChatDetailPage));
+          
           return (
             <Link
-              key={item.label}
+              key={item.label} // Labels are unique
               href={item.href}
               className={cn(
                 "flex flex-col items-center justify-center text-xs py-2 transition-colors duration-150 relative", 
@@ -60,7 +74,7 @@ export function BottomNavigationBar() {
               <span className="text-[10px] sm:text-xs">{item.label}</span>
             </Link>
           );
-        }).filter(Boolean)} {/* Filter out nulls if any items were skipped */}
+        }).filter(Boolean)} {/* Filter out any nulls if items were skipped */}
       </div>
     </nav>
   );
