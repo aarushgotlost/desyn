@@ -1,6 +1,7 @@
 
-import { db, auth } from '@/lib/firebase'; // Added auth
+import { db, auth } from '@/lib/firebase'; 
 import type { Community, Post } from '@/types/data';
+import type { UserProfile } from '@/contexts/AuthContext';
 import {
   collection,
   getDocs,
@@ -15,48 +16,46 @@ import {
 import { unstable_noStore as noStore } from 'next/cache';
 
 
-// Helper to get current user ID on the server (basic example, might need more robust solution for edge cases or if not using server actions directly with auth context)
-// This is a simplified approach. For robust server-side auth in Next.js App Router,
-// you'd typically rely on patterns provided by auth libraries like NextAuth.js, or pass tokens via cookies.
-// For this context, if this is called from a server component that doesn't have easy access to useAuth(),
-// it's a placeholder. The client component CommunityJoinButton will use useAuth().
 export async function getCurrentUserId(): Promise<string | null> {
-  noStore(); // Opt out of caching for this function if it relies on dynamic auth state
-  // This is a very basic way and might not always work depending on auth state propagation to server components.
-  // A more reliable method for server components is usually specific to the auth setup (e.g., NextAuth.js `getServerSession`).
-  // For client components calling server actions, the UID is usually passed as an argument.
-  // For now, let's assume this function might not be fully reliable on its own in all server contexts.
-  // The CommunityJoinButton on the client will provide the definitive UID.
-  
-  // The `auth.currentUser` object is primarily for client-side use.
-  // If you need the user ID in a Server Component for data fetching that *depends* on the user,
-  // you'd typically use a server-side session mechanism.
-  // For now, returning null, and the client component will handle it.
+  noStore(); 
   return null; 
 }
 
-
-// Helper to convert Firestore Timestamps to Date objects for client-side processing if needed
-// And to ensure all fields are present, even if undefined in Firestore
-const processDoc = <T extends { id: string; createdAt?: Timestamp | Date; members?: string[] }>(docSnap: any): T => {
+const processDoc = <T extends { id: string; createdAt?: Timestamp | Date; members?: string[]; authorAvatar?: string | null; photoURL?: string | null }>(docSnap: any): T => {
   const data = docSnap.data();
-  const processedData = {
+  const processedData: any = {
     id: docSnap.id,
     ...data,
-    // Ensure members array exists for communities
-    members: data.members || [],
   };
 
-  // Convert Timestamps to Dates if they exist, or keep as is if already Date (e.g., from serverTimestamp())
-  if (data.createdAt && data.createdAt.toDate) {
+  if (data.members) {
+    processedData.members = data.members;
+  } else if (docSnap.ref.parent.id === 'communities' || docSnap.ref.path.includes('communities')) { 
+    processedData.members = []; // Ensure members array exists for communities if field is missing
+  }
+
+
+  if (data.createdAt && typeof data.createdAt.toDate === 'function') {
     processedData.createdAt = data.createdAt.toDate();
   }
-  if (data.lastMessageAt && data.lastMessageAt.toDate) {
+  if (data.lastMessageAt && typeof data.lastMessageAt.toDate === 'function') {
     processedData.lastMessageAt = data.lastMessageAt.toDate();
   }
-   if (data.updatedAt && data.updatedAt.toDate) {
+  if (data.updatedAt && typeof data.updatedAt.toDate === 'function') {
     processedData.updatedAt = data.updatedAt.toDate();
   }
+   if (data.lastLogin && typeof data.lastLogin.toDate === 'function') {
+    processedData.lastLogin = data.lastLogin.toDate();
+  }
+
+  // Ensure avatar/photoURL fields are at least null if not present
+  if (data.authorId) { // Check if it's a Post-like object
+      processedData.authorAvatar = data.authorAvatar || null;
+  }
+  if (data.uid) { // Check if it's a UserProfile-like object
+      processedData.photoURL = data.photoURL || null;
+  }
+
 
   return processedData as T;
 };
@@ -110,9 +109,7 @@ export async function getPostDetails(postId: string): Promise<Post | null> {
   return null;
 }
 
-// Example of a service to get all users for the "New Chat" page (placeholder functionality)
-// This would need proper pagination and indexing in a real app.
-export async function getAllUsersForNewChat(currentUserId: string | null, count: number = 20): Promise<any[]> {
+export async function getAllUsersForNewChat(currentUserId: string | null, count: number = 20): Promise<UserProfile[]> {
     noStore();
     const usersCol = collection(db, 'users');
     let q;
@@ -124,16 +121,104 @@ export async function getAllUsersForNewChat(currentUserId: string | null, count:
     
     try {
         const snapshot = await getDocs(q);
-        return snapshot.docs.map(docSnap => ({
-            uid: docSnap.id,
-            displayName: docSnap.data().displayName || "Unknown User",
-            photoURL: docSnap.data().photoURL,
-            email: docSnap.data().email,
-        }));
+        return snapshot.docs.map(docSnap => processDoc<UserProfile>(docSnap));
     } catch (error) {
         console.error("Error fetching users for new chat:", error);
-        // Depending on Firestore rules, this might fail if not authenticated,
-        // or if indexes are required for more complex queries.
         return [];
     }
 }
+
+export async function getUserPosts(userId: string, count: number = 10): Promise<Post[]> {
+  noStore();
+  if (!userId) return [];
+  const postsCol = collection(db, 'posts');
+  const q = query(
+    postsCol,
+    where('authorId', '==', userId),
+    orderBy('createdAt', 'desc'),
+    limit(count)
+  );
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(docSnap => processDoc<Post>(docSnap));
+}
+
+export async function getUserJoinedCommunities(userId: string): Promise<Community[]> {
+  noStore();
+  if (!userId) return [];
+  const communitiesCol = collection(db, 'communities');
+  const q = query(
+    communitiesCol,
+    where('members', 'array-contains', userId),
+    orderBy('name', 'asc') // Or 'createdAt' or another relevant field
+  );
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(docSnap => processDoc<Community>(docSnap));
+}
+
+export async function isFollowing(currentUserId: string, targetUserId: string): Promise<boolean> {
+  noStore();
+  if (!currentUserId || !targetUserId) return false;
+  const followingRef = doc(db, 'users', currentUserId, 'following', targetUserId);
+  const docSnap = await getDoc(followingRef);
+  return docSnap.exists();
+}
+
+// Basic versions for getFollowers/getFollowing, can be expanded with pagination
+export async function getFollowers(userId: string, count: number = 10): Promise<Partial<UserProfile>[]> {
+    noStore();
+    if (!userId) return [];
+    const followersColRef = collection(db, 'users', userId, 'followers');
+    const q = query(followersColRef, orderBy('followedAt', 'desc'), limit(count));
+    const snapshot = await getDocs(q);
+    
+    const followerProfiles: Partial<UserProfile>[] = [];
+    for (const followerDoc of snapshot.docs) {
+        const followerData = followerDoc.data();
+        const userProfileDoc = await getDoc(doc(db, 'users', followerData.userId));
+        if (userProfileDoc.exists()) {
+            const profile = userProfileDoc.data();
+            followerProfiles.push({
+                uid: userProfileDoc.id,
+                displayName: profile.displayName,
+                photoURL: profile.photoURL,
+            });
+        }
+    }
+    return followerProfiles;
+}
+
+export async function getFollowing(userId: string, count: number = 10): Promise<Partial<UserProfile>[]> {
+    noStore();
+    if (!userId) return [];
+    const followingColRef = collection(db, 'users', userId, 'following');
+    const q = query(followingColRef, orderBy('followedAt', 'desc'), limit(count));
+    const snapshot = await getDocs(q);
+
+    const followingProfiles: Partial<UserProfile>[] = [];
+    for (const followingDoc of snapshot.docs) {
+        const followingData = followingDoc.data();
+        const userProfileDoc = await getDoc(doc(db, 'users', followingData.userId));
+        if (userProfileDoc.exists()) {
+            const profile = userProfileDoc.data();
+            followingProfiles.push({
+                uid: userProfileDoc.id,
+                displayName: profile.displayName,
+                photoURL: profile.photoURL,
+            });
+        }
+    }
+    return followingProfiles;
+}
+
+export async function getUserProfile(userId: string): Promise<UserProfile | null> {
+    noStore();
+    if (!userId) return null;
+    const userDocRef = doc(db, 'users', userId);
+    const docSnap = await getDoc(userDocRef);
+    if (docSnap.exists()) {
+        return processDoc<UserProfile>(docSnap);
+    }
+    return null;
+}
+
+    
