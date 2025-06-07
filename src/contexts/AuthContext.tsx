@@ -210,8 +210,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const result = await createUserWithEmailAndPassword(auth, email, password);
       if (result.user) {
         // Update Firebase Auth profile first
-        await updateFirebaseUserProfile(result.user, { displayName: name });
-        // Then create/update Firestore document, photoURL will be null initially for email sign-up
+        await updateFirebaseUserProfile(result.user, { displayName: name }); // photoURL is not set here, so Firebase Auth photoURL remains null
+        // Then create/update Firestore document
         await createUserProfileDocument(result.user, { displayName: name, interests, onboardingCompleted: false, photoURL: null });
         router.push('/onboarding/profile-setup'); 
       }
@@ -288,19 +288,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const userDocRef = doc(db, 'users', user.uid);
       
-      // Determine the photoURL for Firestore: either the new Data URL, null if removed, or existing if unchanged.
+      // This photoURL is for Firestore and can be a Data URL or null
       const newFirestorePhotoURL = data.photoDataUrl !== undefined ? data.photoDataUrl : userProfile?.photoURL;
 
       const profileUpdateForFirestore: Partial<UserProfile> = {
         displayName: data.displayName,
         bio: data.bio,
         techStack: data.techStack,
-        photoURL: newFirestorePhotoURL, // This can be a Data URL or null
+        photoURL: newFirestorePhotoURL, 
         onboardingCompleted: data.onboardingCompleted,
         updatedAt: serverTimestamp(),
       };
       
-      // Remove undefined fields before updating Firestore
       Object.keys(profileUpdateForFirestore).forEach(key => {
         const typedKey = key as keyof Partial<UserProfile>;
         if (profileUpdateForFirestore[typedKey] === undefined) {
@@ -310,33 +309,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       await updateDoc(userDocRef, profileUpdateForFirestore);
       
-      // Update Firebase Auth user profile (displayName and photoURL only if it's NOT a data URI)
+      // Update Firebase Auth user profile (displayName and photoURL)
       if (auth.currentUser) {
-        const currentAuthDisplayName = auth.currentUser.displayName;
-        const currentAuthPhotoURL = auth.currentUser.photoURL;
-        const updatesForAuth: { displayName?: string; photoURL?: string | null } = {};
-        let performAuthUpdate = false;
+        const updatesForFirebaseAuth: { displayName?: string; photoURL?: string | null } = {};
+        let needsFirebaseAuthUpdate = false;
 
-        // Update displayName if changed
-        if (data.displayName !== undefined && data.displayName !== currentAuthDisplayName) {
-          updatesForAuth.displayName = data.displayName;
-          performAuthUpdate = true;
+        // Handle displayName for Firebase Auth
+        if (data.displayName !== undefined && data.displayName !== auth.currentUser.displayName) {
+          updatesForFirebaseAuth.displayName = data.displayName;
+          needsFirebaseAuthUpdate = true;
         }
 
         // Handle photoURL for Firebase Auth:
-        // - If user explicitly removed the image (data.photoDataUrl is null), update Firebase Auth photoURL to null.
-        // - If data.photoDataUrl is a data URI, DO NOT update Firebase Auth photoURL.
-        // - If data.photoDataUrl is undefined (user didn't touch photo input),
-        //   Firebase Auth photoURL remains unchanged (it might be an old Google URL or null).
-        if (data.photoDataUrl === null && currentAuthPhotoURL !== null) { // Image explicitly removed
-          updatesForAuth.photoURL = null;
-          performAuthUpdate = true;
+        // - If user explicitly removed the image (data.photoDataUrl is null), set Firebase Auth photoURL to null.
+        // - If data.photoDataUrl is a Data URI, DO NOT update Firebase Auth photoURL.
+        // - If data.photoDataUrl is undefined (user didn't touch photo input), Firebase Auth photoURL remains unchanged.
+        if (data.photoDataUrl === null) { // Image explicitly removed by user from form
+          if (auth.currentUser.photoURL !== null) { // Only update if it's not already null
+            updatesForFirebaseAuth.photoURL = null;
+            needsFirebaseAuthUpdate = true;
+          }
         }
-        // Important: We do not pass data.photoDataUrl to updatesForAuth.photoURL if it's a data URI,
-        // to prevent the "Photo URL too long" error.
+        // IMPORTANT: We do NOT set updatesForFirebaseAuth.photoURL if data.photoDataUrl is a Data URI.
+        // If data.photoDataUrl is a new Data URI, updatesForFirebaseAuth.photoURL remains undefined for this attribute,
+        // so the Firebase Auth photoURL is not touched by the Data URI.
 
-        if (performAuthUpdate) {
-          await updateFirebaseUserProfile(auth.currentUser, updatesForAuth);
+        if (needsFirebaseAuthUpdate) {
+          await updateFirebaseUserProfile(auth.currentUser, updatesForFirebaseAuth);
         }
       }
       
@@ -358,7 +357,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       let iconStorageURL: string | null = null;
       if (data.iconFile) {
-        // This part still assumes Firebase Storage for community icons.
         const filePath = `community_icons/${user.uid}/${Date.now()}_${data.iconFile.name}`;
         iconStorageURL = await uploadImageToStorage(data.iconFile, filePath);
       }
@@ -404,7 +402,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       let imageStorageURL: string | null = null;
       if (data.imageFile) {
-         // This part still assumes Firebase Storage for post images.
         const filePath = `post_images/${user.uid}/${Date.now()}_${data.imageFile.name}`;
         imageStorageURL = await uploadImageToStorage(data.imageFile, filePath);
       }
@@ -419,7 +416,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         tags: data.tags,
         authorId: user.uid,
         authorName: userProfile.displayName || "Anonymous",
-        authorAvatar: userProfile.photoURL || null, // This will now use the Data URL from Firestore
+        authorAvatar: userProfile.photoURL || null, 
         createdAt: serverTimestamp(),
         likes: 0,
         commentsCount: 0,
@@ -465,5 +462,4 @@ export const useAuth = () => {
   return context;
 };
 
-    
-
+      
