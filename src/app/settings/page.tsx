@@ -26,7 +26,7 @@ export default function SettingsPage() {
 
   // IMPORTANT: Replace this with your VAPID key from Firebase Console
   // Project settings > Cloud Messaging > Web configuration > Web Push certificates
-  const VAPID_KEY = "YOUR_PUBLIC_VAPID_KEY_HERE"; 
+  const VAPID_KEY = "BIhYhqAuf9hWPjsk5sDSk5kBZZK-6btzuXdPjvtDVcEGz81Mk6pPKayslVX394sGLPUshvM_IkXsTFsrffwqjL0"; 
 
   useEffect(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
@@ -47,7 +47,7 @@ export default function SettingsPage() {
       return;
     }
 
-    if (VAPID_KEY === "YOUR_PUBLIC_VAPID_KEY_HERE") {
+    if (VAPID_KEY === "YOUR_PUBLIC_VAPID_KEY_HERE") { // This check will now be false if the key is valid
        toast({
         title: "VAPID Key Missing",
         description: "The VAPID key is not configured. Please update it in src/app/settings/page.tsx.",
@@ -169,7 +169,7 @@ export default function SettingsPage() {
           <CardDescription>Manage how you receive push notifications from the app.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {VAPID_KEY === "YOUR_PUBLIC_VAPID_KEY_HERE" && (
+          {VAPID_KEY === "YOUR_PUBLIC_VAPID_KEY_HERE" && ( // This will now only show if the VAPID_KEY constant is exactly the placeholder string
             <div className="p-3 rounded-md bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700">
               <div className="flex items-start">
                 <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 mr-2 flex-shrink-0" />
