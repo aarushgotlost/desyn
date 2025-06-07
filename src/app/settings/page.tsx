@@ -2,16 +2,115 @@
 "use client"; 
 
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { Button, buttonVariants } from "@/components/ui/button"; // Import buttonVariants
+import { Button, buttonVariants } from "@/components/ui/button"; 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { User, Palette, Shield, Bell, LogOut } from "lucide-react";
+import { User, Palette, Shield, Bell, LogOut, SendToBack, CheckCircle, XCircle, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext"; 
-import { cn } from "@/lib/utils"; // Import cn
+import { cn } from "@/lib/utils"; 
+import { messaging } from '@/lib/firebase'; // Import Firebase Messaging
+import { getToken } from 'firebase/messaging';
+import { useState, useEffect } from 'react';
+import { useToast } from "@/hooks/use-toast";
+import { Textarea } from "@/components/ui/textarea";
+
 
 export default function SettingsPage() {
   const { logout, loading } = useAuth(); 
+  const { toast } = useToast();
+
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | 'loading'>('loading');
+  const [fcmToken, setFcmToken] = useState<string | null>(null);
+  const [isRequestingToken, setIsRequestingToken] = useState(false);
+
+  // IMPORTANT: Replace this with your VAPID key from Firebase Console
+  // Project settings > Cloud Messaging > Web configuration > Web Push certificates
+  const VAPID_KEY = "YOUR_PUBLIC_VAPID_KEY_HERE"; 
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      setNotificationPermission(Notification.permission);
+    } else {
+      setNotificationPermission('denied'); // Assume denied if not supported
+    }
+  }, []);
+
+  const handleEnablePushNotifications = async () => {
+    if (!messaging) {
+      toast({
+        title: "Push Not Supported",
+        description: "Firebase Messaging is not available or your browser does not support push notifications.",
+        variant: "destructive",
+      });
+      setNotificationPermission('denied');
+      return;
+    }
+
+    if (VAPID_KEY === "YOUR_PUBLIC_VAPID_KEY_HERE") {
+       toast({
+        title: "VAPID Key Missing",
+        description: "The VAPID key is not configured. Please update it in src/app/settings/page.tsx.",
+        variant: "destructive",
+        duration: 10000,
+      });
+      return;
+    }
+
+    setIsRequestingToken(true);
+    setFcmToken(null);
+    try {
+      const permission = await Notification.requestPermission();
+      setNotificationPermission(permission);
+
+      if (permission === 'granted') {
+        const currentToken = await getToken(messaging, { vapidKey: VAPID_KEY });
+        if (currentToken) {
+          setFcmToken(currentToken);
+          toast({
+            title: "Push Notifications Enabled!",
+            description: "You will now receive push notifications.",
+          });
+          // In a real app, you would send this token to your server
+          console.log('FCM Token:', currentToken);
+        } else {
+          toast({
+            title: "Could Not Get Token",
+            description: "Failed to retrieve FCM token. Ensure your service worker is correctly set up and you are on HTTPS.",
+            variant: "destructive",
+          });
+        }
+      } else if (permission === 'denied') {
+        toast({
+          title: "Permission Denied",
+          description: "You have blocked push notifications. You may need to change this in your browser settings.",
+          variant: "destructive",
+        });
+      } else {
+         toast({
+          title: "Permission Not Granted",
+          description: "Push notification permission was not granted.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error getting FCM token or permission:', error);
+      toast({
+        title: "Error Enabling Notifications",
+        description: "An unexpected error occurred. Check the console for details.",
+        variant: "destructive",
+      });
+      // Attempt to infer permission state on error, might not be accurate
+      if (typeof window !== 'undefined' && 'Notification' in window) {
+        setNotificationPermission(Notification.permission);
+      } else {
+        setNotificationPermission('denied');
+      }
+    } finally {
+      setIsRequestingToken(false);
+    }
+  };
+
 
   const handleLogout = async () => {
     await logout();
@@ -66,13 +165,64 @@ export default function SettingsPage() {
       
       <Card className="shadow-lg">
         <CardHeader>
-          <CardTitle className="flex items-center"><Bell className="mr-2 h-5 w-5 text-primary" /> Notifications</CardTitle>
-          <CardDescription>Manage your notification preferences.</CardDescription>
+          <CardTitle className="flex items-center"><SendToBack className="mr-2 h-5 w-5 text-primary" /> Push Notifications</CardTitle>
+          <CardDescription>Manage how you receive push notifications from the app.</CardDescription>
         </CardHeader>
-        <CardContent>
-            <p className="text-sm text-muted-foreground">Notification settings will be available soon.</p>
+        <CardContent className="space-y-4">
+          {VAPID_KEY === "YOUR_PUBLIC_VAPID_KEY_HERE" && (
+            <div className="p-3 rounded-md bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700">
+              <div className="flex items-start">
+                <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 mr-2 flex-shrink-0" />
+                <div className="text-sm text-yellow-700 dark:text-yellow-300">
+                  <p className="font-semibold">Action Required: VAPID Key</p>
+                  <p>To enable push notifications, please update the <code className="bg-yellow-200 dark:bg-yellow-800/50 px-1 py-0.5 rounded text-xs">VAPID_KEY</code> constant in this file (<code className="text-xs">src/app/settings/page.tsx</code>) with your key from the Firebase Console (Project settings &gt; Cloud Messaging &gt; Web Push certificates).</p>
+                </div>
+              </div>
+            </div>
+          )}
+          <div className="flex items-center space-x-3">
+            <Button
+              onClick={handleEnablePushNotifications}
+              disabled={notificationPermission === 'granted' || isRequestingToken || notificationPermission === 'loading'}
+              variant={notificationPermission === 'granted' ? "ghost" : "default"}
+            >
+              {isRequestingToken ? "Requesting..." : notificationPermission === 'granted' ? "Enabled" : "Enable Push Notifications"}
+            </Button>
+            {notificationPermission === 'loading' && <span className="text-sm text-muted-foreground">Loading status...</span>}
+            {notificationPermission === 'granted' && <CheckCircle className="h-5 w-5 text-green-500" />}
+            {notificationPermission === 'denied' && <XCircle className="h-5 w-5 text-destructive" />}
+            {notificationPermission === 'default' && <span className="text-sm text-muted-foreground">(Permission not yet requested)</span>}
+          </div>
+           {notificationPermission === 'denied' && (
+            <p className="text-xs text-muted-foreground">
+              Push notifications are currently blocked. You may need to go to your browser's site settings for this page to allow notifications.
+            </p>
+          )}
+          {fcmToken && (
+            <div className="space-y-1">
+              <p className="text-sm font-medium">Your FCM Token (for testing):</p>
+              <Textarea
+                readOnly
+                value={fcmToken}
+                className="text-xs h-24 bg-muted/50"
+                rows={4}
+              />
+              <p className="text-xs text-muted-foreground">This token identifies your browser for push notifications. In a real app, this would be sent securely to a server.</p>
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      <Card className="shadow-lg">
+        <CardHeader>
+          <CardTitle className="flex items-center"><Bell className="mr-2 h-5 w-5 text-primary" /> In-App Notifications</CardTitle>
+          <CardDescription>Manage your in-app notification preferences.</CardDescription>
+        </CardHeader>
+        <CardContent>
+            <p className="text-sm text-muted-foreground">In-app notification settings will be available soon.</p>
+        </CardContent>
+      </Card>
+
 
       <Card className="shadow-lg">
         <CardHeader>
