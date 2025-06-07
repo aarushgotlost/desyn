@@ -12,7 +12,7 @@ import { useRouter } from 'next/navigation';
 interface CommunityJoinButtonProps {
   communityId: string;
   initialIsJoined: boolean;
-  memberCount: number; // Pass member count to update UI optimistically or via revalidation
+  memberCount: number;
 }
 
 export function CommunityJoinButton({ communityId, initialIsJoined, memberCount: initialMemberCount }: CommunityJoinButtonProps) {
@@ -20,15 +20,17 @@ export function CommunityJoinButton({ communityId, initialIsJoined, memberCount:
   const { toast } = useToast();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [isJoined, setIsJoined] = useState(initialIsJoined);
-  const [currentMemberCount, setCurrentMemberCount] = useState(initialMemberCount);
 
+  // State for the button's display, derived from props initially, then self-managed.
+  const [isMember, setIsMember] = useState(initialIsJoined);
+  const [displayMemberCount, setDisplayMemberCount] = useState(initialMemberCount);
 
+  // This effect updates the state if the communityId changes (navigating to a new community page)
+  // or if the user's auth status changes, or if the initial props themselves change significantly.
   useEffect(() => {
-    setIsJoined(initialIsJoined);
-    setCurrentMemberCount(initialMemberCount);
-  }, [initialIsJoined, initialMemberCount]);
-
+    setIsMember(initialIsJoined);
+    setDisplayMemberCount(initialMemberCount);
+  }, [communityId, initialIsJoined, initialMemberCount, user]); // Re-sync if user logs in/out, community changes, or props update from server.
 
   const handleClick = async () => {
     if (!user) {
@@ -39,12 +41,17 @@ export function CommunityJoinButton({ communityId, initialIsJoined, memberCount:
 
     startTransition(async () => {
       const result = await toggleCommunityMembership(communityId, user.uid);
-      if (result.success) {
+      if (result.success && typeof result.isJoined === 'boolean') {
         toast({ title: result.isJoined ? 'Joined!' : 'Left!', description: result.message });
-        setIsJoined(result.isJoined!);
-        // Optimistically update member count, or rely on revalidation if preferred
-        setCurrentMemberCount(prevCount => result.isJoined ? prevCount + 1 : prevCount -1);
-        router.refresh(); // Re-fetches server component data
+        setIsMember(result.isJoined); // Update internal state based on action result
+        // Optimistically update member count based on action result
+        setDisplayMemberCount(prevCount => {
+            if (result.isJoined) return prevCount + 1;
+            return Math.max(0, prevCount - 1);
+        });
+        // router.refresh() will eventually update the server-rendered parts and props,
+        // but our internal state is now the primary driver for this button's appearance.
+        router.refresh(); 
       } else {
         toast({ title: 'Error', description: result.message, variant: 'destructive' });
       }
@@ -59,17 +66,17 @@ export function CommunityJoinButton({ communityId, initialIsJoined, memberCount:
     <Button
       onClick={handleClick}
       disabled={isPending || authLoading}
-      variant={isJoined ? "outline" : "default"}
+      variant={isMember ? "outline" : "default"}
       className="w-full sm:w-auto"
     >
       {isPending ? (
         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-      ) : isJoined ? (
+      ) : isMember ? (
         <UserMinus className="mr-2 h-4 w-4" />
       ) : (
         <UserPlus className="mr-2 h-4 w-4" />
       )}
-      {isPending ? 'Processing...' : isJoined ? 'Leave Community' : 'Join Community'}
+      {isPending ? 'Processing...' : isMember ? 'Leave Community' : 'Join Community'}
     </Button>
   );
 }
