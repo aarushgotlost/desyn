@@ -5,7 +5,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { Button, buttonVariants } from "@/components/ui/button"; 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { User, Palette, Shield, Bell, LogOut, SendToBack, CheckCircle, XCircle, AlertTriangle, Lock, Smartphone, FileArchive, Trash2, Loader2 } from "lucide-react";
+import { User, Palette, Shield, LogOut, SendToBack, CheckCircle, XCircle, AlertTriangle, Lock, Trash2, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext"; 
 import { cn } from "@/lib/utils"; 
@@ -29,7 +29,7 @@ import { deleteUserAccountAndBasicData } from "@/actions/userActions";
 
 
 export default function SettingsPage() {
-  const { user, userProfile, logout, loading, deleteCurrentUserAccount } = useAuth(); 
+  const { user, logout, loading, deleteCurrentUserAccount } = useAuth(); 
   const { toast } = useToast();
   const [isPending, startTransition] = useTransition();
 
@@ -259,16 +259,6 @@ export default function SettingsPage() {
 
       <Card className="shadow-lg">
         <CardHeader>
-          <CardTitle className="flex items-center"><Bell className="mr-2 h-5 w-5 text-primary" /> In-App Notifications</CardTitle>
-          <CardDescription>Manage your in-app notification preferences.</CardDescription>
-        </CardHeader>
-        <CardContent>
-            <p className="text-sm text-muted-foreground">In-app notification settings will be available soon.</p>
-        </CardContent>
-      </Card>
-
-      <Card className="shadow-lg">
-        <CardHeader>
           <CardTitle className="flex items-center"><Shield className="mr-2 h-5 w-5 text-primary" /> Security & Privacy</CardTitle>
           <CardDescription>Manage your account security and privacy settings.</CardDescription>
         </CardHeader>
@@ -285,31 +275,10 @@ export default function SettingsPage() {
                 </div>
             </div>
             <Separator />
-             <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h4 className="font-medium">Two-Factor Authentication (2FA)</h4>
-                        <p className="text-sm text-muted-foreground">Add an extra layer of security to your account.</p>
-                    </div>
-                    <Button variant="outline" size="sm" disabled>
-                        <Smartphone className="mr-2 h-4 w-4" /> Setup 2FA (soon)
-                    </Button>
-                </div>
-                 <p className="text-xs text-muted-foreground italic">Currently, 2FA is not available.</p>
-            </div>
-            <Separator />
             <div className="space-y-2">
-                <h4 className="font-medium">Active Sessions</h4>
-                <p className="text-sm text-muted-foreground">View and manage devices where you're logged in. (Feature coming soon)</p>
-            </div>
-             <Separator />
-            <div className="space-y-2">
-                <h4 className="font-medium">Account Data</h4>
-                <p className="text-sm text-muted-foreground mb-1">Request an export of your data or manage account deletion.</p>
+                <h4 className="font-medium">Account Deletion</h4>
+                <p className="text-sm text-muted-foreground mb-1">Permanently delete your account and associated data.</p>
                  <div className="flex space-x-2 pt-1">
-                    <Button variant="outline" size="sm" disabled>
-                        <FileArchive className="mr-2 h-4 w-4" /> Export Data (soon)
-                    </Button>
                     <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
                       <AlertDialogTrigger asChild>
                         <Button variant="destructive" size="sm" disabled={loading || isDeleting}>
@@ -341,7 +310,7 @@ export default function SettingsPage() {
                     </AlertDialog>
                 </div>
                 <p className="text-xs text-muted-foreground pt-1">
-                  Note: Full deletion of all associated content (posts, comments, likes) is a complex process. This action will remove your main profile and notifications. Some content might remain or become anonymized.
+                  Note: Full deletion of all associated content (posts, comments, likes) is a complex process. This action will remove your main profile, notifications, posts, and community memberships.
                 </p>
             </div>
         </CardContent>
