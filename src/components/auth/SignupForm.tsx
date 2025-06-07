@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useForm, type SubmitHandler } from 'react-hook-form';
@@ -45,7 +46,7 @@ export function SignupForm() {
     try {
       const interestsArray = data.interests ? data.interests.split(',').map(i => i.trim()).filter(i => i) : [];
       await signUpWithEmail(data.email, data.password, data.name, interestsArray);
-      toast({ title: "Signup Successful", description: "Welcome to DevConnect! Please check your email to verify your account if applicable." });
+      toast({ title: "Signup Successful", description: "Welcome to Desyn! Please check your email to verify your account if applicable." });
       // Router redirection is handled by AuthContext or AuthGuard
     } catch (error: any) {
       toast({

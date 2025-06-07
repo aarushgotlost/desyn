@@ -208,7 +208,7 @@ export default function CreatePostPage() {
                   <FormItem>
                     <FormLabel>Code Snippet (Optional)</FormLabel>
                     <FormControl>
-                      <Textarea placeholder="```javascript\nconsole.log('Hello DevConnect!');\n```" rows={6} className="font-code" {...field} />
+                      <Textarea placeholder="```javascript\nconsole.log('Hello Desyn!');\n```" rows={6} className="font-code" {...field} />
                     </FormControl>
                     <FormDescription>Use markdown for code blocks.</FormDescription>
                     <FormMessage />

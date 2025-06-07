@@ -44,8 +44,8 @@ export default function Header() {
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center justify-between">
         <Link href="/" className="flex items-center gap-2">
-          <Image src="/logo.svg" alt="DevConnect Logo" width={30} height={30} data-ai-hint="logo letter D C" />
-          <span className="font-bold text-xl font-headline">DevConnect</span>
+          <Image src="/logo.svg" alt="Desyn Logo" width={30} height={30} data-ai-hint="logo letter D C" />
+          <span className="font-bold text-xl font-headline">Desyn</span>
         </Link>
         
         <nav className="hidden md:flex items-center space-x-6 text-sm font-medium">

@@ -1,3 +1,4 @@
+
 import Link from 'next/link';
 import { LoginForm } from '@/components/auth/LoginForm';
 import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
@@ -9,9 +10,9 @@ export default function LoginPage() {
     <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center p-4">
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="text-center">
-          <Image src="/logo.svg" alt="DevConnect Logo" width={60} height={60} className="mx-auto mb-4" data-ai-hint="logo letter D C" />
+          <Image src="/logo.svg" alt="Desyn Logo" width={60} height={60} className="mx-auto mb-4" data-ai-hint="logo letter D C" />
           <CardTitle className="text-2xl font-headline">Welcome Back!</CardTitle>
-          <CardDescription>Log in to your DevConnect account.</CardDescription>
+          <CardDescription>Log in to your Desyn account.</CardDescription>
         </CardHeader>
         <CardContent>
           <LoginForm />

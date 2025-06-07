@@ -36,8 +36,8 @@ export default function OnboardingPage() {
     <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center p-4 bg-gradient-to-br from-primary/10 via-background to-background">
        <Card className="w-full max-w-2xl shadow-2xl overflow-hidden">
         <CardHeader className="text-center bg-muted/50 p-6">
-          <Image src="/logo.svg" alt="DevConnect Logo" width={70} height={70} className="mx-auto mb-4" data-ai-hint="logo letter D C"/>
-          <CardTitle className="text-3xl font-headline text-primary">Welcome to DevConnect!</CardTitle>
+          <Image src="/logo.svg" alt="Desyn Logo" width={70} height={70} className="mx-auto mb-4" data-ai-hint="logo letter D C"/>
+          <CardTitle className="text-3xl font-headline text-primary">Welcome to Desyn!</CardTitle>
           <CardDescription className="text-lg text-muted-foreground">Your journey to connect, learn, and grow starts here.</CardDescription>
         </CardHeader>
         <CardContent className="p-6 md:p-10">

@@ -112,7 +112,7 @@ export default function ProfileSetupPage() {
         onboardingCompleted: true,
       };
       await updateCurrentProfile(profileUpdateData);
-      toast({ title: "Profile Updated!", description: "Welcome to DevConnect!" });
+      toast({ title: "Profile Updated!", description: "Welcome to Desyn!" });
       router.push('/');
     } catch (error: any) {
       toast({
@@ -140,7 +140,7 @@ export default function ProfileSetupPage() {
         <CardHeader className="text-center">
           <UserCircle className="mx-auto h-12 w-12 text-primary mb-3" />
           <CardTitle className="text-2xl font-headline">Complete Your Profile</CardTitle>
-          <CardDescription>Let's get your DevConnect profile set up.</CardDescription>
+          <CardDescription>Let's get your Desyn profile set up.</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>

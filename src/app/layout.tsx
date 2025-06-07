@@ -9,8 +9,8 @@ import Header from '@/components/layout/Header';
 import { BottomNavigationBar } from '@/components/layout/BottomNavigationBar';
 
 export const metadata: Metadata = {
-  title: 'DevConnect - Developer Social Network',
-  description: 'Connect, share, and grow with fellow developers on DevConnect.',
+  title: 'Desyn - Developer Social Network',
+  description: 'Connect, share, and grow with fellow developers on Desyn.',
 };
 
 export default function RootLayout({
@@ -41,7 +41,7 @@ export default function RootLayout({
                 </main>
                 <BottomNavigationBar />
                 <footer className="py-6 text-center text-sm text-muted-foreground md:mb-0 mb-16">
-                  © {new Date().getFullYear()} DevConnect. All rights reserved.
+                  © {new Date().getFullYear()} Desyn. All rights reserved.
                 </footer>
               </div>
             </AuthGuard>

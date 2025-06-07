@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Button } from '@/components/ui/button';
@@ -27,7 +28,7 @@ export function GoogleSignInButton() {
     setIsLoading(true);
     try {
       await signInWithGoogle();
-      toast({ title: "Signed In with Google", description: "Welcome to DevConnect!" });
+      toast({ title: "Signed In with Google", description: "Welcome to Desyn!" });
       // Router redirection is handled by AuthContext or AuthGuard
     } catch (error: any) {
       toast({
