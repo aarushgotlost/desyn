@@ -106,11 +106,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           }
           setUserProfile(profileData);
         } else {
+          // Create a new profile if one doesn't exist (e.g., first Google Sign-In)
+          // Use existing Firebase Auth photoURL if available, otherwise null
+          const initialPhotoURL = firebaseUser.photoURL; 
           const newUserProfile: UserProfile = {
             uid: firebaseUser.uid,
             email: firebaseUser.email,
             displayName: firebaseUser.displayName,
-            photoURL: firebaseUser.photoURL, 
+            photoURL: initialPhotoURL, 
             onboardingCompleted: false, 
             createdAt: serverTimestamp(),
             lastLogin: serverTimestamp(),
@@ -137,12 +140,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     let profileData: UserProfile;
 
     if (!userDocSnap.exists()) {
-      const { email, displayName, photoURL } = firebaseUser;
+      const { email, displayName } = firebaseUser;
+      // Use Firebase Auth photoURL for initial profile if not overridden by additionalData
+      const initialPhotoURL = additionalData.photoURL !== undefined ? additionalData.photoURL : firebaseUser.photoURL;
+
       profileData = {
         uid: firebaseUser.uid,
         email,
         displayName: additionalData.displayName || displayName,
-        photoURL: additionalData.photoURL || photoURL, 
+        photoURL: initialPhotoURL, 
         bio: additionalData.bio || '',
         techStack: additionalData.techStack || [],
         interests: additionalData.interests || [],
@@ -159,15 +165,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     } else {
        profileData = userDocSnap.data() as UserProfile;
+        // If onboardingCompleted field is missing, set it to false (for legacy users if any)
         if (typeof profileData.onboardingCompleted === 'undefined') {
-            profileData.onboardingCompleted = false;
+            profileData.onboardingCompleted = false; // Ensure it's part of the object
             await setDoc(userDocRef, { onboardingCompleted: false, lastLogin: serverTimestamp() }, { merge: true });
         } else {
             await setDoc(userDocRef, { lastLogin: serverTimestamp() }, { merge: true });
         }
     }
-    setUserProfile(profileData); 
-    return profileData; 
+    setUserProfile(profileData); // Update context state
+    return profileData; // Return the profile data
   };
 
   const signInWithGoogle = async () => {
@@ -176,11 +183,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setLoading(true);
       const result = await signInWithPopup(auth, provider);
       if (result.user) {
+        // Pass existing photoURL from Google to createUserProfileDocument
         const currentProfile = await createUserProfileDocument(result.user, { 
           photoURL: result.user.photoURL, 
           displayName: result.user.displayName 
         });
         
+        // Check onboarding status from the potentially newly created/fetched profile
         if (currentProfile && !currentProfile.onboardingCompleted) {
              router.push('/onboarding/profile-setup');
         } else {
@@ -200,8 +209,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setLoading(true);
       const result = await createUserWithEmailAndPassword(auth, email, password);
       if (result.user) {
+        // Update Firebase Auth profile first
         await updateFirebaseUserProfile(result.user, { displayName: name });
-        await createUserProfileDocument(result.user, { displayName: name, interests, onboardingCompleted: false });
+        // Then create/update Firestore document, photoURL will be null initially for email sign-up
+        await createUserProfileDocument(result.user, { displayName: name, interests, onboardingCompleted: false, photoURL: null });
         router.push('/onboarding/profile-setup'); 
       }
     } catch (error) {
@@ -222,15 +233,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (userDocSnap.exists()) {
             const profile = userDocSnap.data() as UserProfile;
              if (typeof profile.onboardingCompleted === 'undefined') {
-                profile.onboardingCompleted = false; 
+                profile.onboardingCompleted = false; // Default if missing
             }
-            setUserProfile(profile); 
+            setUserProfile(profile); // Update context state
             if (!profile.onboardingCompleted) {
                 router.push('/onboarding/profile-setup');
             } else {
                 router.push('/');
             }
         } else {
+            // Should not happen if signUpWithEmail creates the profile, but as a fallback
             const profile = await createUserProfileDocument(result.user, { onboardingCompleted: false });
             if (!profile.onboardingCompleted) {
                  router.push('/onboarding/profile-setup');
@@ -251,10 +263,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       setLoading(true);
       await signOut(auth);
+      // user and userProfile will be set to null by onAuthStateChanged listener
       router.push('/login');
     } catch (error) {
       console.error("Error signing out: ", error);
       throw error;
+    } finally {
+      // setLoading(false); // Loading will be handled by onAuthStateChanged
     }
   };
 
@@ -273,14 +288,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const userDocRef = doc(db, 'users', user.uid);
       
-      // Use photoDataUrl directly if provided
-      const newPhotoURL = data.photoDataUrl !== undefined ? data.photoDataUrl : userProfile?.photoURL;
+      // Determine the photoURL for Firestore: either the new Data URL, null if removed, or existing if unchanged.
+      const newFirestorePhotoURL = data.photoDataUrl !== undefined ? data.photoDataUrl : userProfile?.photoURL;
 
       const profileUpdateForFirestore: Partial<UserProfile> = {
         displayName: data.displayName,
         bio: data.bio,
         techStack: data.techStack,
-        photoURL: newPhotoURL, // Use the Data URL or existing URL
+        photoURL: newFirestorePhotoURL, // This can be a Data URL or null
         onboardingCompleted: data.onboardingCompleted,
         updatedAt: serverTimestamp(),
       };
@@ -295,11 +310,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       await updateDoc(userDocRef, profileUpdateForFirestore);
       
-      if (auth.currentUser && (data.displayName !== auth.currentUser.displayName || newPhotoURL !== auth.currentUser.photoURL)) {
-        await updateFirebaseUserProfile(auth.currentUser, {
-          displayName: data.displayName,
-          photoURL: newPhotoURL, // Update Firebase Auth profile with Data URL
-        });
+      // Update Firebase Auth user profile (displayName and photoURL only if it's NOT a data URI)
+      if (auth.currentUser) {
+        const currentAuthDisplayName = auth.currentUser.displayName;
+        const currentAuthPhotoURL = auth.currentUser.photoURL;
+        const updatesForAuth: { displayName?: string; photoURL?: string | null } = {};
+        let performAuthUpdate = false;
+
+        // Update displayName if changed
+        if (data.displayName !== undefined && data.displayName !== currentAuthDisplayName) {
+          updatesForAuth.displayName = data.displayName;
+          performAuthUpdate = true;
+        }
+
+        // Handle photoURL for Firebase Auth:
+        // - If user explicitly removed the image (data.photoDataUrl is null), update Firebase Auth photoURL to null.
+        // - If data.photoDataUrl is a data URI, DO NOT update Firebase Auth photoURL.
+        // - If data.photoDataUrl is undefined (user didn't touch photo input),
+        //   Firebase Auth photoURL remains unchanged (it might be an old Google URL or null).
+        if (data.photoDataUrl === null && currentAuthPhotoURL !== null) { // Image explicitly removed
+          updatesForAuth.photoURL = null;
+          performAuthUpdate = true;
+        }
+        // Important: We do not pass data.photoDataUrl to updatesForAuth.photoURL if it's a data URI,
+        // to prevent the "Photo URL too long" error.
+
+        if (performAuthUpdate) {
+          await updateFirebaseUserProfile(auth.currentUser, updatesForAuth);
+        }
       }
       
       const updatedDoc = await getDoc(userDocRef);
@@ -321,7 +359,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       let iconStorageURL: string | null = null;
       if (data.iconFile) {
         // This part still assumes Firebase Storage for community icons.
-        // If this also needs to change to Data URLs, it requires a similar refactor.
         const filePath = `community_icons/${user.uid}/${Date.now()}_${data.iconFile.name}`;
         iconStorageURL = await uploadImageToStorage(data.iconFile, filePath);
       }
@@ -382,7 +419,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         tags: data.tags,
         authorId: user.uid,
         authorName: userProfile.displayName || "Anonymous",
-        authorAvatar: userProfile.photoURL || null,
+        authorAvatar: userProfile.photoURL || null, // This will now use the Data URL from Firestore
         createdAt: serverTimestamp(),
         likes: 0,
         commentsCount: 0,
@@ -429,3 +466,4 @@ export const useAuth = () => {
 };
 
     
+
