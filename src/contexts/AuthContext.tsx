@@ -12,29 +12,30 @@ import {
   signInWithEmailAndPassword, 
   signOut,
   sendPasswordResetEmail,
-  updateProfile as updateFirebaseUserProfile, // To update Firebase Auth user's displayName/photoURL
+  updateProfile as updateFirebaseUserProfile, 
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, serverTimestamp, collection, addDoc, DocumentReference, query, where, getDocs, updateDoc, Timestamp } from 'firebase/firestore';
-import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'; 
+// Firebase Storage imports are removed as per user request
+// import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'; 
 import { useRouter } from 'next/navigation';
 
 export interface UserProfile {
   uid: string;
   email: string | null;
   displayName: string | null;
-  photoURL?: string | null; 
+  photoURL?: string | null; // Can be a Data URL now
   bio?: string;
   techStack?: string[];
   interests?: string[];
   onboardingCompleted: boolean;
-  createdAt?: Timestamp | Date; // Allow both for flexibility
+  createdAt?: Timestamp | Date; 
   lastLogin?: Timestamp | Date;
   updatedAt?: Timestamp | Date;
 }
 
 interface UpdateProfileData {
   displayName?: string;
-  photoFile?: File; 
+  photoDataUrl?: string | null; // Changed from photoFile to photoDataUrl
   bio?: string;
   techStack?: string[]; 
   onboardingCompleted?: boolean;
@@ -42,7 +43,7 @@ interface UpdateProfileData {
 
 interface CreateCommunityData {
   name: string;
-  iconFile?: File; 
+  iconFile?: File; // Still using File for community icon, assuming Firebase Storage might be used there or Data URL later
   description: string;
   tags: string[];
 }
@@ -53,7 +54,7 @@ interface CreatePostData {
   communityName: string;
   description: string;
   codeSnippet?: string;
-  imageFile?: File; 
+  imageFile?: File; // Still using File for post image, assuming Firebase Storage might be used there or Data URL later
   tags: string[];
 }
 
@@ -74,7 +75,11 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// This function is kept for community/post images, assuming they might still use Firebase Storage.
+// If not, this would also need to be adapted or removed.
 const uploadImageToStorage = async (file: File, path: string): Promise<string> => {
+  // Dynamically import Firebase Storage only if needed and configured
+  const { getStorage, ref: storageRef, uploadBytes, getDownloadURL } = await import('firebase/storage');
   const storage = getStorage(app);
   const fileRef = storageRef(storage, path);
   await uploadBytes(fileRef, file);
@@ -96,14 +101,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const userDocSnap = await getDoc(userDocRef);
         if (userDocSnap.exists()) {
           const profileData = userDocSnap.data() as UserProfile;
-           // Ensure onboardingCompleted is explicitly boolean
           if (typeof profileData.onboardingCompleted === 'undefined') {
             profileData.onboardingCompleted = false; 
           }
           setUserProfile(profileData);
         } else {
-          // This case should ideally be handled during sign-up/Google sign-in
-          // But as a fallback, create a basic profile.
           const newUserProfile: UserProfile = {
             uid: firebaseUser.uid,
             email: firebaseUser.email,
@@ -116,7 +118,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           await setDoc(userDocRef, newUserProfile);
           setUserProfile(newUserProfile);
         }
-        // Update last login irrespective of profile existence
         await setDoc(userDocRef, { lastLogin: serverTimestamp() }, { merge: true });
 
       } else {
@@ -141,14 +142,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         uid: firebaseUser.uid,
         email,
         displayName: additionalData.displayName || displayName,
-        photoURL: additionalData.photoURL || photoURL, // Use photoURL from social if available
+        photoURL: additionalData.photoURL || photoURL, 
         bio: additionalData.bio || '',
         techStack: additionalData.techStack || [],
         interests: additionalData.interests || [],
         onboardingCompleted: additionalData.onboardingCompleted || false,
         createdAt: serverTimestamp(),
         lastLogin: serverTimestamp(),
-        ...additionalData, // Spread additionalData last to override if needed
+        ...additionalData, 
       };
       try {
         await setDoc(userDocRef, profileData);
@@ -165,8 +166,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             await setDoc(userDocRef, { lastLogin: serverTimestamp() }, { merge: true });
         }
     }
-    setUserProfile(profileData); // Set userProfile state
-    return profileData; // Return the profile data
+    setUserProfile(profileData); 
+    return profileData; 
   };
 
   const signInWithGoogle = async () => {
@@ -176,8 +177,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const result = await signInWithPopup(auth, provider);
       if (result.user) {
         const currentProfile = await createUserProfileDocument(result.user, { 
-          photoURL: result.user.photoURL, // Pass Google's photoURL
-          displayName: result.user.displayName // Pass Google's displayName
+          photoURL: result.user.photoURL, 
+          displayName: result.user.displayName 
         });
         
         if (currentProfile && !currentProfile.onboardingCompleted) {
@@ -199,7 +200,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setLoading(true);
       const result = await createUserWithEmailAndPassword(auth, email, password);
       if (result.user) {
-        // Update Firebase Auth user profile immediately with display name
         await updateFirebaseUserProfile(result.user, { displayName: name });
         await createUserProfileDocument(result.user, { displayName: name, interests, onboardingCompleted: false });
         router.push('/onboarding/profile-setup'); 
@@ -231,7 +231,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 router.push('/');
             }
         } else {
-            // This case might happen if Firestore profile creation failed during signup
             const profile = await createUserProfileDocument(result.user, { onboardingCompleted: false });
             if (!profile.onboardingCompleted) {
                  router.push('/onboarding/profile-setup');
@@ -252,13 +251,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       setLoading(true);
       await signOut(auth);
-      // user and userProfile will be set to null by onAuthStateChanged listener
       router.push('/login');
     } catch (error) {
       console.error("Error signing out: ", error);
       throw error;
-    } finally {
-      // No need to setLoading(false) here if onAuthStateChanged handles it
     }
   };
 
@@ -276,32 +272,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     try {
       const userDocRef = doc(db, 'users', user.uid);
-      let uploadedPhotoURL = userProfile?.photoURL || null; 
-
-      if (data.photoFile) {
-        if (userProfile?.photoURL && userProfile.photoURL.includes('firebasestorage.googleapis.com')) {
-            try {
-                const oldFileStorageRef = storageRef(getStorage(app), userProfile.photoURL);
-                await deleteObject(oldFileStorageRef);
-            } catch (deleteError: any) {
-                if (deleteError.code !== 'storage/object-not-found') {
-                    console.warn("Could not delete old profile picture:", deleteError.message);
-                }
-            }
-        }
-        const filePath = `profile_pictures/${user.uid}/${Date.now()}_${data.photoFile.name}`;
-        uploadedPhotoURL = await uploadImageToStorage(data.photoFile, filePath);
-      }
+      
+      // Use photoDataUrl directly if provided
+      const newPhotoURL = data.photoDataUrl !== undefined ? data.photoDataUrl : userProfile?.photoURL;
 
       const profileUpdateForFirestore: Partial<UserProfile> = {
         displayName: data.displayName,
         bio: data.bio,
         techStack: data.techStack,
-        photoURL: uploadedPhotoURL,
+        photoURL: newPhotoURL, // Use the Data URL or existing URL
         onboardingCompleted: data.onboardingCompleted,
         updatedAt: serverTimestamp(),
       };
       
+      // Remove undefined fields before updating Firestore
       Object.keys(profileUpdateForFirestore).forEach(key => {
         const typedKey = key as keyof Partial<UserProfile>;
         if (profileUpdateForFirestore[typedKey] === undefined) {
@@ -311,11 +295,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       await updateDoc(userDocRef, profileUpdateForFirestore);
       
-      // Also update Firebase Auth user's displayName and photoURL if changed
-      if (auth.currentUser && (data.displayName !== auth.currentUser.displayName || uploadedPhotoURL !== auth.currentUser.photoURL)) {
+      if (auth.currentUser && (data.displayName !== auth.currentUser.displayName || newPhotoURL !== auth.currentUser.photoURL)) {
         await updateFirebaseUserProfile(auth.currentUser, {
           displayName: data.displayName,
-          photoURL: uploadedPhotoURL,
+          photoURL: newPhotoURL, // Update Firebase Auth profile with Data URL
         });
       }
       
@@ -337,6 +320,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       let iconStorageURL: string | null = null;
       if (data.iconFile) {
+        // This part still assumes Firebase Storage for community icons.
+        // If this also needs to change to Data URLs, it requires a similar refactor.
         const filePath = `community_icons/${user.uid}/${Date.now()}_${data.iconFile.name}`;
         iconStorageURL = await uploadImageToStorage(data.iconFile, filePath);
       }
@@ -350,7 +335,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         memberCount: 1, 
         members: [user.uid], 
         createdAt: serverTimestamp(),
-        iconURL: iconStorageURL, // Will be null if no iconFile
+        iconURL: iconStorageURL, 
       };
       
       const newCommunityDocRef = await addDoc(communityColRef, communityPayload);
@@ -379,10 +364,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
     }
 
-
     try {
       let imageStorageURL: string | null = null;
       if (data.imageFile) {
+         // This part still assumes Firebase Storage for post images.
         const filePath = `post_images/${user.uid}/${Date.now()}_${data.imageFile.name}`;
         imageStorageURL = await uploadImageToStorage(data.imageFile, filePath);
       }
@@ -402,7 +387,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         likes: 0,
         commentsCount: 0,
         isSolved: false,
-        imageURL: imageStorageURL, // Will be null if no imageFile
+        imageURL: imageStorageURL, 
       };
 
       const newPostDocRef = await addDoc(postColRef, postPayload);
@@ -442,3 +427,5 @@ export const useAuth = () => {
   }
   return context;
 };
+
+    
