@@ -52,8 +52,8 @@ interface CreateCommunityData {
 
 interface CreatePostData {
   title: string;
-  communityId: string;
-  communityName: string;
+  communityId?: string | null; 
+  communityName?: string | null; 
   description: string;
   codeSnippet?: string;
   imageFile?: File;
@@ -114,7 +114,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                  try {
                     profileData[field] = new Date(val).toISOString();
                 } catch (e) {
-                    // console.warn(`Could not convert field ${String(field)} to ISOString:`, val);
                     profileData[field] = val;
                 }
             }
@@ -385,9 +384,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           updatesForFirebaseAuth.displayName = data.displayName;
           needsFirebaseAuthUpdate = true;
         }
-
-        if (data.photoDataUrl !== undefined) {
-          if (data.photoDataUrl === null) { 
+        
+        if (data.photoDataUrl !== undefined) { 
+          if (data.photoDataUrl === null) {
             if (auth.currentUser.photoURL !== null) { 
               updatesForFirebaseAuth.photoURL = null;
               needsFirebaseAuthUpdate = true;
@@ -401,6 +400,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             }
           }
         }
+
 
         if (needsFirebaseAuthUpdate && Object.keys(updatesForFirebaseAuth).length > 0) {
           await updateFirebaseUserProfile(auth.currentUser, updatesForFirebaseAuth);
@@ -473,24 +473,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!user || !userProfile) throw new Error("User not authenticated or profile missing");
     setLoading(true);
 
-    let communityName = data.communityName;
-    if (!communityName && data.communityId) {
-        const communityDocRef = doc(db, 'communities', data.communityId);
-        const communitySnap = await getDoc(communityDocRef);
-        if (communitySnap.exists()) {
-            communityName = communitySnap.data()?.name;
-        } else {
-            console.error("Community not found for ID:", data.communityId);
-            throw new Error("Community not found");
-        }
-    }
-
     try {
       const postColRef = collection(db, 'posts');
       const postPayload: { [key: string]: any } = {
         title: data.title,
-        communityId: data.communityId,
-        communityName,
+        communityId: data.communityId || null,
+        communityName: data.communityName || null,
         description: data.description,
         codeSnippet: data.codeSnippet || null,
         tags: data.tags,

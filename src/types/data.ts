@@ -14,8 +14,8 @@ export interface Community {
 export interface Post {
   id: string; 
   title: string;
-  communityId: string;
-  communityName: string;
+  communityId?: string | null; // Made optional
+  communityName?: string | null; // Made optional
   description: string;
   codeSnippet?: string | null;
   imageURL?: string | null;
@@ -26,7 +26,6 @@ export interface Post {
   createdAt: string; // ISO string
   likes: number;
   commentsCount: number;
-  // isSolved: boolean; // Removed isSolved
 }
 
 export interface Comment {
@@ -38,3 +37,4 @@ export interface Comment {
   text: string;
   createdAt: string; // ISO string
 }
+

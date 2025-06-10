@@ -170,7 +170,10 @@ export default function ProfilePage() {
                     <CardTitle className="text-lg hover:text-primary">{post.title}</CardTitle>
                   </Link>
                   <CardDescription className="text-xs">
-                    In <Link href={`/communities/${post.communityId}`} className="text-primary hover:underline">{post.communityName}</Link> &bull; {formatDistanceToNowStrict(postCreatedAt, {addSuffix: true})}
+                    {post.communityId && post.communityName ? (
+                      <>In <Link href={`/communities/${post.communityId}`} className="text-primary hover:underline">{post.communityName}</Link> &bull; </>
+                    ) : "General Post &bull; "}
+                     {formatDistanceToNowStrict(postCreatedAt, {addSuffix: true})}
                   </CardDescription>
                 </CardHeader>
                 <CardFooter className="text-xs text-muted-foreground flex justify-between">

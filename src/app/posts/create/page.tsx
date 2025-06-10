@@ -15,7 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { getCommunityDetails } from '@/services/firestoreService'; // Changed to getCommunityDetails
+import { getCommunityDetails } from '@/services/firestoreService'; 
 import type { Community } from '@/types/data'; 
 import Link from "next/link";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -39,7 +39,6 @@ const imageFileSchema = z
 
 const postFormSchema = z.object({
   postTitle: z.string().min(5, { message: "Title must be at least 5 characters." }).max(150, {message: "Title must be 150 characters or less."}),
-  // communityId is no longer directly in the form schema for user input
   postDescription: z.string().min(10, { message: "Description must be at least 10 characters." }),
   postCodeSnippet: z.string().optional(),
   postImageFile: imageFileSchema,
@@ -59,7 +58,7 @@ export default function CreatePostPage() {
   const preselectedCommunityId = searchParams.get('communityId');
   const [selectedCommunity, setSelectedCommunity] = useState<Community | null>(null);
   const [isLoadingCommunity, setIsLoadingCommunity] = useState(false);
-  const [communityError, setCommunityError] = useState<string | null>(null);
+  const [communityFetchError, setCommunityFetchError] = useState<string | null>(null);
 
 
   const form = useForm<PostFormInputs>({
@@ -77,26 +76,27 @@ export default function CreatePostPage() {
     async function fetchCommunityData() {
       if (preselectedCommunityId) {
         setIsLoadingCommunity(true);
-        setCommunityError(null);
+        setCommunityFetchError(null);
         try {
           const community = await getCommunityDetails(preselectedCommunityId);
           if (community) {
             setSelectedCommunity(community);
           } else {
-            setCommunityError("The specified community could not be found. Please select a valid community to post in.");
-            toast({ title: "Community Not Found", description: "Please create posts from a valid community page.", variant: "destructive" });
+            setCommunityFetchError(`Community with ID "${preselectedCommunityId}" not found. You can still create a general post, or find a community to post in.`);
+            toast({ title: "Community Not Found", description: "The specified community was not found.", variant: "destructive" });
           }
         } catch (error) {
           console.error("Failed to fetch community details", error);
-          setCommunityError("Failed to load community details. Please try again.");
+          setCommunityFetchError("Failed to load community details. You can create a general post or try again later.");
           toast({ title: "Error", description: "Could not load community details.", variant: "destructive" });
         } finally {
           setIsLoadingCommunity(false);
         }
       } else {
-        setCommunityError("No community selected. Please create posts from a community page.");
-         // Optionally redirect or show a more prominent message
-        // router.push('/communities'); 
+        // No communityId in URL, allow creating a "global" post
+        setSelectedCommunity(null); 
+        setIsLoadingCommunity(false);
+        setCommunityFetchError(null);
       }
     }
     fetchCommunityData();
@@ -124,8 +124,10 @@ export default function CreatePostPage() {
       return;
     }
     
-    if (!selectedCommunity || !preselectedCommunityId) {
-        toast({ title: "Community Error", description: communityError || "No community selected. Posts must be created within a community.", variant: "destructive" });
+    // If a communityId was provided in URL but fetching failed, prevent submission for that specific community.
+    // User can still submit a global post if they remove the communityId from URL or if it wasn't there initially.
+    if (preselectedCommunityId && !selectedCommunity && communityFetchError) {
+        toast({ title: "Community Error", description: communityFetchError, variant: "destructive" });
         return;
     }
 
@@ -133,8 +135,8 @@ export default function CreatePostPage() {
     try {
       const newPostId = await createPost({
         title: data.postTitle,
-        communityId: preselectedCommunityId, 
-        communityName: selectedCommunity.name, 
+        communityId: selectedCommunity ? selectedCommunity.id : null, 
+        communityName: selectedCommunity ? selectedCommunity.name : null, 
         description: data.postDescription,
         codeSnippet: data.postCodeSnippet,
         imageFile: data.postImageFile,
@@ -153,7 +155,7 @@ export default function CreatePostPage() {
     }
   };
 
-  if (isLoadingCommunity && !selectedCommunity && !communityError) {
+  if (isLoadingCommunity && preselectedCommunityId) {
     return (
       <div className="max-w-3xl mx-auto flex flex-col items-center justify-center h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
@@ -162,39 +164,6 @@ export default function CreatePostPage() {
     );
   }
   
-  if (communityError) {
-    return (
-       <div className="max-w-3xl mx-auto pt-10">
-         <Alert variant="destructive">
-           <AlertTriangle className="h-5 w-5" />
-           <AlertTitle>Cannot Create Post</AlertTitle>
-           <AlertDescription>
-             {communityError}
-             <br />
-             You can find communities to post in <Link href="/communities" className="underline hover:text-destructive-foreground/80">here</Link>.
-           </AlertDescription>
-         </Alert>
-       </div>
-    );
-  }
-  
-  if (!selectedCommunity && !isLoadingCommunity) {
-     return (
-       <div className="max-w-3xl mx-auto pt-10">
-         <Alert variant="default">
-           <Info className="h-5 w-5" />
-           <AlertTitle>Community Information Missing</AlertTitle>
-           <AlertDescription>
-             It seems community details are not available. Please try navigating from a community page.
-             <br />
-             <Link href="/communities" className="underline hover:text-foreground/80">Explore communities</Link>.
-           </AlertDescription>
-         </Alert>
-       </div>
-    );
-  }
-
-
   return (
     <div className="max-w-3xl mx-auto">
       <Card className="shadow-xl">
@@ -202,13 +171,30 @@ export default function CreatePostPage() {
           <CardTitle className="text-2xl font-bold font-headline flex items-center">
              <FileText className="mr-3 w-7 h-7 text-primary" /> Create a New Post
           </CardTitle>
-          {selectedCommunity && (
+          {selectedCommunity && !communityFetchError && (
             <CardDescription>
               You are creating a post in: <strong className="text-primary">{selectedCommunity.name}</strong>.
             </CardDescription>
           )}
+          {!preselectedCommunityId && !isLoadingCommunity && (
+            <CardDescription>
+              You are creating a general post. It will not be linked to a specific community.
+            </CardDescription>
+          )}
         </CardHeader>
         <CardContent>
+          {communityFetchError && preselectedCommunityId && (
+            <Alert variant="warning" className="mb-4">
+              <AlertTriangle className="h-5 w-5" />
+              <AlertTitle>Community Issue</AlertTitle>
+              <AlertDescription>
+                {communityFetchError}
+                <br />
+                You can <Link href="/communities" className="underline hover:text-foreground/80">find another community</Link> or remove the community ID from the URL to create a general post.
+              </AlertDescription>
+            </Alert>
+          )}
+
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <FormField
@@ -299,7 +285,11 @@ export default function CreatePostPage() {
                 )}
               />
               
-              <Button type="submit" className="w-full" disabled={isSubmitting || isLoadingCommunity || !selectedCommunity || !!communityError}>
+              <Button 
+                type="submit" 
+                className="w-full" 
+                disabled={isSubmitting || (isLoadingCommunity && !!preselectedCommunityId) || (!!preselectedCommunityId && !selectedCommunity && !!communityFetchError)}
+              >
                 {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <><Code2 className="mr-2 h-4 w-4" /> Publish Post</>}
               </Button>
             </form>

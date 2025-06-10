@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import Image from "next/image";
 import Link from "next/link";
-import { MessageSquare, ArrowLeft, Edit, Trash2 } from "lucide-react"; // Added icons
+import { MessageSquare, ArrowLeft, Edit, Trash2 } from "lucide-react"; 
 import { getPostDetails, getCurrentUserId } from "@/services/firestoreService"; 
 import type { Post } from "@/types/data";
 import { format, formatDistanceToNowStrict } from 'date-fns';
@@ -20,7 +20,7 @@ import { getInitials } from "@/components/messaging/MessageBubble";
 export default async function PostDetailsPage({ params }: { params: { postId: string } }) {
   noStore(); 
   const post: Post | null = await getPostDetails(params.postId);
-  const currentUserId = await getCurrentUserId(); // Placeholder, actual implementation depends on your auth setup
+  const currentUserId = await getCurrentUserId(); 
 
   if (!post) {
     return (
@@ -37,17 +37,19 @@ export default async function PostDetailsPage({ params }: { params: { postId: st
   }
 
   const postCreatedAt = post.createdAt ? new Date(post.createdAt) : new Date();
-  const isAuthor = false; // currentUserId === post.authorId; // Placeholder
+  const isAuthor = false; 
 
   return (
     <div className="max-w-3xl mx-auto space-y-8 py-8">
       <article>
         <header className="mb-8">
-          <div className="mb-4">
-            <Link href={`/communities/${post.communityId}`} className="text-sm text-primary hover:underline font-medium">
-              {post.communityName}
-            </Link>
-          </div>
+          {post.communityId && post.communityName && (
+            <div className="mb-4">
+              <Link href={`/communities/${post.communityId}`} className="text-sm text-primary hover:underline font-medium">
+                {post.communityName}
+              </Link>
+            </div>
+          )}
           <h1 className="text-4xl md:text-5xl font-bold font-headline tracking-tight text-foreground mb-4">
             {post.title}
           </h1>
@@ -65,9 +67,7 @@ export default async function PostDetailsPage({ params }: { params: { postId: st
                 <span className="font-semibold text-foreground group-hover:text-primary transition-colors">{post.authorName}</span>
                 <p className="text-xs">
                   Posted {formatDistanceToNowStrict(postCreatedAt, { addSuffix: true })}
-                  {post.createdAt !== post.updatedAt && post.updatedAt && ( // Assuming you add updatedAt field
-                     <> &bull; Edited {formatDistanceToNowStrict(new Date(post.updatedAt), { addSuffix: true })}</>
-                  )}
+                  {/* Add updatedAt logic if you implement post editing and an updatedAt field */}
                 </p>
               </div>
             </Link>
@@ -118,7 +118,7 @@ export default async function PostDetailsPage({ params }: { params: { postId: st
                 </Link>
             </Button>
           </div>
-          {isAuthor && ( // Placeholder for author actions
+          {isAuthor && ( 
             <div className="flex space-x-2">
               <Button variant="outline" size="sm" asChild>
                 <Link href={`/posts/${post.id}/edit`}> <Edit size={14} className="mr-1.5" /> Edit</Link>

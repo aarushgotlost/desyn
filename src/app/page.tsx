@@ -43,7 +43,11 @@ export default async function HomePage() {
                         <CardTitle className="text-xl font-headline hover:text-primary">{post.title}</CardTitle>
                       </Link>
                       <p className="text-xs text-muted-foreground">
-                        Posted by <Link href={`/profile/${post.authorId}`} className="hover:text-primary font-medium">{post.authorName}</Link> in <Link href={`/communities/${post.communityId}`} className="text-primary hover:underline">{post.communityName}</Link> &bull; {formatDistanceToNowStrict(postCreatedAt, { addSuffix: true })}
+                        Posted by <Link href={`/profile/${post.authorId}`} className="hover:text-primary font-medium">{post.authorName}</Link> 
+                        {post.communityId && post.communityName && (
+                            <> in <Link href={`/communities/${post.communityId}`} className="text-primary hover:underline">{post.communityName}</Link></>
+                        )}
+                        {' '} &bull; {formatDistanceToNowStrict(postCreatedAt, { addSuffix: true })}
                       </p>
                     </div>
                   </div>
