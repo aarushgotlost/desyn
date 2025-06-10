@@ -5,8 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileText, UploadCloud, Code2, Loader2 } from "lucide-react";
+import { FileText, UploadCloud, Code2, Loader2, AlertTriangle, Info } from "lucide-react";
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -16,8 +15,10 @@ import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { getCommunities } from '@/services/firestoreService';
+import { getCommunityDetails } from '@/services/firestoreService'; // Changed to getCommunityDetails
 import type { Community } from '@/types/data'; 
+import Link from "next/link";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const MAX_FILE_SIZE_MB = 5;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
@@ -38,7 +39,7 @@ const imageFileSchema = z
 
 const postFormSchema = z.object({
   postTitle: z.string().min(5, { message: "Title must be at least 5 characters." }).max(150, {message: "Title must be 150 characters or less."}),
-  communityId: z.string().min(1, { message: "Please select a community." }),
+  // communityId is no longer directly in the form schema for user input
   postDescription: z.string().min(10, { message: "Description must be at least 10 characters." }),
   postCodeSnippet: z.string().optional(),
   postImageFile: imageFileSchema,
@@ -54,16 +55,17 @@ export default function CreatePostPage() {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [availableCommunities, setAvailableCommunities] = useState<Community[]>([]);
-  const [isLoadingCommunities, setIsLoadingCommunities] = useState(true);
-
+  
   const preselectedCommunityId = searchParams.get('communityId');
+  const [selectedCommunity, setSelectedCommunity] = useState<Community | null>(null);
+  const [isLoadingCommunity, setIsLoadingCommunity] = useState(false);
+  const [communityError, setCommunityError] = useState<string | null>(null);
+
 
   const form = useForm<PostFormInputs>({
     resolver: zodResolver(postFormSchema),
     defaultValues: {
       postTitle: "",
-      communityId: preselectedCommunityId || "",
       postDescription: "",
       postCodeSnippet: "",
       postImageFile: undefined,
@@ -72,26 +74,34 @@ export default function CreatePostPage() {
   });
   
   useEffect(() => {
-    if (preselectedCommunityId) {
-      form.setValue("communityId", preselectedCommunityId);
-    }
-  }, [preselectedCommunityId, form]);
-
-  useEffect(() => {
-    async function fetchCommunitiesData() {
-      setIsLoadingCommunities(true);
-      try {
-        const communities = await getCommunities();
-        setAvailableCommunities(communities);
-      } catch (error) {
-        // console.error("Failed to fetch communities", error); // Avoid console logs
-        toast({ title: "Error", description: "Could not load communities.", variant: "destructive" });
-      } finally {
-        setIsLoadingCommunities(false);
+    async function fetchCommunityData() {
+      if (preselectedCommunityId) {
+        setIsLoadingCommunity(true);
+        setCommunityError(null);
+        try {
+          const community = await getCommunityDetails(preselectedCommunityId);
+          if (community) {
+            setSelectedCommunity(community);
+          } else {
+            setCommunityError("The specified community could not be found. Please select a valid community to post in.");
+            toast({ title: "Community Not Found", description: "Please create posts from a valid community page.", variant: "destructive" });
+          }
+        } catch (error) {
+          console.error("Failed to fetch community details", error);
+          setCommunityError("Failed to load community details. Please try again.");
+          toast({ title: "Error", description: "Could not load community details.", variant: "destructive" });
+        } finally {
+          setIsLoadingCommunity(false);
+        }
+      } else {
+        setCommunityError("No community selected. Please create posts from a community page.");
+         // Optionally redirect or show a more prominent message
+        // router.push('/communities'); 
       }
     }
-    fetchCommunitiesData();
-  }, [toast]);
+    fetchCommunityData();
+  }, [preselectedCommunityId, toast]);
+
 
   const imageFileWatch = form.watch('postImageFile');
 
@@ -114,9 +124,8 @@ export default function CreatePostPage() {
       return;
     }
     
-    const selectedCommunity = availableCommunities.find(c => c.id === data.communityId);
-    if (!selectedCommunity) {
-        toast({ title: "Community Error", description: "Selected community not found or not loaded.", variant: "destructive" });
+    if (!selectedCommunity || !preselectedCommunityId) {
+        toast({ title: "Community Error", description: communityError || "No community selected. Posts must be created within a community.", variant: "destructive" });
         return;
     }
 
@@ -124,7 +133,7 @@ export default function CreatePostPage() {
     try {
       const newPostId = await createPost({
         title: data.postTitle,
-        communityId: data.communityId,
+        communityId: preselectedCommunityId, 
         communityName: selectedCommunity.name, 
         description: data.postDescription,
         codeSnippet: data.postCodeSnippet,
@@ -144,6 +153,48 @@ export default function CreatePostPage() {
     }
   };
 
+  if (isLoadingCommunity && !selectedCommunity && !communityError) {
+    return (
+      <div className="max-w-3xl mx-auto flex flex-col items-center justify-center h-[calc(100vh-10rem)]">
+        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+        <p className="text-muted-foreground">Loading community details...</p>
+      </div>
+    );
+  }
+  
+  if (communityError) {
+    return (
+       <div className="max-w-3xl mx-auto pt-10">
+         <Alert variant="destructive">
+           <AlertTriangle className="h-5 w-5" />
+           <AlertTitle>Cannot Create Post</AlertTitle>
+           <AlertDescription>
+             {communityError}
+             <br />
+             You can find communities to post in <Link href="/communities" className="underline hover:text-destructive-foreground/80">here</Link>.
+           </AlertDescription>
+         </Alert>
+       </div>
+    );
+  }
+  
+  if (!selectedCommunity && !isLoadingCommunity) {
+     return (
+       <div className="max-w-3xl mx-auto pt-10">
+         <Alert variant="default">
+           <Info className="h-5 w-5" />
+           <AlertTitle>Community Information Missing</AlertTitle>
+           <AlertDescription>
+             It seems community details are not available. Please try navigating from a community page.
+             <br />
+             <Link href="/communities" className="underline hover:text-foreground/80">Explore communities</Link>.
+           </AlertDescription>
+         </Alert>
+       </div>
+    );
+  }
+
+
   return (
     <div className="max-w-3xl mx-auto">
       <Card className="shadow-xl">
@@ -151,9 +202,11 @@ export default function CreatePostPage() {
           <CardTitle className="text-2xl font-bold font-headline flex items-center">
              <FileText className="mr-3 w-7 h-7 text-primary" /> Create a New Post
           </CardTitle>
-          <CardDescription>
-            Share your thoughts, code snippets, or ask questions to the community.
-          </CardDescription>
+          {selectedCommunity && (
+            <CardDescription>
+              You are creating a post in: <strong className="text-primary">{selectedCommunity.name}</strong>.
+            </CardDescription>
+          )}
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -167,35 +220,6 @@ export default function CreatePostPage() {
                     <FormControl>
                       <Input placeholder="Enter a catchy title for your post" {...field} />
                     </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="communityId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Community</FormLabel>
-                    <Select 
-                      onValueChange={field.onChange} 
-                      defaultValue={field.value}
-                      disabled={isLoadingCommunities}
-                    >
-                      <FormControl>
-                        <SelectTrigger aria-label="Select community">
-                          <SelectValue placeholder={isLoadingCommunities ? "Loading communities..." : "Select a community to post in"} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {!isLoadingCommunities && availableCommunities.map(community => (
-                          <SelectItem key={community.id} value={community.id}>{community.name}</SelectItem>
-                        ))}
-                        {isLoadingCommunities && <SelectItem value="loading" disabled>Loading...</SelectItem>}
-                      </SelectContent>
-                    </Select>
-                    <FormDescription>Choose a community for your post.</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -252,7 +276,7 @@ export default function CreatePostPage() {
                       </div>
                     </FormControl>
                     {imagePreview && (
-                      <Image src={imagePreview} alt="Post image preview" width={200} height={100} className="mt-2 rounded-md object-cover border" data-ai-hint="post content image preview"/>
+                      <Image src={imagePreview} alt="Post image preview" width={200} height={100} className="mt-2 rounded-md object-cover border" data-ai-hint="post image preview small" />
                     )}
                     <FormDescription>Upload an image for your post (max {MAX_FILE_SIZE_MB}MB).</FormDescription>
                     <FormMessage />
@@ -275,7 +299,7 @@ export default function CreatePostPage() {
                 )}
               />
               
-              <Button type="submit" className="w-full" disabled={isSubmitting || isLoadingCommunities}>
+              <Button type="submit" className="w-full" disabled={isSubmitting || isLoadingCommunity || !selectedCommunity || !!communityError}>
                 {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <><Code2 className="mr-2 h-4 w-4" /> Publish Post</>}
               </Button>
             </form>

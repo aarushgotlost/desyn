@@ -5,79 +5,112 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import Image from "next/image";
 import Link from "next/link";
-import { MessageSquare } from "lucide-react";
-import { getPostDetails } from "@/services/firestoreService"; 
+import { MessageSquare, ArrowLeft, Edit, Trash2 } from "lucide-react"; // Added icons
+import { getPostDetails, getCurrentUserId } from "@/services/firestoreService"; 
 import type { Post } from "@/types/data";
-import { formatDistanceToNowStrict } from 'date-fns';
+import { format, formatDistanceToNowStrict } from 'date-fns';
 import { LikeButton } from "@/components/posts/LikeButton";
 import { CommentForm } from "@/components/comments/CommentForm";
 import { CommentList } from "@/components/comments/CommentList";
+import { Separator } from "@/components/ui/separator";
 import { unstable_noStore as noStore } from 'next/cache';
+import { getInitials } from "@/components/messaging/MessageBubble";
 
 
 export default async function PostDetailsPage({ params }: { params: { postId: string } }) {
   noStore(); 
   const post: Post | null = await getPostDetails(params.postId);
+  const currentUserId = await getCurrentUserId(); // Placeholder, actual implementation depends on your auth setup
 
   if (!post) {
-    return <div className="text-center py-10">Post not found.</div>;
+    return (
+      <div className="text-center py-20">
+        <h1 className="text-2xl font-semibold mb-4">Post Not Found</h1>
+        <p className="text-muted-foreground mb-6">The post you are looking for does not exist or may have been removed.</p>
+        <Button asChild>
+          <Link href="/">
+            <ArrowLeft className="mr-2 h-4 w-4" /> Go Back Home
+          </Link>
+        </Button>
+      </div>
+    );
   }
 
   const postCreatedAt = post.createdAt ? new Date(post.createdAt) : new Date();
+  const isAuthor = false; // currentUserId === post.authorId; // Placeholder
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
-      <Card className="overflow-hidden shadow-lg">
-        <CardHeader>
-          <div className="mb-3">
-            {post.tags.map(tag => (
-              <Badge key={tag} variant="secondary" className="mr-2 mb-1">{tag}</Badge>
-            ))}
+    <div className="max-w-3xl mx-auto space-y-8 py-8">
+      <article>
+        <header className="mb-8">
+          <div className="mb-4">
+            <Link href={`/communities/${post.communityId}`} className="text-sm text-primary hover:underline font-medium">
+              {post.communityName}
+            </Link>
           </div>
-          <CardTitle className="text-3xl lg:text-4xl font-bold font-headline">{post.title}</CardTitle>
-          <div className="flex items-center space-x-3 text-sm text-muted-foreground mt-2">
-            <Link href={`/profile/${post.authorId}`} className="flex items-center space-x-2 hover:text-primary"> 
-              <Avatar className="h-8 w-8">
+          <h1 className="text-4xl md:text-5xl font-bold font-headline tracking-tight text-foreground mb-4">
+            {post.title}
+          </h1>
+          <div className="flex items-center space-x-4 text-sm text-muted-foreground mb-6">
+            <Link href={`/profile/${post.authorId}`} className="flex items-center space-x-2 hover:text-primary group"> 
+              <Avatar className="h-10 w-10 border-2 border-transparent group-hover:border-primary/50 transition-colors">
                 <AvatarImage 
                   src={post.authorAvatar || undefined} 
                   alt={post.authorName ? `${post.authorName}'s avatar` : 'User avatar'}
-                  data-ai-hint="user avatar small"
+                  data-ai-hint="author avatar medium"
                 />
-                <AvatarFallback>{post.authorName?.substring(0,1).toUpperCase() || 'A'}</AvatarFallback>
+                <AvatarFallback className="text-base">{getInitials(post.authorName)}</AvatarFallback>
               </Avatar>
-              <span>{post.authorName}</span>
+              <div>
+                <span className="font-semibold text-foreground group-hover:text-primary transition-colors">{post.authorName}</span>
+                <p className="text-xs">
+                  Posted {formatDistanceToNowStrict(postCreatedAt, { addSuffix: true })}
+                  {post.createdAt !== post.updatedAt && post.updatedAt && ( // Assuming you add updatedAt field
+                     <> &bull; Edited {formatDistanceToNowStrict(new Date(post.updatedAt), { addSuffix: true })}</>
+                  )}
+                </p>
+              </div>
             </Link>
-            <span>&bull;</span>
-            <span>Posted in <Link href={`/communities/${post.communityId}`} className="hover:text-primary">{post.communityName}</Link></span>
-            <span>&bull;</span>
-            <span>{formatDistanceToNowStrict(postCreatedAt, { addSuffix: true })}</span>
           </div>
-        </CardHeader>
-        <CardContent className="prose prose-sm sm:prose-base lg:prose-lg dark:prose-invert max-w-none space-y-6">
-          {post.imageURL && (
-            <div className="my-6 overflow-hidden rounded-lg shadow-md">
-              <Image 
-                src={post.imageURL} 
-                alt={post.title || "Post image"} 
-                width={800} 
-                height={400} 
-                className="w-full h-auto object-cover" 
-                data-ai-hint="post image content large"
-              />
+          {post.tags && post.tags.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-6">
+              {post.tags.map(tag => (
+                <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
+              ))}
             </div>
           )}
-          <p className="text-foreground/80">{post.description}</p>
+        </header>
+
+        {post.imageURL && (
+          <div className="mb-8 overflow-hidden rounded-lg shadow-md aspect-video relative">
+            <Image 
+              src={post.imageURL} 
+              alt={post.title || "Post image"} 
+              layout="fill"
+              objectFit="cover"
+              priority
+              className="transition-transform duration-300 hover:scale-105"
+              data-ai-hint="post image large detail"
+            />
+          </div>
+        )}
+
+        <div className="prose prose-sm sm:prose-base lg:prose-lg dark:prose-invert max-w-none space-y-6 mb-8 text-foreground/90">
+          <p className="text-lg leading-relaxed">{post.description}</p>
           {post.codeSnippet && (
             <div>
-              <h3 className="font-semibold mb-1 text-foreground">Code Example:</h3>
-              <pre className="bg-muted p-4 rounded-md text-sm overflow-x-auto font-code text-foreground/90">
+              <h3 className="font-semibold mb-2 text-foreground text-base">Code Example:</h3>
+              <pre className="bg-muted p-4 rounded-md text-sm overflow-x-auto font-code text-foreground/90 shadow-inner">
                 <code>{post.codeSnippet}</code>
               </pre>
             </div>
           )}
-        </CardContent>
-        <CardFooter className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 py-6 border-t">
-          <div className="flex space-x-2 text-muted-foreground">
+        </div>
+
+        <Separator className="my-8" />
+
+        <footer className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div className="flex space-x-3">
             <LikeButton postId={post.id} initialLikesCount={post.likes || 0} size="default" />
             <Button variant="outline" size="default" className="flex items-center space-x-1.5 text-muted-foreground" asChild>
                 <Link href="#comments">
@@ -85,18 +118,28 @@ export default async function PostDetailsPage({ params }: { params: { postId: st
                 </Link>
             </Button>
           </div>
-        </CardFooter>
-      </Card>
+          {isAuthor && ( // Placeholder for author actions
+            <div className="flex space-x-2">
+              <Button variant="outline" size="sm" asChild>
+                <Link href={`/posts/${post.id}/edit`}> <Edit size={14} className="mr-1.5" /> Edit</Link>
+              </Button>
+              <Button variant="destructive" size="sm" onClick={() => alert('Delete action')}>
+                 <Trash2 size={14} className="mr-1.5" /> Delete
+              </Button>
+            </div>
+          )}
+        </footer>
+      </article>
 
-      <Card className="shadow-lg" id="comments">
-        <CardHeader>
-          <CardTitle className="text-xl font-headline">Comments ({post.commentsCount || 0})</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <CommentList postId={post.id} />
-        </CardContent>
+      <Separator className="my-10" />
+
+      <section id="comments" className="space-y-6">
+        <h2 className="text-2xl font-bold font-headline text-foreground">
+          Comments ({post.commentsCount || 0})
+        </h2>
         <CommentForm postId={post.id} /> 
-      </Card>
+        <CommentList postId={post.id} />
+      </section>
     </div>
   );
 }

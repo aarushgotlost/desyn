@@ -31,9 +31,15 @@ export function MessageBubble({ message, currentUserId, isCommunityChat = false 
   let messageTimestamp = 'Sending...';
   if (message.createdAt) {
     try {
-      messageTimestamp = format(new Date(message.createdAt), 'p'); 
+      // Ensure createdAt is a valid date string or Date object before formatting
+      const dateToFormat = new Date(message.createdAt);
+      if (!isNaN(dateToFormat.getTime())) {
+         messageTimestamp = format(dateToFormat, 'p'); 
+      } else {
+        // console.warn("Invalid date for message createdAt:", message.createdAt); // Avoid console logs
+      }
     } catch (e) {
-      // console.warn("Failed to parse message createdAt string: ", message.createdAt); // Avoid console logs
+      // console.warn("Failed to parse message createdAt string: ", message.createdAt, e); // Avoid console logs
     }
   }
   

@@ -19,16 +19,22 @@ import { unstable_noStore as noStore } from 'next/cache';
 
 export async function getCurrentUserId(): Promise<string | null> {
   noStore();
+  // This function is a placeholder. In a real server component scenario,
+  // you'd get the user ID from a server-side session or similar.
+  // For client components, `useAuth` hook provides the user.
+  // For actions, you'd typically pass userId as an argument.
   return null; 
 }
 
-const processDoc = <T extends { id: string; createdAt?: string | Timestamp | Date; updatedAt?: string | Timestamp | Date; lastLogin?: string | Timestamp | Date; lastMessageAt?: string | Timestamp | Date; members?: string[]; authorAvatar?: string | null; photoURL?: string | null }>(docSnap: any): T => {
+// Generic processor for Firestore document snapshots
+const processDoc = <T extends { id: string; createdAt?: string | Timestamp | Date; updatedAt?: string | Timestamp | Date; lastLogin?: string | Timestamp | Date; lastMessageAt?: string | Timestamp | Date; members?: string[]; authorAvatar?: string | null; photoURL?: string | null; bannerURL?: string | null }>(docSnap: any): T => {
   const data = docSnap.data();
   const processedData: any = {
     id: docSnap.id,
     ...data,
   };
 
+  // Standardize date fields to ISO strings
   const dateFields: (keyof T)[] = ['createdAt', 'updatedAt', 'lastLogin', 'lastMessageAt'];
   dateFields.forEach(field => {
     const fieldValue = data[field];
@@ -36,30 +42,44 @@ const processDoc = <T extends { id: string; createdAt?: string | Timestamp | Dat
       processedData[field] = (fieldValue as Timestamp).toDate().toISOString();
     } else if (fieldValue instanceof Date) {
       processedData[field] = fieldValue.toISOString();
-    } else if (typeof fieldValue === 'string') { // Already an ISO string
-      processedData[field] = fieldValue;
+    } else if (typeof fieldValue === 'string') { 
+      // Attempt to parse if it might be a different date string format, or keep as is if valid ISO
+      try {
+        const d = new Date(fieldValue);
+        if (!isNaN(d.getTime())) {
+          processedData[field] = d.toISOString();
+        } else {
+          processedData[field] = fieldValue; // Keep original if not a parsable date
+        }
+      } catch (e) {
+        processedData[field] = fieldValue; // Keep original on error
+      }
     } else if (fieldValue) { // Fallback for numbers or other convertible types
         try {
             processedData[field] = new Date(fieldValue).toISOString();
         } catch (e) {
-            console.warn(`Could not convert field ${String(field)} to ISOString:`, fieldValue);
-            processedData[field] = fieldValue; // Keep original if conversion fails
+            // console.warn(`Could not convert field ${String(field)} to ISOString:`, fieldValue); // Avoid console logs
+            processedData[field] = fieldValue; 
         }
     }
   });
 
 
+  // Ensure 'members' array exists for Community type, even if empty in Firestore
   if (data.members) {
     processedData.members = data.members;
   } else if (docSnap.ref.parent.id === 'communities' || docSnap.ref.path.includes('communities')) { 
+    // Heuristic to identify if it's a community document or related
     processedData.members = []; 
   }
 
-  if ('authorId' in data) { 
+  // Handle optional avatar/photo fields
+  if ('authorId' in data) { // For Post type
       processedData.authorAvatar = data.authorAvatar || null;
   }
-  if ('uid' in data) { 
+  if ('uid' in data) { // For UserProfile type
       processedData.photoURL = data.photoURL || null;
+      processedData.bannerURL = data.bannerURL || null; // Ensure bannerURL is also handled
   }
 
 
@@ -76,6 +96,7 @@ export async function getCommunities(): Promise<Community[]> {
 
 export async function getCommunityDetails(communityId: string): Promise<Community | null> {
   noStore();
+  if (!communityId) return null;
   const communityDocRef = doc(db, 'communities', communityId);
   const docSnap = await getDoc(communityDocRef);
   if (docSnap.exists()) {
@@ -135,15 +156,33 @@ export function getCommentsForPostRealtime(
   const unsubscribe = onSnapshot(q, (snapshot) => {
     const comments = snapshot.docs.map(docSnap => {
       const data = docSnap.data();
+      // Ensure createdAt is consistently an ISO string
+      let createdAtStr: string;
+      if (data.createdAt && typeof (data.createdAt as Timestamp).toDate === 'function') {
+        createdAtStr = (data.createdAt as Timestamp).toDate().toISOString();
+      } else if (data.createdAt instanceof Date) {
+        createdAtStr = data.createdAt.toISOString();
+      } else if (typeof data.createdAt === 'string') {
+        createdAtStr = data.createdAt; // Assume it's already ISO
+      } else if (data.createdAt) {
+         try {
+             createdAtStr = new Date(data.createdAt).toISOString();
+         } catch {
+            createdAtStr = new Date().toISOString(); // Fallback
+         }
+      }
+      else {
+        createdAtStr = new Date().toISOString(); // Fallback if undefined
+      }
       return {
         id: docSnap.id,
         ...data,
-        createdAt: (data.createdAt as Timestamp)?.toDate ? (data.createdAt as Timestamp).toDate().toISOString() : new Date(data.createdAt as any).toISOString(),
+        createdAt: createdAtStr,
       } as Comment;
     });
     callback(comments);
   }, (error) => {
-    console.error("Error fetching comments in real-time: ", error);
+    // console.error("Error fetching comments in real-time: ", error); // Avoid console logs
     if (onError) onError(error);
   });
 
@@ -165,7 +204,7 @@ export async function getAllUsersForNewChat(currentUserId: string | null, count:
         const snapshot = await getDocs(q);
         return snapshot.docs.map(docSnap => processDoc<UserProfile>(docSnap));
     } catch (error) {
-        console.error("Error fetching users for new chat:", error);
+        // console.error("Error fetching users for new chat:", error); // Avoid console logs
         return [];
     }
 }
@@ -217,7 +256,7 @@ export async function getFollowers(userId: string, count: number = 10): Promise<
         const followerData = followerDoc.data();
         const userProfileDoc = await getDoc(doc(db, 'users', followerData.userId));
         if (userProfileDoc.exists()) {
-            const profile = processDoc<UserProfile>(userProfileDoc); // Use processDoc here
+            const profile = processDoc<UserProfile>(userProfileDoc); 
             followerProfiles.push({
                 uid: userProfileDoc.id,
                 displayName: profile.displayName,
@@ -240,7 +279,7 @@ export async function getFollowing(userId: string, count: number = 10): Promise<
         const followingData = followingDoc.data();
         const userProfileDoc = await getDoc(doc(db, 'users', followingData.userId));
         if (userProfileDoc.exists()) {
-            const profile = processDoc<UserProfile>(userProfileDoc); // Use processDoc here
+            const profile = processDoc<UserProfile>(userProfileDoc); 
             followingProfiles.push({
                 uid: userProfileDoc.id,
                 displayName: profile.displayName,
