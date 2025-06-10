@@ -3,21 +3,27 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { HomeIcon, Users, PlusCircle, MessageSquare, User } from 'lucide-react';
+import { HomeIcon, Users, PlusCircle, MessageSquare, User as UserIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+
+const getInitials = (name: string | null | undefined): string => {
+  if (!name) return 'U';
+  return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0,2);
+};
 
 const navItems = [
   { href: "/", label: "Home", icon: HomeIcon, authRequired: false },
   { href: "/communities", label: "Communities", icon: Users, authRequired: false },
   { href: "/posts/create", label: "Create", icon: PlusCircle, authRequired: true },
   { href: "/messages", label: "Messages", icon: MessageSquare, authRequired: true },
-  { href: "/profile", label: "Profile", icon: User, authRequired: true },
+  { href: "/profile", label: "Profile", icon: UserIcon, authRequired: true, isProfile: true }, // Added isProfile flag
 ];
 
 export function BottomNavigationBar() {
   const pathname = usePathname();
-  const { user, loading } = useAuth();
+  const { user, userProfile, loading } = useAuth();
 
   if (loading) { 
     return null;
@@ -33,27 +39,22 @@ export function BottomNavigationBar() {
   const itemsToRender = navItems.filter(item => !(item.authRequired && !user));
   const numCols = itemsToRender.length;
 
-  // Explicitly map number of columns to Tailwind classes
   const gridColClass = {
     1: 'grid-cols-1',
     2: 'grid-cols-2',
-    3: 'grid-cols-3', // Should not happen with current navItems logic
-    4: 'grid-cols-4', // Should not happen
+    3: 'grid-cols-3',
+    4: 'grid-cols-4',
     5: 'grid-cols-5',
-  }[numCols] || 'grid-cols-5'; // Fallback, though numCols should be 2 or 5
+  }[numCols] || `grid-cols-${numCols}`;
 
-  // If after login, numCols is not 5, or if logged out numCols is not 2,
-  // there's an issue with `user` state or `navItems` definition / `authRequired` logic.
-  // But this explicit class mapping ensures Tailwind generates the necessary CSS.
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-background border-t border-border shadow-t-lg z-40">
       <div className={cn(
         "container mx-auto grid items-center h-16 px-0 sm:px-1",
-        gridColClass // Use the explicitly determined grid class
+        gridColClass
       )}>
         {navItems.map(item => {
-          // Filter out items that shouldn't be rendered based on auth state
           if (item.authRequired && !user) {
             return null; 
           }
@@ -63,18 +64,25 @@ export function BottomNavigationBar() {
           
           return (
             <Link
-              key={item.label} // Labels are unique
+              key={item.label}
               href={item.href}
               className={cn(
                 "flex flex-col items-center justify-center text-xs py-2 transition-colors duration-150 relative", 
                 isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
               )}
             >
-              <item.icon className={cn("h-5 w-5 sm:h-6 sm:w-6 mb-0.5", isActive ? "text-primary" : "")} />
+              {item.isProfile && user && userProfile ? (
+                <Avatar className={cn("h-6 w-6 sm:h-7 sm:w-7 mb-0.5 border-2", isActive ? "border-primary" : "border-transparent")}>
+                  <AvatarImage src={userProfile.photoURL || undefined} alt={userProfile.displayName || "User"} />
+                  <AvatarFallback className="text-xs">{getInitials(userProfile.displayName)}</AvatarFallback>
+                </Avatar>
+              ) : (
+                <item.icon className={cn("h-5 w-5 sm:h-6 sm:w-6 mb-0.5", isActive ? "text-primary" : "")} />
+              )}
               <span className="text-[10px] sm:text-xs">{item.label}</span>
             </Link>
           );
-        }).filter(Boolean)} {/* Filter out any nulls if items were skipped */}
+        }).filter(Boolean)}
       </div>
     </nav>
   );
