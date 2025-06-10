@@ -5,41 +5,42 @@
 
 @layer base {
   :root {
-    --background: 216 20% 95%; /* Light Blue, desaturated - PRD: #E6F0FF desaturated to 20% */
-    --foreground: 225 10% 10%; /* Dark blue-gray for text */
+    --background: 258 70% 96%; /* Light Purple */
+    --foreground: 258 25% 25%; /* Dark Purple */
 
-    --card: 0 0% 100%;
-    --card-foreground: 225 10% 10%;
+    --card: 258 60% 98%; /* Very Light Purple/Off-White */
+    --card-foreground: 258 25% 25%; /* Dark Purple */
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 225 10% 10%;
+    --popover: 258 60% 98%; /* Very Light Purple/Off-White */
+    --popover-foreground: 258 25% 25%; /* Dark Purple */
 
-    --primary: 258 88% 60%; /* Violet/Purpleish */
-    --primary-foreground: 210 40% 98%; /* Light color for text on primary */
+    --primary: 258 88% 60%; /* Violet/Purpleish (Existing) */
+    --primary-foreground: 210 40% 98%; /* Light color for text on primary (Existing) */
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 225 10% 10%;
+    --secondary: 258 60% 92%; /* Lighter Purple */
+    --secondary-foreground: 258 30% 35%; /* Darker Purple for text on secondary */
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 210 40% 45.1%;
+    --muted: 258 50% 94%; /* Light Muted Purple */
+    --muted-foreground: 258 25% 55%; /* Mid-tone Purple for muted text */
 
-    --accent: 258 88% 60%; /* Violet - PRD: #7A3FF2 (Kept for other accent uses if any) */
-    --accent-foreground: 210 40% 98%; /* Light color for text on accent */
+    --accent: 258 88% 60%; /* Violet/Purpleish (Existing, same as primary) */
+    --accent-foreground: 210 40% 98%; /* Light color for text on accent (Existing) */
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 210 40% 89.8%;
-    --input: 210 40% 89.8%;
-    --ring: 258 88% 60%; /* Violet/Purpleish for ring */
+    --border: 258 40% 88%; /* Light Purple Border */
+    --input: 258 40% 90%; /* Light Purple Input Background */
+    --ring: 258 88% 60%; /* Violet/Purpleish for ring (Existing) */
 
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
+    --chart-1: 258 76% 61%;
+    --chart-2: 258 58% 50%;
+    --chart-3: 258 37% 40%;
+    --chart-4: 280 74% 66%; /* Complementary purple/magenta */
+    --chart-5: 300 87% 67%; /* Complementary magenta/pink */
     --radius: 0.5rem;
 
+    /* Sidebar colors can remain as they are or be adjusted if needed */
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
     --sidebar-primary: 240 5.9% 10%;
@@ -51,40 +52,41 @@
   }
 
   .dark {
-    --background: 225 10% 10%; /* Dark blue-gray */
-    --foreground: 216 20% 95%; /* Light Blue, desaturated */
+    --background: 258 20% 10%; /* Dark Deep Purple */
+    --foreground: 258 60% 92%; /* Light Purple Text */
 
-    --card: 225 10% 10%;
-    --card-foreground: 216 20% 95%;
+    --card: 258 18% 13%; /* Slightly Lighter Dark Purple */
+    --card-foreground: 258 60% 92%; /* Light Purple Text */
 
-    --popover: 225 10% 10%;
-    --popover-foreground: 216 20% 95%;
+    --popover: 258 18% 13%; /* Slightly Lighter Dark Purple */
+    --popover-foreground: 258 60% 92%; /* Light Purple Text */
 
-    --primary: 258 88% 60%; /* Violet/Purpleish */
-    --primary-foreground: 210 40% 98%; /* Light color for text on primary */
+    --primary: 258 88% 65%; /* Vibrant Purple (adjusted for dark mode contrast) */
+    --primary-foreground: 258 20% 98%; /* Very Light, almost white purple */
 
-    --secondary: 210 40% 14.9%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 258 15% 18%; /* Darker, Less Saturated Purple */
+    --secondary-foreground: 258 50% 85%; /* Lighter Purple for text on secondary */
 
-    --muted: 210 40% 14.9%;
-    --muted-foreground: 210 40% 63.9%;
+    --muted: 258 12% 16%; /* Even Darker Muted Purple */
+    --muted-foreground: 258 30% 70%; /* Mid-tone Light Purple for muted text */
 
-    --accent: 258 88% 60%; /* Violet - PRD: #7A3FF2 (Kept for other accent uses if any) */
-    --accent-foreground: 210 40% 98%;
+    --accent: 258 88% 65%; /* Vibrant Purple (same as primary for dark mode) */
+    --accent-foreground: 258 20% 98%; /* Very Light, almost white purple */
 
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 210 40% 14.9%;
-    --input: 210 40% 14.9%;
-    --ring: 258 88% 60%; /* Violet/Purpleish for ring */
+    --border: 258 15% 25%; /* Dark Purple Border */
+    --input: 258 15% 22%; /* Dark Purple Input Background */
+    --ring: 258 88% 65%; /* Vibrant Purple for ring */
     
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
+    --chart-1: 258 70% 70%;
+    --chart-2: 258 60% 60%;
+    --chart-3: 258 80% 80%;
+    --chart-4: 280 65% 75%;
+    --chart-5: 300 75% 75%;
 
+    /* Sidebar colors can remain as they are or be adjusted if needed */
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;
