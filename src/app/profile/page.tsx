@@ -16,6 +16,7 @@ import { getUserPosts, getUserJoinedCommunities } from "@/services/firestoreServ
 import type { Post, Community } from "@/types/data";
 import { useToast } from "@/hooks/use-toast";
 import { unstable_noStore as noStore } from 'next/cache';
+import { Badge } from "@/components/ui/badge";
 
 
 const getInitials = (name: string | null | undefined): string => {
@@ -95,7 +96,7 @@ export default function ProfilePage() {
               data-ai-hint="profile banner user custom"
             />
           ) : (
-            <div className="h-full w-full bg-gradient-to-r from-primary to-accent" data-ai-hint="abstract gradient default banner"></div>
+            <div className="h-full w-full bg-gradient-to-r from-primary/70 via-primary to-accent/70" data-ai-hint="abstract gradient default banner"></div>
           )}
         </div>
         <CardContent className="pt-0">
@@ -141,7 +142,7 @@ export default function ProfilePage() {
                     <h2 className="text-lg font-semibold mb-2">Tech Stack</h2>
                     <div className="flex flex-wrap gap-2">
                     {techStack.map(tech => (
-                        <span key={tech} className="text-sm bg-primary/10 text-primary px-3 py-1 rounded-full font-medium">{tech}</span>
+                        <Badge key={tech} variant="default" className="text-sm font-medium">{tech}</Badge>
                     ))}
                     </div>
                 </>
@@ -164,21 +165,22 @@ export default function ProfilePage() {
           ) : userPosts.length > 0 ? userPosts.map(post => {
             const postCreatedAt = post.createdAt ? new Date(post.createdAt) : new Date();
             return (
-              <Card key={post.id} className="shadow-md hover:shadow-lg transition-shadow">
-                <CardHeader>
+              <Card key={post.id} className="shadow-sm hover:shadow-md transition-shadow duration-200 ease-in-out">
+                <CardContent className="p-4">
                   <Link href={`/posts/${post.id}`}>
-                    <CardTitle className="text-lg hover:text-primary">{post.title}</CardTitle>
+                    <h3 className="text-md font-semibold hover:text-primary transition-colors mb-1 line-clamp-2">{post.title}</h3>
                   </Link>
-                  <CardDescription className="text-xs">
+                  <p className="text-xs text-muted-foreground mb-2">
                     {post.communityId && post.communityName ? (
-                      <>In <Link href={`/communities/${post.communityId}`} className="text-primary hover:underline">{post.communityName}</Link> &bull; </>
+                      <>In <Link href={`/communities/${post.communityId}`} className="text-primary/90 hover:text-primary font-medium">{post.communityName}</Link> &bull; </>
                     ) : "General Post &bull; "}
                      {formatDistanceToNowStrict(postCreatedAt, {addSuffix: true})}
-                  </CardDescription>
-                </CardHeader>
-                <CardFooter className="text-xs text-muted-foreground flex justify-between">
-                  <span><ThumbsUp size={12} className="inline mr-1"/>{post.likes || 0} Likes &bull; <MessageIcon size={12} className="inline mr-1"/>{post.commentsCount || 0} Comments</span>
-                </CardFooter>
+                  </p>
+                  <div className="text-xs text-muted-foreground flex items-center gap-3">
+                    <span className="flex items-center"><ThumbsUp size={12} className="mr-1"/>{post.likes || 0}</span>
+                    <span className="flex items-center"><MessageIcon size={12} className="mr-1"/>{post.commentsCount || 0}</span>
+                  </div>
+                </CardContent>
               </Card>
             );
           }) : (
@@ -191,12 +193,12 @@ export default function ProfilePage() {
            ) : joinedCommunities.length > 0 ? (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {joinedCommunities.map(community => (
-                <Card key={community.id} className="shadow-md hover:shadow-lg transition-shadow">
+                <Card key={community.id} className="shadow-sm hover:shadow-md transition-shadow duration-200 ease-in-out">
                     <CardContent className="p-4 flex items-center space-x-3">
-                    <Image src={community.iconURL || "https://placehold.co/40x40.png?text=Icon"} alt={`${community.name} community icon`} width={40} height={40} className="rounded-md object-cover" data-ai-hint="community logo small"/>
+                    <Image src={community.iconURL || "https://placehold.co/40x40.png"} alt={`${community.name} community icon`} width={40} height={40} className="rounded-md object-cover" data-ai-hint="community logo small"/>
                     <div>
                         <Link href={`/communities/${community.id}`}>
-                        <h3 className="font-semibold text-sm hover:text-primary">{community.name}</h3>
+                        <h3 className="font-semibold text-sm hover:text-primary transition-colors">{community.name}</h3>
                         </Link>
                         <p className="text-xs text-muted-foreground">{community.memberCount || 0} members</p>
                     </div>
