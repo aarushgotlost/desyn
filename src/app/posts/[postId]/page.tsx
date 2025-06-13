@@ -14,7 +14,7 @@ import { CommentForm } from "@/components/comments/CommentForm";
 import { CommentList } from "@/components/comments/CommentList";
 import { Separator } from "@/components/ui/separator";
 import { unstable_noStore as noStore } from 'next/cache';
-import { getInitials } from "@/components/messaging/MessageBubble";
+import { getInitials } from "@/lib/utils";
 
 
 export default async function PostDetailsPage({ params }: { params: { postId: string } }) {

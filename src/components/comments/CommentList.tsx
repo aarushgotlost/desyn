@@ -1,4 +1,3 @@
-
 "use client";
 
 import type { Comment } from '@/types/data';
@@ -8,7 +7,7 @@ import { formatDistanceToNowStrict } from 'date-fns';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { getCommentsForPostRealtime } from '@/services/firestoreService'; // Use the dedicated realtime fetcher
-import { getInitials } from '@/components/messaging/MessageBubble';
+import { getInitials } from '@/lib/utils';
 
 
 interface CommentListProps {

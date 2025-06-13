@@ -1,4 +1,3 @@
-
 "use client";
 
 import { Button } from "@/components/ui/button";
@@ -15,14 +14,9 @@ import { getOrCreateDirectChat } from "@/services/chatService";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-
+import { getInitials } from "@/lib/utils";
 
 interface DisplayUser extends Pick<UserProfile, 'uid' | 'displayName' | 'photoURL' | 'email'> {}
-
-const getInitials = (name: string | null | undefined): string => {
-  if (!name) return '?';
-  return name.split(' ').map(n => n[0]).join('').toUpperCase();
-};
 
 export default function NewMessagePage() {
   const router = useRouter();

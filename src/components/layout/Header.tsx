@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from 'next/link';
@@ -18,6 +17,7 @@ import { LogOut, User, Settings, PlusCircle, Users, HomeIcon, Bell, MessageSquar
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { NotificationIcon } from '@/components/notifications/NotificationIcon'; 
+import { getInitials } from '@/lib/utils';
 
 export default function Header() {
   const { user, userProfile, logout, loading } = useAuth();
@@ -31,11 +31,6 @@ export default function Header() {
     // Notifications link is handled by NotificationIcon for desktop dropdown.
     // For mobile, it's in BottomNavigationBar or could be added to user dropdown if needed.
   ];
-
-  const getInitials = (name: string | null | undefined) => {
-    if (!name) return 'U';
-    return name.split(' ').map(n => n[0]).join('').toUpperCase();
-  }
 
   const authRestrictedPages = ['/login', '/signup', '/forgot-password', '/onboarding', '/onboarding/profile-setup'];
   if (authRestrictedPages.includes(pathname)) {

@@ -1,4 +1,3 @@
-
 "use client";
 
 import { use, useEffect, useState, useRef, FormEvent } from 'react'; 
@@ -14,8 +13,8 @@ import { Send, Loader2, ArrowLeft } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { MessageBubble, getInitials } from '@/components/messaging/MessageBubble';
-
+import { MessageBubble } from '@/components/messaging/MessageBubble';
+import { getInitials } from '@/lib/utils';
 
 export default function ChatPage({ params }: { params: { chatId: string } }) {
   const { user, userProfile, loading: authLoading } = useAuth();

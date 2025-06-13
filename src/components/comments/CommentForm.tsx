@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useTransition } from 'react';
@@ -12,7 +11,7 @@ import { Send, Loader2 } from 'lucide-react';
 import { useAuth, type UserProfile } from '@/contexts/AuthContext';
 import { addCommentToPost } from '@/actions/postActions';
 import { useToast } from '@/hooks/use-toast';
-import { getInitials } from '@/components/messaging/MessageBubble'; // Assuming getInitials is exported here
+import { getInitials } from '@/lib/utils';
 
 const commentSchema = z.object({
   text: z.string().min(1, { message: "Comment cannot be empty." }).max(1000, { message: "Comment is too long."}),

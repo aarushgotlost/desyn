@@ -11,7 +11,7 @@ import { LikeButton } from "@/components/posts/LikeButton";
 import { unstable_noStore as noStore } from 'next/cache';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { getInitials } from "@/components/messaging/MessageBubble";
+import { getInitials } from "@/lib/utils";
 
 
 export default async function HomePage() {

@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from 'next/link';
@@ -7,11 +6,7 @@ import { HomeIcon, Users, PlusCircle, MessageSquare, User as UserIcon } from 'lu
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-
-const getInitials = (name: string | null | undefined): string => {
-  if (!name) return 'U';
-  return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0,2);
-};
+import { getInitials } from '@/lib/utils';
 
 const navItems = [
   { href: "/", label: "Home", icon: HomeIcon, authRequired: false },

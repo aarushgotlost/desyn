@@ -14,7 +14,7 @@ import { CommunityChatInterface } from "@/components/communities/CommunityChatIn
 import { LikeButton } from "@/components/posts/LikeButton";
 import { unstable_noStore as noStore } from 'next/cache';
 import { Badge } from "@/components/ui/badge";
-import { getInitials } from "@/components/messaging/MessageBubble";
+import { getInitials } from "@/lib/utils";
 
 
 export default async function CommunityPage({ params }: { params: { communityId: string } }) {

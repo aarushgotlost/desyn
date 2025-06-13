@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from 'next/link';
@@ -11,16 +10,12 @@ import { markNotificationAsRead } from '@/actions/notificationActions';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu'; 
+import { getInitials } from '@/lib/utils';
 
 interface NotificationItemProps {
   notification: Notification;
   onNotificationClicked?: (notification: Notification) => Promise<void> | void;
 }
-
-const getInitials = (name: string | null | undefined): string => {
-  if (!name) return '?';
-  return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
-};
 
 const NotificationIconByType = ({ type }: { type: Notification['type'] }) => {
   switch (type) {

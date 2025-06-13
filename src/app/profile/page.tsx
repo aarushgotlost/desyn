@@ -1,4 +1,3 @@
-
 "use client"; 
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -17,12 +16,8 @@ import type { Post, Community } from "@/types/data";
 import { useToast } from "@/hooks/use-toast";
 import { unstable_noStore as noStore } from 'next/cache';
 import { Badge } from "@/components/ui/badge";
+import { getInitials } from "@/lib/utils";
 
-
-const getInitials = (name: string | null | undefined): string => {
-  if (!name) return 'U';
-  return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0,2);
-};
 
 export default function ProfilePage() {
   noStore(); 

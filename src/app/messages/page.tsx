@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState } from 'react';
@@ -13,16 +12,12 @@ import { MessageSquareText, UserPlus, Loader2, AlertTriangle, Search } from 'luc
 import { formatDistanceToNowStrict } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { useRouter } from 'next/navigation'; 
+import { getInitials } from '@/lib/utils';
 
 function ChatListItem({ session, currentUserUid }: { session: ChatSession; currentUserUid: string }) {
   const otherParticipant = session.participants.find(p => p.uid !== currentUserUid);
 
   if (!otherParticipant) return null;
-
-  const getInitials = (name: string | null | undefined) => {
-    if (!name) return '?';
-    return name.split(' ').map(n => n[0]).join('').toUpperCase();
-  };
 
   const lastMessageDate = session.lastMessageAt ? new Date(session.lastMessageAt) : null; // Convert ISO string to Date
 

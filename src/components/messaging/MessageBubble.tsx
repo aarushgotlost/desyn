@@ -1,16 +1,9 @@
-
 "use client";
 
 import type { ChatMessage, CommunityChatMessage } from '@/types/messaging';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { format } from 'date-fns';
-
-export const getInitials = (name: string | null | undefined): string => {
-  if (!name) return '?';
-  const nameParts = name.split(' ').filter(Boolean);
-  if (nameParts.length === 0) return '?';
-  return nameParts.map(n => n[0]).join('').substring(0, 2).toUpperCase();
-};
+import { getInitials } from '@/lib/utils';
 
 interface MessageBubbleProps {
   message: { 
