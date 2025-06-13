@@ -28,7 +28,7 @@ export default async function HomePage() {
           {posts.map((post) => {
             const postCreatedAt = post.createdAt ? new Date(post.createdAt) : new Date();
             return (
-              <Card key={post.id} className="overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300 ease-in-out group">
+              <Card key={post.id} className="overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300 ease-in-out group bg-card">
                 <CardHeader className="p-4 md:p-5">
                   <div className="flex items-center space-x-3">
                     <Link href={`/profile/${post.authorId}`} className="flex-shrink-0"> 
@@ -56,13 +56,13 @@ export default async function HomePage() {
                 </CardHeader>
                 <CardContent className="p-4 md:p-5 pt-0">
                   <Link href={`/posts/${post.id}`}>
-                    <CardTitle className="text-xl lg:text-2xl font-bold font-headline hover:text-primary transition-colors mb-2.5 leading-tight">
+                    <h2 className="text-xl lg:text-2xl font-bold font-headline hover:text-primary transition-colors mb-3 leading-tight">
                       {post.title}
-                    </CardTitle>
+                    </h2>
                   </Link>
                   {post.imageURL && (
-                    <div className="my-3 overflow-hidden rounded-md aspect-video relative border">
-                      <Link href={`/posts/${post.id}`}>
+                    <Link href={`/posts/${post.id}`} className="block mb-3">
+                      <div className="overflow-hidden rounded-md aspect-video relative border group-hover:opacity-90 transition-opacity">
                         <Image 
                           src={post.imageURL} 
                           alt={post.title || "Post image"}
@@ -71,14 +71,14 @@ export default async function HomePage() {
                           className="transition-transform duration-300 group-hover:scale-105"
                           data-ai-hint="post image content"
                         />
-                      </Link>
-                    </div>
+                      </div>
+                    </Link>
                   )}
-                  <CardDescription className="text-sm text-foreground/80 mb-3.5 line-clamp-3">
-                     <Link href={`/posts/${post.id}`} className="hover:text-primary/80 transition-colors">
-                        {post.description}
-                     </Link>
-                  </CardDescription>
+                  <Link href={`/posts/${post.id}`}>
+                    <p className="text-sm text-foreground/80 mb-3.5 line-clamp-3 hover:text-primary/80 transition-colors">
+                      {post.description}
+                    </p>
+                  </Link>
                   {post.codeSnippet && (
                     <pre className="bg-muted/70 p-3 rounded-md text-xs overflow-x-auto font-code mb-3.5 max-h-40">
                       <code>{post.codeSnippet.substring(0, 200)}{post.codeSnippet.length > 200 && '...'}</code>

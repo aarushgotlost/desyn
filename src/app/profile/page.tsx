@@ -1,3 +1,4 @@
+
 "use client"; 
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -17,6 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { unstable_noStore as noStore } from 'next/cache';
 import { Badge } from "@/components/ui/badge";
 import { getInitials } from "@/lib/utils";
+import { LikeButton } from "@/components/posts/LikeButton";
 
 
 export default function ProfilePage() {
@@ -79,7 +81,7 @@ export default function ProfilePage() {
 
   return (
     <div className="space-y-8">
-      <Card className="overflow-hidden shadow-xl">
+      <Card className="overflow-hidden shadow-xl bg-card">
         <div className="relative h-40 md:h-56">
           {bannerURL ? (
             <Image 
@@ -160,20 +162,28 @@ export default function ProfilePage() {
           ) : userPosts.length > 0 ? userPosts.map(post => {
             const postCreatedAt = post.createdAt ? new Date(post.createdAt) : new Date();
             return (
-              <Card key={post.id} className="shadow-sm hover:shadow-md transition-shadow duration-200 ease-in-out">
+              <Card key={post.id} className="shadow-sm hover:shadow-md transition-shadow duration-200 ease-in-out bg-card">
                 <CardContent className="p-4">
                   <Link href={`/posts/${post.id}`}>
-                    <h3 className="text-md font-semibold hover:text-primary transition-colors mb-1 line-clamp-2">{post.title}</h3>
+                    <h3 className="text-lg font-semibold hover:text-primary transition-colors mb-1 line-clamp-2 font-headline">{post.title}</h3>
                   </Link>
-                  <p className="text-xs text-muted-foreground mb-2">
+                  <p className="text-xs text-muted-foreground mb-3">
                     {post.communityId && post.communityName ? (
-                      <>In <Link href={`/communities/${post.communityId}`} className="text-primary/90 hover:text-primary font-medium">{post.communityName}</Link> &bull; </>
+                      <>Posted in <Link href={`/communities/${post.communityId}`} className="text-primary/90 hover:text-primary font-medium">{post.communityName}</Link> &bull; </>
                     ) : "General Post &bull; "}
                      {formatDistanceToNowStrict(postCreatedAt, {addSuffix: true})}
                   </p>
-                  <div className="text-xs text-muted-foreground flex items-center gap-3">
-                    <span className="flex items-center"><ThumbsUp size={12} className="mr-1"/>{post.likes || 0}</span>
-                    <span className="flex items-center"><MessageIcon size={12} className="mr-1"/>{post.commentsCount || 0}</span>
+                  {post.description && (
+                    <p className="text-sm text-foreground/80 mb-3 line-clamp-2">
+                      {post.description}
+                    </p>
+                  )}
+                  <div className="flex items-center gap-3 text-muted-foreground">
+                    <LikeButton postId={post.id} initialLikesCount={post.likes || 0} size="sm" showText={false} />
+                    <Link href={`/posts/${post.id}#comments`} className="flex items-center text-xs hover:text-primary transition-colors">
+                        <MessageIcon size={14} className="mr-1"/>
+                        <span>{post.commentsCount || 0}</span>
+                    </Link>
                   </div>
                 </CardContent>
               </Card>
@@ -188,7 +198,7 @@ export default function ProfilePage() {
            ) : joinedCommunities.length > 0 ? (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {joinedCommunities.map(community => (
-                <Card key={community.id} className="shadow-sm hover:shadow-md transition-shadow duration-200 ease-in-out">
+                <Card key={community.id} className="shadow-sm hover:shadow-md transition-shadow duration-200 ease-in-out bg-card">
                     <CardContent className="p-4 flex items-center space-x-3">
                     <Image src={community.iconURL || "https://placehold.co/40x40.png"} alt={`${community.name} community icon`} width={40} height={40} className="rounded-md object-cover" data-ai-hint="community logo small"/>
                     <div>
