@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import Image from "next/image";
 import Link from "next/link";
-import { MessageSquare, ArrowLeft, Edit, Trash2, Loader2 } from "lucide-react"; 
+import { MessageSquare, ArrowLeft } from "lucide-react"; 
 import { getPostDetails, getCurrentUserId } from "@/services/firestoreService"; 
 import type { Post } from "@/types/data";
 import { format, formatDistanceToNowStrict } from 'date-fns';
@@ -15,81 +15,7 @@ import { CommentList } from "@/components/comments/CommentList";
 import { Separator } from "@/components/ui/separator";
 import { unstable_noStore as noStore } from 'next/cache';
 import { getInitials } from "@/lib/utils";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import { deletePost } from "@/actions/postActions";
-import { useToast } from "@/hooks/use-toast";
-import { useRouter } from "next/navigation"; // For client-side navigation after delete
-import React, { useState, useTransition } from "react"; // For client-side state and transitions
-
-
-// Client-side wrapper to handle actions
-function PostActionsClient({ post, currentUserId }: { post: Post; currentUserId: string | null }) {
-  const { toast } = useToast();
-  const router = useRouter();
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [isPending, startTransition] = useTransition();
-  const isAuthor = currentUserId === post.authorId;
-
-  const handleDeletePost = async () => {
-    if (!isAuthor) return;
-    setIsDeleting(true);
-    startTransition(async () => {
-      const result = await deletePost(post.id, currentUserId as string);
-      if (result.success) {
-        toast({ title: "Post Deleted", description: "Your post has been successfully removed." });
-        router.push(post.communityId ? `/communities/${post.communityId}` : '/'); // Redirect to community or home
-      } else {
-        toast({ title: "Error", description: result.message, variant: "destructive" });
-      }
-      setIsDeleting(false);
-    });
-  };
-
-  if (!isAuthor) {
-    return null;
-  }
-
-  return (
-    <div className="flex space-x-2">
-      <Button variant="outline" size="sm" asChild>
-        <Link href={`/posts/${post.id}/edit`}> <Edit size={14} className="mr-1.5" /> Edit</Link>
-      </Button>
-      <AlertDialog>
-        <AlertDialogTrigger asChild>
-          <Button variant="destructive" size="sm" disabled={isDeleting || isPending}>
-            {isDeleting || isPending ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : <Trash2 size={14} className="mr-1.5" />}
-            Delete
-          </Button>
-        </AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete your post and all its comments and likes.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting || isPending}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeletePost} disabled={isDeleting || isPending} className="bg-destructive hover:bg-destructive/90">
-              {isDeleting || isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Delete Post
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
-  );
-}
+import { PostActionsClient } from "@/components/posts/PostActionsClient";
 
 
 export default async function PostDetailsPage({ params }: { params: { postId: string } }) {
@@ -127,7 +53,6 @@ export default async function PostDetailsPage({ params }: { params: { postId: st
             ) : (
                  <span className="text-sm text-muted-foreground">General Post</span>
             )}
-             {/* Client component for actions like edit/delete */}
              <PostActionsClient post={post} currentUserId={currentUserId} />
           </div>
 
@@ -206,7 +131,6 @@ export default async function PostDetailsPage({ params }: { params: { postId: st
                 </Link>
             </Button>
           </div>
-          {/* Moved Edit/Delete actions to the top via PostActionsClient */}
         </footer>
       </article>
 
