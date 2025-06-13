@@ -15,6 +15,7 @@ import { LikeButton } from "@/components/posts/LikeButton";
 import { unstable_noStore as noStore } from 'next/cache';
 import { Badge } from "@/components/ui/badge";
 import { getInitials } from "@/lib/utils";
+import { PostCardOptionsMenu } from "@/components/posts/PostCardOptionsMenu";
 
 
 export default async function CommunityPage({ params }: { params: { communityId: string } }) {
@@ -87,32 +88,37 @@ export default async function CommunityPage({ params }: { params: { communityId:
               return (
                 <Card key={post.id} className="overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300 ease-in-out group bg-card">
                   <CardHeader className="p-4 md:p-5">
-                    <div className="flex items-center space-x-3">
-                      <Link href={`/profile/${post.authorId}`} className="flex-shrink-0"> 
-                        <Avatar className="h-10 w-10 border group-hover:border-primary/30 transition-colors">
-                          <AvatarImage 
-                            src={post.authorAvatar || undefined} 
-                            alt={post.authorName ? `${post.authorName}'s avatar` : 'User avatar'}
-                            data-ai-hint="user avatar small" 
-                          />
-                          <AvatarFallback>{getInitials(post.authorName)}</AvatarFallback>
-                        </Avatar>
-                      </Link>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-foreground truncate">
-                          <Link href={`/profile/${post.authorId}`} className="hover:text-primary transition-colors">{post.authorName}</Link>
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                           Posted {formatDistanceToNowStrict(postCreatedAt, { addSuffix: true })}
-                        </p>
+                    <div className="flex justify-between items-start">
+                      <div className="flex items-center space-x-3">
+                        <Link href={`/profile/${post.authorId}`} className="flex-shrink-0"> 
+                          <Avatar className="h-10 w-10 border group-hover:border-primary/30 transition-colors">
+                            <AvatarImage 
+                              src={post.authorAvatar || undefined} 
+                              alt={post.authorName ? `${post.authorName}'s avatar` : 'User avatar'}
+                              data-ai-hint="user avatar small" 
+                            />
+                            <AvatarFallback>{getInitials(post.authorName)}</AvatarFallback>
+                          </Avatar>
+                        </Link>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-foreground truncate">
+                            <Link href={`/profile/${post.authorId}`} className="hover:text-primary transition-colors">{post.authorName}</Link>
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                             Posted {formatDistanceToNowStrict(postCreatedAt, { addSuffix: true })}
+                          </p>
+                        </div>
+                      </div>
+                      <div>
+                        <PostCardOptionsMenu post={post} />
                       </div>
                     </div>
                   </CardHeader>
                   <CardContent className="p-4 md:p-5 pt-0">
                      <Link href={`/posts/${post.id}`}>
-                        <h2 className="text-xl lg:text-2xl font-bold font-headline hover:text-primary transition-colors mb-3 leading-tight">
+                        <CardTitle className="text-xl lg:text-2xl font-bold font-headline hover:text-primary transition-colors mb-3 leading-tight">
                             {post.title}
-                        </h2>
+                        </CardTitle>
                     </Link>
                     {post.imageURL && (
                       <Link href={`/posts/${post.id}`} className="block mb-3">
@@ -129,9 +135,9 @@ export default async function CommunityPage({ params }: { params: { communityId:
                       </Link>
                     )}
                     <Link href={`/posts/${post.id}`}>
-                        <p className="text-sm text-foreground/80 mb-3.5 line-clamp-3 hover:text-primary/80 transition-colors">
+                        <CardDescription className="text-sm text-foreground/80 mb-3.5 line-clamp-3 hover:text-primary/80 transition-colors">
                             {post.description}
-                        </p>
+                        </CardDescription>
                     </Link>
                     {post.codeSnippet && (
                       <pre className="bg-muted/70 p-3 rounded-md text-xs overflow-x-auto font-code mb-3.5 max-h-40">

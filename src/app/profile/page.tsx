@@ -19,6 +19,7 @@ import { unstable_noStore as noStore } from 'next/cache';
 import { Badge } from "@/components/ui/badge";
 import { getInitials } from "@/lib/utils";
 import { LikeButton } from "@/components/posts/LikeButton";
+import { PostCardOptionsMenu } from "@/components/posts/PostCardOptionsMenu";
 
 
 export default function ProfilePage() {
@@ -163,9 +164,12 @@ export default function ProfilePage() {
             const postCreatedAt = post.createdAt ? new Date(post.createdAt) : new Date();
             return (
               <Card key={post.id} className="shadow-sm hover:shadow-md transition-shadow duration-200 ease-in-out bg-card">
-                <CardContent className="p-4">
+                <CardContent className="p-4 relative">
+                   <div className="absolute top-1 right-1 z-10">
+                    <PostCardOptionsMenu post={post} />
+                  </div>
                   <Link href={`/posts/${post.id}`}>
-                    <h3 className="text-lg font-semibold hover:text-primary transition-colors mb-1 line-clamp-2 font-headline">{post.title}</h3>
+                    <h3 className="text-lg font-semibold hover:text-primary transition-colors mb-1 line-clamp-2 font-headline pr-8">{post.title}</h3>
                   </Link>
                   <p className="text-xs text-muted-foreground mb-3">
                     {post.communityId && post.communityName ? (
