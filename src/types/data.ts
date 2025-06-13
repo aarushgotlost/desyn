@@ -14,8 +14,8 @@ export interface Community {
 export interface Post {
   id: string; 
   title: string;
-  communityId?: string | null; // Made optional
-  communityName?: string | null; // Made optional
+  communityId?: string | null; 
+  communityName?: string | null; 
   description: string;
   codeSnippet?: string | null;
   imageURL?: string | null;
@@ -24,6 +24,7 @@ export interface Post {
   authorName: string;
   authorAvatar?: string | null;
   createdAt: string; // ISO string
+  updatedAt?: string; // ISO string, for edit timestamp
   likes: number;
   commentsCount: number;
 }

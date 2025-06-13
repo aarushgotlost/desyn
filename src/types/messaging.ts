@@ -10,20 +10,20 @@ export interface ChatSession {
   participants: ChatParticipant[]; 
   participantUids: string[]; 
   lastMessageText?: string;
-  lastMessageAt?: string; // ISO string
+  lastMessageAt?: string; // ISO string or Firebase Timestamp for server actions
   lastMessageSenderId?: string;
-  createdAt: string; // ISO string
-  updatedAt: string; // ISO string
+  createdAt: string; // ISO string or Firebase Timestamp
+  updatedAt: string; // ISO string or Firebase Timestamp
 }
 
 export interface ChatMessage {
   id: string;
-  chatId: string;
+  chatId: string; // Ensure this is present if used for delete action
   senderId: string;
   senderName: string | null; 
   senderAvatar?: string | null; 
   text: string;
-  createdAt: string; // ISO string
+  createdAt: string; // ISO string or Firebase Timestamp
 }
 
 export interface CommunityChatMessage {

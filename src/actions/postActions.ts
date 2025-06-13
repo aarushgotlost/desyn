@@ -1,7 +1,7 @@
 
 'use server';
 
-import { db } from '@/lib/firebase';
+import { db, auth } from '@/lib/firebase'; // Ensure auth is imported if needed for user verification server-side
 import {
   doc,
   updateDoc,
@@ -13,10 +13,10 @@ import {
   setDoc,
   serverTimestamp,
   Timestamp,
-  runTransaction,
   query, 
   orderBy, 
   getDocs, 
+  where
 } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
 import type { UserProfile } from '@/contexts/AuthContext';
@@ -24,15 +24,25 @@ import type { Post, Comment } from '@/types/data';
 import { createNotification } from '@/services/notificationService';
 import type { NotificationActor } from '@/types/notifications';
 
-async function revalidatePostPaths(postId: string, communityId?: string) {
+async function revalidatePostPaths(postId: string, communityId?: string | null) {
   revalidatePath(`/posts/${postId}`);
   revalidatePath('/'); 
   if (communityId) {
     revalidatePath(`/communities/${communityId}`); 
   }
   revalidatePath('/profile'); 
-  revalidatePath('/notifications'); // Revalidate notifications page
+  revalidatePath('/notifications'); 
 }
+
+export interface UpdatePostData {
+  title: string;
+  description: string;
+  codeSnippet?: string | null;
+  imageURL?: string | null; // This will be the URL if a new image is uploaded or existing one kept
+  tags: string[];
+  // communityId and communityName are not editable via this form directly
+}
+
 
 export async function togglePostLike(
   postId: string,
@@ -72,7 +82,6 @@ export async function togglePostLike(
       newLikesCount = (postData.likes || 0) + 1;
       isLiked = true;
 
-      // Create notification if someone else's post is liked
       if (postData.authorId !== userId && likerProfile) {
         const actor: NotificationActor = {
           id: likerProfile.uid,
@@ -174,7 +183,6 @@ export async function addCommentToPost(
         const postData = postSnap.data() as Post;
         await revalidatePostPaths(postId, postData.communityId);
 
-        // Create notification for the post author
         if (postData.authorId !== commentData.authorId) {
           const actor: NotificationActor = {
             id: commentData.authorId,
@@ -197,7 +205,7 @@ export async function addCommentToPost(
     const createdCommentForClient: Comment = {
       ...newCommentForFirestore,
       id: newCommentRef.id,
-      createdAt: new Date().toISOString(), // Ensure ISO string for client
+      createdAt: new Date().toISOString(),
     };
 
     return { success: true, message: 'Comment added!', commentId: newCommentRef.id, newComment: createdCommentForClient };
@@ -220,3 +228,133 @@ export async function getCommentsForPost(postId: string): Promise<Comment[]> {
     } as Comment;
   });
 }
+
+export async function deletePost(
+  postId: string,
+  userId: string
+): Promise<{ success: boolean; message: string }> {
+  if (!userId) {
+    return { success: false, message: 'User not authenticated.' };
+  }
+  if (!postId) {
+    return { success: false, message: 'Post ID is missing.' };
+  }
+
+  const postRef = doc(db, 'posts', postId);
+
+  try {
+    const postSnap = await getDoc(postRef);
+    if (!postSnap.exists()) {
+      return { success: false, message: 'Post not found.' };
+    }
+
+    const postData = postSnap.data() as Post;
+    if (postData.authorId !== userId) {
+      return { success: false, message: 'User not authorized to delete this post.' };
+    }
+
+    const batch = writeBatch(db);
+
+    // 1. Delete comments subcollection
+    const commentsColRef = collection(db, 'posts', postId, 'comments');
+    const commentsSnapshot = await getDocs(commentsColRef);
+    commentsSnapshot.forEach(docSnap => batch.delete(docSnap.ref));
+
+    // 2. Delete likes subcollection
+    const likesColRef = collection(db, 'posts', postId, 'likes');
+    const likesSnapshot = await getDocs(likesColRef);
+    likesSnapshot.forEach(docSnap => batch.delete(docSnap.ref));
+
+    // 3. Delete the post document itself
+    batch.delete(postRef);
+
+    await batch.commit();
+    
+    await revalidatePostPaths(postId, postData.communityId);
+
+    return { success: true, message: 'Post deleted successfully.' };
+  } catch (error: any) {
+    console.error('Error deleting post:', error);
+    return { success: false, message: error.message || 'Could not delete post.' };
+  }
+}
+
+
+export async function updatePostAction(
+  postId: string,
+  userId: string,
+  updatedData: UpdatePostData,
+  newImageFile?: File // Keep newImageFile separate for clarity
+): Promise<{ success: boolean; message: string; updatedPost?: Post }> {
+  if (!userId) {
+    return { success: false, message: 'User not authenticated.' };
+  }
+  if (!postId) {
+    return { success: false, message: 'Post ID is missing.' };
+  }
+
+  const postRef = doc(db, 'posts', postId);
+
+  try {
+    const postSnap = await getDoc(postRef);
+    if (!postSnap.exists()) {
+      return { success: false, message: 'Post not found.' };
+    }
+
+    const existingPostData = postSnap.data() as Post;
+    if (existingPostData.authorId !== userId) {
+      return { success: false, message: 'User not authorized to update this post.' };
+    }
+
+    const dataToUpdate: Partial<Post> & { updatedAt: Timestamp } = {
+      title: updatedData.title,
+      description: updatedData.description,
+      codeSnippet: updatedData.codeSnippet || null,
+      tags: updatedData.tags || [],
+      updatedAt: serverTimestamp() as Timestamp,
+    };
+
+    // Handle image update
+    if (newImageFile) {
+      // In a real app, upload to Firebase Storage and get URL
+      // For this example, we'll assume newImageFile is a data URL or a placeholder for upload logic
+      // This part needs to be handled carefully based on how images are stored (e.g., Firebase Storage)
+      // Let's simulate storing a data URL if provided, or you'd integrate actual upload logic.
+      const reader = new FileReader();
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(newImageFile);
+      });
+      dataToUpdate.imageURL = dataUrl;
+    } else if (updatedData.imageURL === null) { // Explicitly removing image
+        dataToUpdate.imageURL = null;
+    } else if (updatedData.imageURL) { // Keeping existing or providing a new direct URL
+        dataToUpdate.imageURL = updatedData.imageURL;
+    }
+    // If updatedData.imageURL is undefined and no newImageFile, existing imageURL is preserved by not including it in dataToUpdate.
+
+
+    await updateDoc(postRef, dataToUpdate);
+    
+    const updatedPostSnap = await getDoc(postRef);
+    const updatedPost = { id: updatedPostSnap.id, ...updatedPostSnap.data() } as Post;
+    
+    // Ensure date fields are ISO strings for client
+    if (updatedPost.createdAt && typeof (updatedPost.createdAt as any).toDate === 'function') {
+      updatedPost.createdAt = (updatedPost.createdAt as any).toDate().toISOString();
+    }
+    if (updatedPost.updatedAt && typeof (updatedPost.updatedAt as any).toDate === 'function') {
+      updatedPost.updatedAt = (updatedPost.updatedAt as any).toDate().toISOString();
+    }
+
+
+    await revalidatePostPaths(postId, existingPostData.communityId);
+
+    return { success: true, message: 'Post updated successfully.', updatedPost };
+  } catch (error: any) {
+    console.error('Error updating post:', error);
+    return { success: false, message: error.message || 'Could not update post.' };
+  }
+}
+
