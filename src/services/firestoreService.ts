@@ -19,15 +19,19 @@ import { unstable_noStore as noStore } from 'next/cache';
 
 export async function getCurrentUserId(): Promise<string | null> {
   noStore();
-  // This function is a placeholder. In a real server component scenario,
-  // you'd get the user ID from a server-side session or similar.
-  // For client components, `useAuth` hook provides the user.
-  // For actions, you'd typically pass userId as an argument.
-  return null; 
+  // This function is a placeholder for server components.
+  // Actual user ID retrieval in server components might differ based on session management.
+  // For client components or actions, `useAuth` or passed arguments are typical.
+  // To make it work for this initial setup without full server-side auth integration:
+  // Attempt to get current user from Firebase Auth if called in a context where it's available.
+  // This is NOT a reliable way to get user in RSCs in general if auth state isn't propagated server-side.
+  // For server actions, the user should be explicitly passed or derived from an authenticated context.
+  const currentUser = auth.currentUser; // This might be null on server if not initialized or if state isn't shared
+  return currentUser ? currentUser.uid : null;
 }
 
 // Generic processor for Firestore document snapshots
-const processDoc = <T extends { id: string; createdAt?: string | Timestamp | Date; updatedAt?: string | Timestamp | Date; lastLogin?: string | Timestamp | Date; lastMessageAt?: string | Timestamp | Date; members?: string[]; authorAvatar?: string | null; photoURL?: string | null; bannerURL?: string | null }>(docSnap: any): T => {
+const processDoc = <T extends { id: string; createdAt?: string | Timestamp | Date; updatedAt?: string | Timestamp | Date; lastLogin?: string | Timestamp | Date; lastMessageAt?: string | Timestamp | Date; members?: string[]; authorAvatar?: string | null; photoURL?: string | null; bannerURL?: string | null; followersCount?: number; followingCount?: number; }>(docSnap: any): T => {
   const data = docSnap.data();
   const processedData: any = {
     id: docSnap.id,
@@ -43,43 +47,40 @@ const processDoc = <T extends { id: string; createdAt?: string | Timestamp | Dat
     } else if (fieldValue instanceof Date) {
       processedData[field] = fieldValue.toISOString();
     } else if (typeof fieldValue === 'string') { 
-      // Attempt to parse if it might be a different date string format, or keep as is if valid ISO
       try {
         const d = new Date(fieldValue);
         if (!isNaN(d.getTime())) {
           processedData[field] = d.toISOString();
         } else {
-          processedData[field] = fieldValue; // Keep original if not a parsable date
+          processedData[field] = fieldValue; 
         }
       } catch (e) {
-        processedData[field] = fieldValue; // Keep original on error
+        processedData[field] = fieldValue; 
       }
-    } else if (fieldValue) { // Fallback for numbers or other convertible types
+    } else if (fieldValue) { 
         try {
             processedData[field] = new Date(fieldValue).toISOString();
         } catch (e) {
-            // console.warn(`Could not convert field ${String(field)} to ISOString:`, fieldValue); // Avoid console logs
             processedData[field] = fieldValue; 
         }
     }
   });
 
 
-  // Ensure 'members' array exists for Community type, even if empty in Firestore
   if (data.members) {
     processedData.members = data.members;
   } else if (docSnap.ref.parent.id === 'communities' || docSnap.ref.path.includes('communities')) { 
-    // Heuristic to identify if it's a community document or related
     processedData.members = []; 
   }
 
-  // Handle optional avatar/photo fields
-  if ('authorId' in data) { // For Post type
+  if ('authorId' in data) { 
       processedData.authorAvatar = data.authorAvatar || null;
   }
-  if ('uid' in data) { // For UserProfile type
+  if ('uid' in data) { 
       processedData.photoURL = data.photoURL || null;
-      processedData.bannerURL = data.bannerURL || null; // Ensure bannerURL is also handled
+      processedData.bannerURL = data.bannerURL || null;
+      processedData.followersCount = data.followersCount || 0;
+      processedData.followingCount = data.followingCount || 0;
   }
 
 
@@ -156,23 +157,22 @@ export function getCommentsForPostRealtime(
   const unsubscribe = onSnapshot(q, (snapshot) => {
     const comments = snapshot.docs.map(docSnap => {
       const data = docSnap.data();
-      // Ensure createdAt is consistently an ISO string
       let createdAtStr: string;
       if (data.createdAt && typeof (data.createdAt as Timestamp).toDate === 'function') {
         createdAtStr = (data.createdAt as Timestamp).toDate().toISOString();
       } else if (data.createdAt instanceof Date) {
         createdAtStr = data.createdAt.toISOString();
       } else if (typeof data.createdAt === 'string') {
-        createdAtStr = data.createdAt; // Assume it's already ISO
+        createdAtStr = data.createdAt; 
       } else if (data.createdAt) {
          try {
              createdAtStr = new Date(data.createdAt).toISOString();
          } catch {
-            createdAtStr = new Date().toISOString(); // Fallback
+            createdAtStr = new Date().toISOString(); 
          }
       }
       else {
-        createdAtStr = new Date().toISOString(); // Fallback if undefined
+        createdAtStr = new Date().toISOString(); 
       }
       return {
         id: docSnap.id,
@@ -182,7 +182,6 @@ export function getCommentsForPostRealtime(
     });
     callback(comments);
   }, (error) => {
-    // console.error("Error fetching comments in real-time: ", error); // Avoid console logs
     if (onError) onError(error);
   });
 
@@ -204,7 +203,6 @@ export async function getAllUsersForNewChat(currentUserId: string | null, count:
         const snapshot = await getDocs(q);
         return snapshot.docs.map(docSnap => processDoc<UserProfile>(docSnap));
     } catch (error) {
-        // console.error("Error fetching users for new chat:", error); // Avoid console logs
         return [];
     }
 }

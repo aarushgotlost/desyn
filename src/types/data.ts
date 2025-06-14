@@ -39,3 +39,22 @@ export interface Comment {
   createdAt: string; // ISO string
 }
 
+// UserProfile is defined in AuthContext.tsx to avoid circular dependencies
+// but it's good to have a reference here for what it generally contains.
+// export interface UserProfile {
+//   uid: string;
+//   email: string | null;
+//   displayName: string | null;
+//   photoURL?: string | null;
+//   bannerURL?: string | null;
+//   bio?: string;
+//   techStack?: string[];
+//   interests?: string[];
+//   onboardingCompleted: boolean;
+//   createdAt?: string; // ISO string
+//   lastLogin?: string; // ISO string
+//   updatedAt?: string; // ISO string
+//   followersCount?: number;
+//   followingCount?: number;
+// }
+
