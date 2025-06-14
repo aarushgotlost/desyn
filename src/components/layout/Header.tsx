@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from 'next/link';
@@ -13,7 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, User, Settings, PlusCircle, Users, HomeIcon, Bell, MessageSquare } from 'lucide-react';
+import { LogOut, User, Settings, PlusCircle, Users, HomeIcon, Bell, MessageSquare, Bot } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { NotificationIcon } from '@/components/notifications/NotificationIcon'; 
@@ -28,8 +29,7 @@ export default function Header() {
     { href: "/communities", label: "Communities", icon: Users, authRequired: false },
     { href: "/posts/create", label: "Create Post", icon: PlusCircle, authRequired: true },
     { href: "/messages", label: "Messages", icon: MessageSquare, authRequired: true },
-    // Notifications link is handled by NotificationIcon for desktop dropdown.
-    // For mobile, it's in BottomNavigationBar or could be added to user dropdown if needed.
+    { href: "/chatbot", label: "DevBot", icon: Bot, authRequired: true },
   ];
 
   const authRestrictedPages = ['/login', '/signup', '/forgot-password', '/onboarding', '/onboarding/profile-setup'];

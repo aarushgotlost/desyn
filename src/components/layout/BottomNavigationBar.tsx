@@ -1,8 +1,9 @@
+
 "use client";
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { HomeIcon, Users, PlusCircle, MessageSquare, User as UserIcon } from 'lucide-react';
+import { HomeIcon, Users, PlusCircle, MessageSquare, User as UserIcon, Bot } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -13,7 +14,8 @@ const navItems = [
   { href: "/communities", label: "Communities", icon: Users, authRequired: false },
   { href: "/posts/create", label: "Create", icon: PlusCircle, authRequired: true },
   { href: "/messages", label: "Messages", icon: MessageSquare, authRequired: true },
-  { href: "/profile", label: "Profile", icon: UserIcon, authRequired: true, isProfile: true }, // Added isProfile flag
+  { href: "/chatbot", label: "DevBot", icon: Bot, authRequired: true },
+  { href: "/profile", label: "Profile", icon: UserIcon, authRequired: true, isProfile: true }, 
 ];
 
 export function BottomNavigationBar() {
@@ -26,8 +28,10 @@ export function BottomNavigationBar() {
 
   const authPages = ['/login', '/signup', '/forgot-password', '/onboarding', '/onboarding/profile-setup'];
   const isChatDetailPage = pathname.startsWith('/messages/') && pathname.split('/').length > 2 && pathname.split('/')[2] !== 'new';
+  const isChatBotPage = pathname === '/chatbot';
 
-  if (authPages.includes(pathname) || isChatDetailPage) {
+
+  if (authPages.includes(pathname) || isChatDetailPage || isChatBotPage) {
     return null;
   }
 
@@ -40,6 +44,7 @@ export function BottomNavigationBar() {
     3: 'grid-cols-3',
     4: 'grid-cols-4',
     5: 'grid-cols-5',
+    6: 'grid-cols-6',
   }[numCols] || `grid-cols-${numCols}`;
 
 
