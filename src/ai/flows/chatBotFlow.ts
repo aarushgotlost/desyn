@@ -47,10 +47,7 @@ Current date: ${new Date().toLocaleDateString()}`,
   output: { schema: ChatBotOutputSchema },
   prompt: `{{#if history}}
 {{#each history}}
-{{#if (eq this.role "user")}}User: {{this.parts.0.text}}
-{{/if}}
-{{#if (eq this.role "model")}}DevBot: {{this.parts.0.text}}
-{{/if}}
+{{this.role}}: {{this.parts.0.text}}
 {{/each}}
 {{/if}}
 User: {{{userInput}}}
