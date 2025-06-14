@@ -9,7 +9,7 @@
  */
 
 import { ai } from '@/ai/genkit';
-import { z } from 'zod'; // Corrected import path
+import { z } from 'zod';
 
 // Define the structure for a single message in the history
 const MessageSchema = z.object({
@@ -19,13 +19,13 @@ const MessageSchema = z.object({
 export type Message = z.infer<typeof MessageSchema>;
 
 
-export const ChatBotInputSchema = z.object({
+const ChatBotInputSchema = z.object({
   userInput: z.string().describe("The user's current message to the chatbot."),
   history: z.array(MessageSchema).optional().describe("The conversation history between the user and the AI model."),
 });
 export type ChatBotInput = z.infer<typeof ChatBotInputSchema>;
 
-export const ChatBotOutputSchema = z.object({
+const ChatBotOutputSchema = z.object({
   aiResponse: z.string().describe("The AI's response to the user's message."),
 });
 export type ChatBotOutput = z.infer<typeof ChatBotOutputSchema>;
