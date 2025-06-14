@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { HomeIcon, Users, PlusCircle, MessageSquare, User as UserIcon, Bot } from 'lucide-react';
+import { HomeIcon, Users, PlusCircle, MessageSquare, User as UserIcon } from 'lucide-react'; // Removed Bot
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -14,7 +14,7 @@ const navItems = [
   { href: "/communities", label: "Communities", icon: Users, authRequired: false },
   { href: "/posts/create", label: "Create", icon: PlusCircle, authRequired: true },
   { href: "/messages", label: "Messages", icon: MessageSquare, authRequired: true },
-  { href: "/chatbot", label: "DevBot", icon: Bot, authRequired: true },
+  // { href: "/chatbot", label: "DevBot", icon: Bot, authRequired: true }, // Removed from bottom nav
   { href: "/profile", label: "Profile", icon: UserIcon, authRequired: true, isProfile: true }, 
 ];
 

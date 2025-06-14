@@ -29,7 +29,7 @@ export default function Header() {
     { href: "/communities", label: "Communities", icon: Users, authRequired: false },
     { href: "/posts/create", label: "Create Post", icon: PlusCircle, authRequired: true },
     { href: "/messages", label: "Messages", icon: MessageSquare, authRequired: true },
-    { href: "/chatbot", label: "DevBot", icon: Bot, authRequired: true },
+    // { href: "/chatbot", label: "DevBot", icon: Bot, authRequired: true }, // Removed from main nav
   ];
 
   const authRestrictedPages = ['/login', '/signup', '/forgot-password', '/onboarding', '/onboarding/profile-setup'];
@@ -96,6 +96,9 @@ export default function Header() {
                     </DropdownMenuItem>
                      <DropdownMenuItem asChild>
                        <Link href="/notifications"><Bell className="mr-2 h-4 w-4" /> Notifications</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/chatbot"><Bot className="mr-2 h-4 w-4" /> DevBot Assistant</Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
                       <Link href="/settings"><Settings className="mr-2 h-4 w-4" /> Settings</Link>
