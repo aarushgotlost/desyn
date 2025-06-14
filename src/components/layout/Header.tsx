@@ -29,7 +29,6 @@ export default function Header() {
     { href: "/communities", label: "Communities", icon: Users, authRequired: false },
     { href: "/posts/create", label: "Create Post", icon: PlusCircle, authRequired: true },
     { href: "/messages", label: "Messages", icon: MessageSquare, authRequired: true },
-    // { href: "/chatbot", label: "DevBot", icon: Bot, authRequired: true }, // Removed from main nav
   ];
 
   const authRestrictedPages = ['/login', '/signup', '/forgot-password', '/onboarding', '/onboarding/profile-setup'];
@@ -65,11 +64,16 @@ export default function Header() {
           })}
         </nav>
 
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-1 md:space-x-3">
           {loading ? (
             <div className="w-8 h-8 bg-muted rounded-full animate-pulse" />
           ) : user ? (
             <>
+              <Button variant="ghost" size="icon" asChild className="h-8 w-8 rounded-full" aria-label="Open DevBot">
+                <Link href="/chatbot">
+                  <Bot className="h-5 w-5" />
+                </Link>
+              </Button>
               <NotificationIcon /> 
               <div className="hidden md:block">
                 <DropdownMenu>
@@ -97,9 +101,7 @@ export default function Header() {
                      <DropdownMenuItem asChild>
                        <Link href="/notifications"><Bell className="mr-2 h-4 w-4" /> Notifications</Link>
                     </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link href="/chatbot"><Bot className="mr-2 h-4 w-4" /> DevBot Assistant</Link>
-                    </DropdownMenuItem>
+                    {/* DevBot link removed from dropdown, now an icon button */}
                     <DropdownMenuItem asChild>
                       <Link href="/settings"><Settings className="mr-2 h-4 w-4" /> Settings</Link>
                     </DropdownMenuItem>
@@ -111,9 +113,9 @@ export default function Header() {
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
-              {/* Mobile settings link - keep or remove based on whether NotificationIcon is sufficient or if more settings are needed quickly */}
+              {/* Mobile settings link - kept for quick access to full settings page */}
               <div className="md:hidden">
-                <Button variant="ghost" size="icon" asChild aria-label="Open settings">
+                <Button variant="ghost" size="icon" asChild aria-label="Open settings" className="h-8 w-8 rounded-full">
                   <Link href="/settings">
                     <Settings className="h-5 w-5" />
                   </Link>
