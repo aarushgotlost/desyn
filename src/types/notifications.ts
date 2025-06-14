@@ -8,7 +8,8 @@ export interface NotificationActor {
 export type NotificationType = 
   | 'new_like' 
   | 'new_comment' 
-  | 'new_follower';
+  | 'new_follower'
+  | 'new_message'; // Added new_message type
 
 export interface Notification {
   id: string;
@@ -19,5 +20,5 @@ export interface Notification {
   link: string; // Link to the relevant content (post, profile, etc.)
   isRead: boolean;
   createdAt: string; // ISO string
-  relatedEntityId?: string; // e.g., postId, commentId, followerUserId
+  relatedEntityId?: string; // e.g., postId, commentId, followerUserId, chatId
 }

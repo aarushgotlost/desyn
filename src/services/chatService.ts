@@ -3,6 +3,8 @@
 import { db } from '@/lib/firebase';
 import type { UserProfile } from '@/contexts/AuthContext';
 import type { ChatSession, ChatParticipant } from '@/types/messaging';
+import { createNotification } from '@/services/notificationService';
+import type { NotificationActor } from '@/types/notifications';
 import {
   collection,
   query,
@@ -14,6 +16,7 @@ import {
   serverTimestamp,
   Timestamp,
   writeBatch,
+  getDoc, // Added getDoc
 } from 'firebase/firestore';
 
 // Helper to create participant objects
@@ -108,4 +111,33 @@ export async function sendMessage(
   });
 
   await batch.commit();
+
+  // Create notifications for other participants
+  try {
+    const chatSnap = await getDoc(chatDocRef);
+    if (chatSnap.exists()) {
+      const chatData = chatSnap.data() as ChatSession;
+      const actor: NotificationActor = {
+        id: senderProfile.uid,
+        displayName: senderProfile.displayName,
+        avatarUrl: senderProfile.photoURL,
+      };
+
+      for (const participant of chatData.participants) {
+        if (participant.uid !== senderProfile.uid) {
+          await createNotification({
+            userId: participant.uid,
+            type: 'new_message',
+            actor,
+            message: `${senderProfile.displayName || 'Someone'} sent you a new message.`,
+            link: `/messages/${chatId}`,
+            relatedEntityId: chatId,
+          });
+        }
+      }
+    }
+  } catch (error) {
+    console.error("Error creating notification for new message:", error);
+    // Non-critical, so we don't re-throw typically.
+  }
 }
