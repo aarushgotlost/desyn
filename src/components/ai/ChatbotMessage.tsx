@@ -4,11 +4,12 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { Bot, User } from "lucide-react";
+import ReactMarkdown from 'react-markdown';
 
 interface ChatbotMessageProps {
   role: "user" | "ai";
   content: string;
-  timestamp?: string; 
+  timestamp?: string;
 }
 
 export function ChatbotMessage({ role, content, timestamp }: ChatbotMessageProps) {
@@ -38,7 +39,28 @@ export function ChatbotMessage({ role, content, timestamp }: ChatbotMessageProps
             : "bg-card text-card-foreground border rounded-bl-none"
         )}
       >
-        <p className="text-sm whitespace-pre-wrap">{content}</p>
+        <ReactMarkdown
+          className="text-sm prose prose-sm dark:prose-invert max-w-none"
+          components={{
+            // Customize rendering of specific elements if needed
+            // For example, to add Tailwind classes to paragraphs or code blocks
+            p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />,
+            pre: ({node, ...props}) => <pre className="bg-muted/50 p-2 rounded-md my-2 text-xs" {...props} />,
+            code: ({node, inline, className, children, ...props}) => {
+              const match = /language-(\w+)/.exec(className || '')
+              return !inline && match ? (
+                <code className={cn(className, "font-mono")} {...props}>{children}</code>
+              ) : (
+                <code className={cn(className, "font-mono bg-muted/30 px-1 py-0.5 rounded-sm text-xs")} {...props}>{children}</code>
+              )
+            },
+            ul: ({node, ...props}) => <ul className="list-disc list-inside my-2" {...props} />,
+            ol: ({node, ...props}) => <ol className="list-decimal list-inside my-2" {...props} />,
+            li: ({node, ...props}) => <li className="mb-1" {...props} />,
+          }}
+        >
+          {content}
+        </ReactMarkdown>
         {timestamp && (
           <p
             className={cn(
