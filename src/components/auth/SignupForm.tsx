@@ -46,8 +46,11 @@ export function SignupForm() {
     try {
       const interestsArray = data.interests ? data.interests.split(',').map(i => i.trim()).filter(i => i) : [];
       await signUpWithEmail(data.email, data.password, data.name, interestsArray);
-      toast({ title: "Signup Successful", description: "Welcome to Desyn! Please check your email to verify your account if applicable." });
-      // Router redirection is handled by AuthContext or AuthGuard
+      toast({ 
+        title: "Signup Successful!", 
+        description: "A verification email has been sent. Please check your inbox to verify your account." 
+      });
+      // Router redirection to /onboarding/profile-setup is handled by AuthContext
     } catch (error: any) {
       toast({
         title: "Signup Failed",

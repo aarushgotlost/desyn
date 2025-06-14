@@ -13,6 +13,7 @@ import {
   signOut,
   sendPasswordResetEmail,
   updateProfile as updateFirebaseUserProfile,
+  sendEmailVerification, // Import sendEmailVerification
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, serverTimestamp, collection, addDoc, DocumentReference, query, where, getDocs, updateDoc, Timestamp } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
@@ -52,8 +53,8 @@ interface CreateCommunityData {
 
 interface CreatePostData {
   title: string;
-  communityId?: string | null; 
-  communityName?: string | null; 
+  communityId?: string | null;
+  communityName?: string | null;
   description: string;
   codeSnippet?: string;
   imageFile?: File;
@@ -266,8 +267,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setLoading(true);
       const result = await createUserWithEmailAndPassword(auth, email, password);
       if (result.user) {
+        await sendEmailVerification(result.user); // Send verification email
         await updateFirebaseUserProfile(result.user, { displayName: name });
         await createUserProfileDocument(result.user, { displayName: name, interests, onboardingCompleted: false, photoURL: null, bannerURL: null });
+        // The toast message will be shown by the SignupForm component, or we could pass a callback for that.
+        // For now, the form will show its own toast.
         router.push('/onboarding/profile-setup');
       }
     } catch (error) {
@@ -300,6 +304,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             } as UserProfile;
 
             setUserProfile(clientProfile);
+            if (!result.user.emailVerified) {
+              // Optional: Inform user to check their email if not verified.
+              // You might want to restrict access or show a banner until verified.
+              // For now, we just log them in.
+            }
             if (!clientProfile.onboardingCompleted) {
                 router.push('/onboarding/profile-setup');
             } else {
