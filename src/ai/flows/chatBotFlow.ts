@@ -41,8 +41,7 @@ const chatBotPrompt = ai.definePrompt({
 Your primary goal is to assist users by answering their questions about software development, DevConnect features, popular technologies, programming languages, and general tech topics.
 Keep your responses helpful, informative, and concise.
 If you don't know the answer to something, it's better to say so than to make something up.
-Format code snippets using Markdown if a user asks for code.
-Current date: ${new Date().toLocaleDateString()}`,
+Format code snippets using Markdown if a user asks for code.`,
   input: { schema: ChatBotInputSchema },
   output: { schema: ChatBotOutputSchema },
   prompt: `{{#if history}}
