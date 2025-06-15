@@ -8,11 +8,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Image from "next/image";
 import Link from "next/link";
 import { Edit3, Mail, Users, FileText, CalendarDays, Loader2, ThumbsUp, MessageCircle as MessageIcon } from "lucide-react"; 
-import { useAuth } from "@/contexts/AuthContext"; 
+import { useAuth, type UserProfile as UserProfileType } from "@/contexts/AuthContext"; 
 import { useRouter } from "next/navigation"; 
 import { useState, useEffect } from "react"; 
 import { format, formatDistanceToNowStrict } from 'date-fns';
-import { getUserPosts, getUserJoinedCommunities } from "@/services/firestoreService"; 
+import { getUserPosts, getUserJoinedCommunities, getUserProfile } from "@/services/firestoreService"; 
 import type { Post, Community } from "@/types/data";
 import { useToast } from "@/hooks/use-toast";
 import { unstable_noStore as noStore } from 'next/cache';
@@ -24,29 +24,53 @@ import { PostCardOptionsMenu } from "@/components/posts/PostCardOptionsMenu";
 
 export default function ProfilePage() {
   noStore(); 
-  const { user: currentUser, userProfile: currentUserProfile, loading: authLoading } = useAuth();
+  const { user: currentUser, loading: authLoading } = useAuth(); // Removed userProfile from here
   const router = useRouter();
   const { toast } = useToast();
 
+  const [displayedProfile, setDisplayedProfile] = useState<UserProfileType | null>(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [userPosts, setUserPosts] = useState<Post[]>([]);
   const [joinedCommunities, setJoinedCommunities] = useState<Community[]>([]);
   const [isLoadingActivity, setIsLoadingActivity] = useState(true);
 
-  const profileToDisplay = currentUserProfile;
-  const isLoadingProfile = authLoading;
+  useEffect(() => {
+    async function fetchProfileData() {
+      if (!currentUser?.uid) {
+        setIsLoadingProfile(false);
+        if (!authLoading) router.replace('/login'); // Redirect if not logged in and auth is not loading
+        return;
+      }
+      setIsLoadingProfile(true);
+      try {
+        const profile = await getUserProfile(currentUser.uid);
+        setDisplayedProfile(profile);
+      } catch (error) {
+        console.error("Error fetching user profile:", error);
+        toast({ title: "Error", description: "Could not load your profile.", variant: "destructive"});
+      } finally {
+        setIsLoadingProfile(false);
+      }
+    }
+    
+    if (!authLoading) {
+        fetchProfileData();
+    }
+
+  }, [currentUser, authLoading, router, toast]);
 
 
   useEffect(() => {
     async function fetchActivity() {
-      if (!profileToDisplay?.uid) {
+      if (!displayedProfile?.uid) {
         setIsLoadingActivity(false);
         return;
       }
       setIsLoadingActivity(true);
       try {
         const [posts, communities] = await Promise.all([
-          getUserPosts(profileToDisplay.uid),
-          getUserJoinedCommunities(profileToDisplay.uid)
+          getUserPosts(displayedProfile.uid),
+          getUserJoinedCommunities(displayedProfile.uid)
         ]);
         setUserPosts(posts);
         setJoinedCommunities(communities);
@@ -58,26 +82,31 @@ export default function ProfilePage() {
       }
     }
 
-    if (profileToDisplay) {
+    if (displayedProfile) {
       fetchActivity();
     }
-  }, [profileToDisplay, toast]);
+  }, [displayedProfile, toast]);
 
 
-  if (isLoadingProfile && !profileToDisplay) {
+  if (isLoadingProfile || authLoading) {
     return <div className="flex justify-center items-center h-[calc(100vh-10rem)]"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
   }
-
+  
   if (!currentUser && !authLoading) { 
-    router.replace('/login');
+    // This case should be handled by the useEffect redirecting, but as a fallback:
     return <div className="flex justify-center items-center h-[calc(100vh-10rem)]"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
   }
   
-  if (!profileToDisplay) { 
-     return <div className="text-center py-10">Profile not found.</div>;
+  if (!displayedProfile) { 
+     return (
+        <div className="text-center py-10">
+            <p>Could not load profile. You might need to log in again.</p>
+            <Button onClick={() => router.push('/login')} className="mt-2">Login</Button>
+        </div>
+    );
   }
   
-  const { displayName, email, photoURL, bannerURL, bio, techStack, createdAt, followersCount, followingCount } = profileToDisplay;
+  const { displayName, email, photoURL, bannerURL, bio, techStack, createdAt, followersCount, followingCount } = displayedProfile;
   const joinedDate = createdAt ? new Date(createdAt) : null; 
 
   return (
