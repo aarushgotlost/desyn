@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Image from "next/image";
 import Link from "next/link";
 import { Mail, Users, FileText, CalendarDays, MessageSquare, Loader2, ThumbsUp, MessageCircle as MessageIcon, ArrowLeft } from "lucide-react";
-import { getUserProfile, getUserPosts, getUserJoinedCommunities, isFollowing, getCurrentUserId } from "@/services/firestoreService";
+import { getUserProfile, getUserPosts, getUserJoinedCommunities, getCurrentUserId } from "@/services/firestoreService";
 import type { UserProfile as UserProfileType, Post, Community } from "@/types/data";
 import { format, formatDistanceToNowStrict } from 'date-fns';
 import { unstable_noStore as noStore } from 'next/cache';
@@ -20,9 +20,10 @@ export default async function UserProfilePage({ params }: { params: { userId: st
   noStore();
   const { userId: targetUserId } = params;
 
+  // Fetch profile and current user ID in parallel
   const [profileToDisplay, currentUserId] = await Promise.all([
     getUserProfile(targetUserId),
-    getCurrentUserId()
+    getCurrentUserId() // This is crucial for knowing if the viewer is the profile owner
   ]);
   
   if (!profileToDisplay) {
@@ -38,10 +39,10 @@ export default async function UserProfilePage({ params }: { params: { userId: st
     );
   }
 
-  const [userPosts, joinedCommunities, initialIsFollowing] = await Promise.all([
+  // Fetch posts and communities after confirming profile exists
+  const [userPosts, joinedCommunities] = await Promise.all([
     getUserPosts(targetUserId),
     getUserJoinedCommunities(targetUserId),
-    currentUserId ? isFollowing(currentUserId, targetUserId) : Promise.resolve(false)
   ]);
   
   const { displayName, email, photoURL, bannerURL, bio, techStack, createdAt, followersCount = 0, followingCount = 0 } = profileToDisplay;
@@ -86,19 +87,16 @@ export default async function UserProfilePage({ params }: { params: { userId: st
               </div>
             </div>
             <div className="flex flex-col sm:flex-row gap-2 self-center md:self-end">
+              <FollowButtonClient
+                targetUserId={targetUserId}
+                targetUserProfile={{ displayName: profileToDisplay.displayName || '' }}
+              />
               {currentUserId && currentUserId !== targetUserId && (
-                <>
-                  <FollowButtonClient
-                    targetUserId={targetUserId}
-                    targetUserProfile={{ displayName: profileToDisplay.displayName || '' }}
-                    initialIsFollowing={initialIsFollowing}
-                  />
-                  <Button variant="outline" asChild>
-                    <Link href={`/messages/new?userId=${targetUserId}`}>
-                        <MessageSquare size={16} className="mr-2" /> Message
-                    </Link>
-                  </Button>
-                </>
+                <Button variant="outline" asChild>
+                  <Link href={`/messages/new?userId=${targetUserId}`}>
+                      <MessageSquare size={16} className="mr-2" /> Message
+                  </Link>
+                </Button>
               )}
             </div>
           </div>
@@ -157,14 +155,10 @@ export default async function UserProfilePage({ params }: { params: { userId: st
                               {profileToDisplay.displayName}
                             </Link>
                           </p>
-                          {/* Follow button for the profile owner (author of these posts) */}
-                          {currentUserId && profileToDisplay.uid !== currentUserId && (
-                            <FollowButtonClient
+                           <FollowButtonClient
                               targetUserId={profileToDisplay.uid} 
                               targetUserProfile={{ displayName: profileToDisplay.displayName || '' }}
-                              initialIsFollowing={initialIsFollowing} 
                             />
-                          )}
                         </div>
                         <p className="text-xs text-muted-foreground">
                           Posted {formatDistanceToNowStrict(postCreatedAt, { addSuffix: true })}
@@ -174,7 +168,6 @@ export default async function UserProfilePage({ params }: { params: { userId: st
                         </p>
                       </div>
                     </div>
-                    {/* PostCardOptionsMenu for the post itself. Visible if current user is the author of the post. */}
                     {currentUserId === post.authorId && ( 
                       <div>
                         <PostCardOptionsMenu post={post} />

@@ -20,11 +20,14 @@ import { createNotification } from '@/services/notificationService';
 import type { NotificationActor } from '@/types/notifications';
 
 async function revalidateProfilePaths(userId: string, otherUserId?: string) {
-  revalidatePath(`/profile`); // Current user's main profile page
+  revalidatePath(`/profile/${userId}`); // Revalidate the current user's profile who initiated the action
   if (otherUserId) {
-    revalidatePath(`/profile/${otherUserId}`);
+    revalidatePath(`/profile/${otherUserId}`); // Revalidate the target user's profile
   }
-  revalidatePath('/notifications');
+  // Revalidate common pages where follow status/counts might appear
+  revalidatePath('/');
+  revalidatePath('/communities'); // Discover page
+  revalidatePath('/notifications'); // For potential notification updates
 }
 
 export async function followUser(
@@ -98,7 +101,7 @@ export async function unfollowUser(
 
   try {
     await batch.commit();
-     await revalidateProfilePaths(currentUserId, targetUserId);
+    await revalidateProfilePaths(currentUserId, targetUserId);
     return { success: true, message: 'Successfully unfollowed user.' };
   } catch (error: any) {
     console.error('Error unfollowing user:', error);
