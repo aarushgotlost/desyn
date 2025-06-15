@@ -90,7 +90,7 @@ export default async function UserProfilePage({ params }: { params: { userId: st
                 <>
                   <FollowButtonClient
                     targetUserId={targetUserId}
-                    targetUserProfile={{ displayName: profileToDisplay.displayName }}
+                    targetUserProfile={{ displayName: profileToDisplay.displayName || '' }}
                     initialIsFollowing={initialIsFollowing}
                   />
                   <Button variant="outline" asChild>
@@ -261,3 +261,5 @@ export default async function UserProfilePage({ params }: { params: { userId: st
     </div>
   );
 }
+
+    
