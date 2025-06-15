@@ -9,7 +9,7 @@
  */
 
 import { ai } from '@/ai/genkit';
-import { z } from 'zod';
+import { z } from 'genkit'; // Changed from 'zod'
 
 // Define the structure for a single message in the history
 const MessageSchema = z.object({
