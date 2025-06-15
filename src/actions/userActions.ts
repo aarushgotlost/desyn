@@ -60,18 +60,19 @@ export async function followUser(
   try {
     await batch.commit();
 
+    // Create notification for the user who was followed
     const actor: NotificationActor = {
       id: currentUserProfile.uid,
       displayName: currentUserProfile.displayName, // Already checked for null/undefined
       avatarUrl: currentUserProfile.photoURL
     };
     await createNotification({
-      userId: targetUserId,
+      userId: targetUserId, // Notify the user who was followed
       type: 'new_follower',
       actor,
       message: `${currentUserProfile.displayName} started following you.`,
-      link: `/profile/${currentUserId}`,
-      relatedEntityId: currentUserId,
+      link: `/profile/${currentUserId}`, // Link to the new follower's profile
+      relatedEntityId: currentUserId, // ID of the user who initiated the follow
     });
     
     await revalidateProfilePaths(currentUserId, targetUserId);
@@ -135,13 +136,21 @@ export async function deleteUserAccountAndBasicData(
       batch.delete(docSnap.ref);
     });
 
+    // 3. Delete user's posts
     const postsColRef = collection(db, 'posts');
     const postsQuery = query(postsColRef, where('authorId', '==', userId));
     const postsSnapshot = await getDocs(postsQuery);
     postsSnapshot.forEach(docSnap => {
+        // For each post, also delete its subcollections (comments, likes)
+        // This is a simplified approach. For production, a Firebase Function is more robust for cascading deletes.
+        const commentsCol = collection(db, 'posts', docSnap.id, 'comments');
+        const likesCol = collection(db, 'posts', docSnap.id, 'likes');
+        getDocs(commentsCol).then(snap => snap.forEach(s => batch.delete(s.ref)));
+        getDocs(likesCol).then(snap => snap.forEach(s => batch.delete(s.ref)));
         batch.delete(docSnap.ref);
     });
 
+    // 4. Remove user from community memberships
     const communitiesColRef = collection(db, 'communities');
     const memberCommunitiesQuery = query(communitiesColRef, where('members', 'array-contains', userId));
     const memberCommunitiesSnapshot = await getDocs(memberCommunitiesQuery);
@@ -152,9 +161,28 @@ export async function deleteUserAccountAndBasicData(
         });
     });
 
-    // Consider deleting user's followers and following entries (from other users' subcollections)
+    // 5. Delete user's followers and following entries (from other users' subcollections)
     // This is more complex and might be better handled by a Firebase Function for atomicity and thoroughness.
     // For now, focusing on data directly owned by or referencing the user.
+    // Example: Removing this user from others' 'followers' lists
+    const followersColRef = collection(db, 'users', userId, 'followers');
+    const followersSnapshot = await getDocs(followersColRef);
+    followersSnapshot.forEach(followerDoc => {
+        const followerId = followerDoc.id; // This is the ID of a user who followed the deleting user
+        const followingRef = doc(db, 'users', followerId, 'following', userId);
+        batch.delete(followingRef); // Remove the deleting user from follower's 'following' list
+        batch.delete(followerDoc.ref); // Remove the follower entry from deleting user's 'followers'
+    });
+
+    // Example: Removing this user from others' 'following' lists
+    const followingColRef = collection(db, 'users', userId, 'following');
+    const followingSnapshot = await getDocs(followingColRef);
+    followingSnapshot.forEach(followingDoc => {
+        const followedId = followingDoc.id; // This is the ID of a user whom the deleting user followed
+        const followerRef = doc(db, 'users', followedId, 'followers', userId);
+        batch.delete(followerRef); // Remove the deleting user from the followed user's 'followers' list
+        batch.delete(followingDoc.ref); // Remove the following entry from deleting user's 'following'
+    });
 
 
     await batch.commit();
@@ -165,9 +193,11 @@ export async function deleteUserAccountAndBasicData(
     revalidatePath('/communities');
     // No easy way to revalidate all profiles that might have followed/been followed by this user without knowing their IDs.
 
-    return { success: true, message: 'User data (profile, notifications, posts, community memberships) removed successfully. Firebase Auth record to be deleted by client.' };
+    return { success: true, message: 'User data (profile, notifications, posts, community memberships, follow relationships) removed successfully. Firebase Auth record to be deleted by client.' };
   } catch (error: any) {
     console.error('Error deleting user data:', error);
     return { success: false, message: error.message || 'Could not delete user data.' };
   }
 }
+
+    

@@ -16,8 +16,9 @@ import {
   serverTimestamp,
   Timestamp,
   writeBatch,
-  getDoc, // Added getDoc
+  getDoc, 
 } from 'firebase/firestore';
+import { revalidatePath } from 'next/cache';
 
 // Helper to create participant objects
 const createParticipant = (profile: UserProfile | ChatParticipant): ChatParticipant => ({
@@ -77,6 +78,11 @@ export async function sendMessage(
   text: string
 ): Promise<void> {
   if (!text.trim()) return;
+  if (!senderProfile || !senderProfile.uid || !senderProfile.displayName) {
+    console.error("Sender profile is incomplete for sending message notification.");
+    // Potentially throw an error or return if sender display name is crucial
+  }
+
 
   const chatDocRef = doc(db, 'chats', chatId);
   const messagesColRef = collection(chatDocRef, 'messages');
@@ -88,7 +94,7 @@ export async function sendMessage(
     senderAvatar?: string | null;
     text: string;
     // createdAt will be added with serverTimestamp
-  } = { // Omitting 'id' and 'createdAt' from type as they are handled by Firestore/auto-gen
+  } = { 
     chatId,
     senderId: senderProfile.uid,
     senderName: senderProfile.displayName,
@@ -98,11 +104,9 @@ export async function sendMessage(
 
   const batch = writeBatch(db);
 
-  // Add new message
-  const messageDocRef = doc(messagesColRef); // Auto-generate ID
+  const messageDocRef = doc(messagesColRef); 
   batch.set(messageDocRef, { ...newMessage, createdAt: serverTimestamp() });
 
-  // Update chat session's last message details
   batch.update(chatDocRef, {
     lastMessageText: text.trim(),
     lastMessageAt: serverTimestamp(),
@@ -111,15 +115,21 @@ export async function sendMessage(
   });
 
   await batch.commit();
+  
+  revalidatePath(`/messages/${chatId}`);
+  revalidatePath('/messages');
 
   // Create notifications for other participants
   try {
     const chatSnap = await getDoc(chatDocRef);
     if (chatSnap.exists()) {
       const chatData = chatSnap.data() as ChatSession;
+      // Ensure senderProfile.displayName is not null for the notification actor.
+      // It's already checked above, but good to be defensive.
+      const actorDisplayName = senderProfile.displayName || 'Someone'; 
       const actor: NotificationActor = {
         id: senderProfile.uid,
-        displayName: senderProfile.displayName,
+        displayName: actorDisplayName,
         avatarUrl: senderProfile.photoURL,
       };
 
@@ -129,7 +139,7 @@ export async function sendMessage(
             userId: participant.uid,
             type: 'new_message',
             actor,
-            message: `${senderProfile.displayName || 'Someone'} sent you a new message.`,
+            message: `${actorDisplayName} sent you a new message.`,
             link: `/messages/${chatId}`,
             relatedEntityId: chatId,
           });
@@ -138,6 +148,7 @@ export async function sendMessage(
     }
   } catch (error) {
     console.error("Error creating notification for new message:", error);
-    // Non-critical, so we don't re-throw typically.
   }
 }
+
+    

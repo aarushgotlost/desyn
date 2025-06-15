@@ -47,7 +47,7 @@ export interface UpdatePostData {
 export async function togglePostLike(
   postId: string,
   userId: string,
-  likerProfile?: Pick<UserProfile, 'uid' | 'displayName' | 'photoURL'>
+  likerProfile?: Pick<UserProfile, 'uid' | 'displayName' | 'photoURL'> // Added for notifications
 ): Promise<{ success: boolean; message: string; newLikesCount?: number; isLiked?: boolean }> {
   if (!userId) {
     return { success: false, message: 'User not authenticated.' };
@@ -72,27 +72,30 @@ export async function togglePostLike(
     const likeSnap = await getDoc(likeRef);
 
     if (likeSnap.exists()) {
+      // User is unliking
       await deleteDoc(likeRef);
       await updateDoc(postRef, { likes: increment(-1) });
       newLikesCount = (postData.likes || 0) - 1;
       isLiked = false;
     } else {
+      // User is liking
       await setDoc(likeRef, { userId, createdAt: serverTimestamp() });
       await updateDoc(postRef, { likes: increment(1) });
       newLikesCount = (postData.likes || 0) + 1;
       isLiked = true;
 
-      if (postData.authorId !== userId && likerProfile) {
+      // Create notification if someone else liked the post
+      if (postData.authorId !== userId && likerProfile && likerProfile.uid && likerProfile.displayName) {
         const actor: NotificationActor = {
           id: likerProfile.uid,
           displayName: likerProfile.displayName,
           avatarUrl: likerProfile.photoURL
         };
         await createNotification({
-          userId: postData.authorId,
+          userId: postData.authorId, // Notify the post author
           type: 'new_like',
           actor,
-          message: `${likerProfile.displayName || 'Someone'} liked your post: "${postData.title}"`,
+          message: `${likerProfile.displayName} liked your post: "${postData.title}"`,
           link: `/posts/${postId}`,
           relatedEntityId: postId,
         });
@@ -104,7 +107,7 @@ export async function togglePostLike(
     return {
       success: true,
       message: isLiked ? 'Post liked!' : 'Post unliked!',
-      newLikesCount: Math.max(0, newLikesCount),
+      newLikesCount: Math.max(0, newLikesCount), // Ensure count doesn't go below 0
       isLiked,
     };
   } catch (error: any) {
@@ -183,18 +186,19 @@ export async function addCommentToPost(
         const postData = postSnap.data() as Post;
         await revalidatePostPaths(postId, postData.communityId);
 
-        if (postData.authorId !== commentData.authorId) {
+        // Create notification if someone else commented
+        if (postData.authorId !== commentData.authorId && commentData.authorId && commentData.authorName) {
           const actor: NotificationActor = {
             id: commentData.authorId,
             displayName: commentData.authorName,
             avatarUrl: commentData.authorAvatar
           };
           await createNotification({
-            userId: postData.authorId,
+            userId: postData.authorId, // Notify the post author
             type: 'new_comment',
             actor,
             message: `${commentData.authorName} commented on your post: "${postData.title}"`,
-            link: `/posts/${postId}#comment-${newCommentRef.id}`,
+            link: `/posts/${postId}#comment-${newCommentRef.id}`, // Link to post, potentially with fragment for comment
             relatedEntityId: postId,
           });
         }
@@ -205,7 +209,7 @@ export async function addCommentToPost(
     const createdCommentForClient: Comment = {
       ...newCommentForFirestore,
       id: newCommentRef.id,
-      createdAt: new Date().toISOString(),
+      createdAt: new Date().toISOString(), // Simulate timestamp for client
     };
 
     return { success: true, message: 'Comment added!', commentId: newCommentRef.id, newComment: createdCommentForClient };
@@ -272,6 +276,8 @@ export async function deletePost(
     
     await revalidatePostPaths(postId, postData.communityId);
 
+    // Optionally, delete related notifications (more complex, might need a Firebase Function)
+
     return { success: true, message: 'Post deleted successfully.' };
   } catch (error: any) {
     console.error('Error deleting post:', error);
@@ -320,17 +326,18 @@ export async function updatePostAction(
       // For this example, we'll assume newImageFile is a data URL or a placeholder for upload logic
       // This part needs to be handled carefully based on how images are stored (e.g., Firebase Storage)
       // Let's simulate storing a data URL if provided, or you'd integrate actual upload logic.
-      const reader = new FileReader();
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(newImageFile);
-      });
-      dataToUpdate.imageURL = dataUrl;
-    } else if (updatedData.imageURL === null) { // Explicitly removing image
-        dataToUpdate.imageURL = null;
-    } else if (updatedData.imageURL) { // Keeping existing or providing a new direct URL
-        dataToUpdate.imageURL = updatedData.imageURL;
+      const reader = new FileReader(); // This will not work in a server action environment.
+                                     // Image upload must happen client-side or via a dedicated backend endpoint.
+                                     // For now, assume imageURL is provided if changed, or handled differently.
+                                     // Let's assume `updatedData.imageURL` will contain the new URL if image changed,
+                                     // or null if removed. The File object itself cannot be processed here.
+      // This simulation of FileReader won't work in server actions.
+      // dataToUpdate.imageURL = "simulated_upload_url_from_file"; // Placeholder
+      console.warn("Image file upload in server action needs client-side pre-upload to a URL or a dedicated endpoint.")
+    } 
+    
+    if (updatedData.imageURL !== undefined) { // If imageURL is explicitly passed in updatedData
+        dataToUpdate.imageURL = updatedData.imageURL; // This could be null to remove, or a new URL
     }
     // If updatedData.imageURL is undefined and no newImageFile, existing imageURL is preserved by not including it in dataToUpdate.
 
@@ -338,23 +345,24 @@ export async function updatePostAction(
     await updateDoc(postRef, dataToUpdate);
     
     const updatedPostSnap = await getDoc(postRef);
-    const updatedPost = { id: updatedPostSnap.id, ...updatedPostSnap.data() } as Post;
+    const updatedPostResult = { id: updatedPostSnap.id, ...updatedPostSnap.data() } as Post;
     
     // Ensure date fields are ISO strings for client
-    if (updatedPost.createdAt && typeof (updatedPost.createdAt as any).toDate === 'function') {
-      updatedPost.createdAt = (updatedPost.createdAt as any).toDate().toISOString();
+    if (updatedPostResult.createdAt && typeof (updatedPostResult.createdAt as any).toDate === 'function') {
+      updatedPostResult.createdAt = (updatedPostResult.createdAt as any).toDate().toISOString();
     }
-    if (updatedPost.updatedAt && typeof (updatedPost.updatedAt as any).toDate === 'function') {
-      updatedPost.updatedAt = (updatedPost.updatedAt as any).toDate().toISOString();
+    if (updatedPostResult.updatedAt && typeof (updatedPostResult.updatedAt as any).toDate === 'function') {
+      updatedPostResult.updatedAt = (updatedPostResult.updatedAt as any).toDate().toISOString();
     }
 
 
     await revalidatePostPaths(postId, existingPostData.communityId);
 
-    return { success: true, message: 'Post updated successfully.', updatedPost };
+    return { success: true, message: 'Post updated successfully.', updatedPost: updatedPostResult };
   } catch (error: any) {
     console.error('Error updating post:', error);
     return { success: false, message: error.message || 'Could not update post.' };
   }
 }
 
+    
