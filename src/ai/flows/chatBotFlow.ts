@@ -37,11 +37,7 @@ export async function chatBotFlow(input: ChatBotInput): Promise<ChatBotOutput> {
 
 const chatBotPrompt = ai.definePrompt({
   name: 'devConnectChatBotPrompt',
-  system: `You are DevBot, a friendly and highly knowledgeable AI assistant for DevConnect, a social platform for developers.
-Your primary goal is to assist users by answering their questions about software development, DevConnect features, popular technologies, programming languages, and general tech topics.
-Keep your responses helpful, informative, and concise.
-If you don't know the answer to something, it's better to say so than to make something up.
-Format code snippets using Markdown if a user asks for code.`,
+  system: "You are DevBot.", // Simplified system prompt for diagnostics
   input: { schema: ChatBotInputSchema },
   output: { schema: ChatBotOutputSchema },
   prompt: `{{#if history}}
@@ -61,14 +57,18 @@ const internalChatBotFlow = ai.defineFlow(
     outputSchema: ChatBotOutputSchema,
   },
   async (input) => {
-    const { output } = await chatBotPrompt(input);
-    if (!output) {
-      // Fallback or error handling if output is null/undefined
-      // This scenario should ideally be handled by Genkit or the model returning an error
-      // For robustness, we provide a generic fallback.
-      return { aiResponse: "I'm sorry, I couldn't process that. Can you try rephrasing?" };
+    try {
+      const { output } = await chatBotPrompt(input);
+      if (!output) {
+        console.error("Chatbot flow: Received null/undefined output from prompt.");
+        return { aiResponse: "I'm sorry, I couldn't process your request at the moment. (Output Error)" };
+      }
+      return output;
+    } catch (flowError: any) {
+      console.error("Error within internalDevConnectChatBotFlow:", flowError);
+      // This error will be returned to the client if the flow itself fails at runtime
+      return { aiResponse: `I encountered an issue processing your request: ${flowError.message || 'Unknown error'}. Please try again.` };
     }
-    return output;
   }
 );
 
