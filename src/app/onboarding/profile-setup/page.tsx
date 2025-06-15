@@ -16,7 +16,7 @@ import { useRouter } from 'next/navigation';
 import { Loader2, UserCircle, UploadCloud, Trash2, Image as ImageIcon, BellRing, CheckCircle, XCircle } from 'lucide-react';
 import Image from 'next/image';
 import { Separator } from '@/components/ui/separator';
-import { messaging, VAPID_KEY } from '@/lib/firebase';
+import { messaging, VAPID_KEY } from '@/lib/firebase'; // Import VAPID_KEY from firebase.ts
 import { getToken } from 'firebase/messaging';
 
 const MAX_AVATAR_SIZE_MB = 1; 
@@ -94,7 +94,7 @@ export default function ProfileSetupPage() {
     } else if (typeof window !== 'undefined' && (!('Notification' in window) || !('serviceWorker' in navigator) || !messaging)){
       setNotificationStatus('denied'); 
     } else {
-      setNotificationStatus('loading'); // Still determining or SSR
+      setNotificationStatus('loading'); 
     }
   }, []);
 
@@ -176,23 +176,23 @@ export default function ProfileSetupPage() {
       setBannerFileError(null);
   };
 
-  const handleRequestNotificationPermission = async () => {
+  const handleRequestNotificationPermission = async (): Promise<string | null> => {
     if (!messaging || !user) {
       toast({ title: "Setup Incomplete", description: "Notification features are not available at the moment.", variant: "destructive" });
       setNotificationStatus('denied');
-      return;
+      return null;
     }
   
     setIsRequestingNotificationPerm(true);
+    let fcmToken: string | null = null;
     try {
       const permission = await Notification.requestPermission();
       setNotificationStatus(permission);
   
       if (permission === 'granted') {
         const currentToken = await getToken(messaging, { vapidKey: VAPID_KEY });
-        if (currentToken && userProfile) {
-          // Call updateCurrentProfile to save this new token
-          await updateCurrentProfile({ newFcmToken: currentToken });
+        if (currentToken) {
+          fcmToken = currentToken;
           toast({ title: "Notifications Enabled!", description: "You'll receive updates from Desyn." });
         } else if (!currentToken) {
           toast({ title: "Could Not Get Token", description: "Failed to retrieve notification token. Ensure your browser supports notifications and try again.", variant: "destructive" });
@@ -204,25 +204,33 @@ export default function ProfileSetupPage() {
       console.error('Error requesting notification permission:', error);
       toast({ title: "Notification Error", description: error.message || "Could not enable notifications. Please try again.", variant: "destructive" });
       if (typeof window !== 'undefined' && 'Notification' in window) {
-        setNotificationStatus(Notification.permission); // Re-check permission after error
+        setNotificationStatus(Notification.permission); 
       }
     } finally {
       setIsRequestingNotificationPerm(false);
     }
+    return fcmToken;
   };
 
 
   const onSubmit: SubmitHandler<ProfileSetupFormInputs> = async (data) => {
     setIsSubmitting(true);
+    let acquiredFcmToken: string | null = null;
+
+    // If permission is 'default', attempt to request it before saving.
+    if (notificationStatus === 'default' && messaging && user) {
+      acquiredFcmToken = await handleRequestNotificationPermission();
+    }
+
     try {
-      const profileUpdateData: UpdateProfileData = { // Ensure this type matches AuthContext
+      const profileUpdateData: UpdateProfileData = { 
         displayName: data.displayName,
         photoDataUrl: data.photoDataUrl, 
         bannerDataUrl: data.bannerDataUrl,
         bio: data.bio,
         techStack: data.techStack ? data.techStack.split(',').map(s => s.trim()).filter(s => s) : [],
         onboardingCompleted: true,
-        // newFcmToken will be handled by the separate notification permission button
+        newFcmToken: acquiredFcmToken || undefined, // Pass token if acquired
       };
       await updateCurrentProfile(profileUpdateData);
       toast({ title: "Profile Updated!", description: "Your profile has been successfully saved." });
@@ -381,7 +389,7 @@ export default function ProfileSetupPage() {
 
               <FormItem>
                 <FormLabel>Push Notifications</FormLabel>
-                <FormDescription>Stay updated with real-time notifications. (Optional)</FormDescription>
+                <FormDescription>Stay updated with real-time notifications from Desyn.</FormDescription>
                 <div className="mt-2 space-y-2">
                   {notificationStatus === 'granted' && (
                     <div className="flex items-center text-green-500 p-2 bg-green-500/10 rounded-md">
@@ -393,8 +401,9 @@ export default function ProfileSetupPage() {
                       <XCircle className="mr-2 h-5 w-5" /> Notifications Denied/Blocked
                     </div>
                   )}
-                  {notificationStatus === 'default' && (
-                    <Button type="button" variant="outline" onClick={handleRequestNotificationPermission} disabled={isRequestingNotificationPerm || !messaging}>
+                  {/* Show button if not granted and not explicitly denied yet */}
+                  {(notificationStatus === 'default' || notificationStatus === 'not_requested') && messaging && (
+                    <Button type="button" variant="outline" onClick={handleRequestNotificationPermission} disabled={isRequestingNotificationPerm}>
                       {isRequestingNotificationPerm ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BellRing className="mr-2 h-4 w-4" />}
                       Enable Notifications
                     </Button>
@@ -421,3 +430,5 @@ export default function ProfileSetupPage() {
     </div>
   );
 }
+
+    

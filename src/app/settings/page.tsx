@@ -9,7 +9,7 @@ import { User, Palette, Shield, LogOut, SendToBack, CheckCircle, XCircle, AlertT
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext"; 
 import { cn } from "@/lib/utils"; 
-import { messaging } from '@/lib/firebase'; 
+import { messaging, VAPID_KEY } from '@/lib/firebase'; // Import VAPID_KEY from firebase.ts
 import { getToken } from 'firebase/messaging';
 import { useState, useEffect, useTransition } from 'react';
 import { useToast } from "@/hooks/use-toast";
@@ -39,7 +39,7 @@ export default function SettingsPage() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const VAPID_KEY = "BIhYhqAuf9hWPjsk5sDSk5kBZZK-6btzuXdPjvtDVcEGz81Mk6pPKayslVX394sGLPUshvM_IkXsTFsrffwqjL0"; 
+  // VAPID_KEY is now imported from @/lib/firebase
 
   useEffect(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
@@ -60,10 +60,12 @@ export default function SettingsPage() {
       return;
     }
 
-    if (VAPID_KEY === "YOUR_PUBLIC_VAPID_KEY_HERE") { 
+    // VAPID_KEY check is no longer strictly needed here if it's always defined in firebase.ts
+    // but good for robustness if it could somehow be undefined/placeholder
+    if (!VAPID_KEY || VAPID_KEY === "YOUR_PUBLIC_VAPID_KEY_HERE") { 
        toast({
         title: "VAPID Key Missing",
-        description: "The VAPID key is not configured. Please update it in src/app/settings/page.tsx.",
+        description: "The VAPID key is not configured correctly in the application.",
         variant: "destructive",
         duration: 10000,
       });
@@ -80,6 +82,9 @@ export default function SettingsPage() {
         const currentToken = await getToken(messaging, { vapidKey: VAPID_KEY });
         if (currentToken) {
           setFcmToken(currentToken);
+          // TODO: Here you would typically send this token to your server to associate with the user
+          // For this app, user profile update with token is handled in profile setup.
+          // This settings page token display is more for testing/info.
           toast({
             title: "Push Notifications Enabled!",
             description: "You will now receive push notifications.",
@@ -213,13 +218,13 @@ export default function SettingsPage() {
           <CardDescription>Manage how you receive push notifications from the app.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {VAPID_KEY === "YOUR_PUBLIC_VAPID_KEY_HERE" && ( 
+          {(!VAPID_KEY || VAPID_KEY === "YOUR_PUBLIC_VAPID_KEY_HERE" || VAPID_KEY === "BIhYhqAuf9hWPjsk5sDSk5kBZZK-6btzuXdPjvtDVcEGz81Mk6pPKayslVX394sGLPUshvM_IkXsTFsrffwqjL0_PLACEHOLDER") && ( 
             <div className="p-3 rounded-md bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700">
               <div className="flex items-start">
                 <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 mr-2 flex-shrink-0" />
                 <div className="text-sm text-yellow-700 dark:text-yellow-300">
                   <p className="font-semibold">Action Required: VAPID Key</p>
-                  <p>To enable push notifications, please update the <code className="bg-yellow-200 dark:bg-yellow-800/50 px-1 py-0.5 rounded text-xs">VAPID_KEY</code> constant in this file (<code className="text-xs">src/app/settings/page.tsx</code>) with your key from the Firebase Console (Project settings &gt; Cloud Messaging &gt; Web Push certificates).</p>
+                  <p>To enable push notifications, ensure the <code className="bg-yellow-200 dark:bg-yellow-800/50 px-1 py-0.5 rounded text-xs">VAPID_KEY</code> is correctly configured in <code className="text-xs">src/lib/firebase.ts</code> with your key from the Firebase Console (Project settings &gt; Cloud Messaging &gt; Web Push certificates).</p>
                 </div>
               </div>
             </div>
@@ -324,3 +329,5 @@ export default function SettingsPage() {
     </div>
   );
 }
+
+    
