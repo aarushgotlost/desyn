@@ -157,11 +157,12 @@ export default async function UserProfilePage({ params }: { params: { userId: st
                               {profileToDisplay.displayName}
                             </Link>
                           </p>
+                          {/* Follow button for the profile owner (author of these posts) */}
                           {currentUserId && profileToDisplay.uid !== currentUserId && (
                             <FollowButtonClient
-                              targetUserId={profileToDisplay.uid}
+                              targetUserId={profileToDisplay.uid} 
                               targetUserProfile={{ displayName: profileToDisplay.displayName || '' }}
-                              initialIsFollowing={initialIsFollowing}
+                              initialIsFollowing={initialIsFollowing} 
                             />
                           )}
                         </div>
@@ -173,8 +174,8 @@ export default async function UserProfilePage({ params }: { params: { userId: st
                         </p>
                       </div>
                     </div>
-                    {/* PostCardOptionsMenu for the post itself */}
-                    {currentUserId === post.authorId && ( // post.authorId here is profileToDisplay.uid
+                    {/* PostCardOptionsMenu for the post itself. Visible if current user is the author of the post. */}
+                    {currentUserId === post.authorId && ( 
                       <div>
                         <PostCardOptionsMenu post={post} />
                       </div>
