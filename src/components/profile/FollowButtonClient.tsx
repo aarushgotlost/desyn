@@ -24,7 +24,7 @@ export function FollowButtonClient({
   const { user: currentUser, userProfile: currentUserProfile, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
-  const [isProcessing, startTransition] = useTransition(); // Renamed from isPending for clarity
+  const [isProcessing, startTransition] = useTransition(); 
   
   const [isFollowingState, setIsFollowingState] = useState(initialIsFollowing);
   const [isLoadingStatus, setIsLoadingStatus] = useState(typeof initialIsFollowing === 'undefined');
@@ -44,18 +44,15 @@ export function FollowButtonClient({
         })
         .catch(err => {
           console.error("Failed to fetch follow status:", err);
-          // Keep isFollowingState as potentially false or based on previous state
         })
         .finally(() => {
           setIsLoadingStatus(false);
         });
-    } else if (!currentUser) {
-        // Not logged in, default to not followed, not loading
+    } else if (!currentUser && !authLoading) { // Ensure we don't set to false while auth is still loading
         setIsFollowingState(false);
         setIsLoadingStatus(false);
     }
-    // This effect depends on initialIsFollowing, currentUser, and targetUserId to re-evaluate.
-  }, [initialIsFollowing, currentUser, targetUserId]);
+  }, [initialIsFollowing, currentUser, targetUserId, authLoading]);
 
 
   const handleClick = async () => {
@@ -94,7 +91,7 @@ export function FollowButtonClient({
     });
   };
 
-  if (authLoading || (isLoadingStatus && typeof initialIsFollowing === 'undefined') ) {
+  if (authLoading || isLoadingStatus) {
     return <Button disabled className="w-full sm:w-auto" size="sm"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Loading...</Button>;
   }
 
@@ -105,19 +102,19 @@ export function FollowButtonClient({
   return (
     <Button
       onClick={handleClick}
-      disabled={isProcessing || authLoading || isLoadingStatus}
+      disabled={isProcessing || authLoading || isLoadingStatus} // Keep authLoading here to prevent clicks while context is initializing
       variant={isFollowingState ? "outline" : "default"}
-      size="sm" // Defaulting to sm size for use in cards
-      className="w-auto" // More flexible width
+      size="sm" 
+      className="w-auto" 
     >
-      {isProcessing || isLoadingStatus ? (
+      {isProcessing ? ( // Show loader only when processing the follow/unfollow action
         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
       ) : isFollowingState ? (
         <UserMinus className="mr-2 h-4 w-4" />
       ) : (
         <UserPlus className="mr-2 h-4 w-4" />
       )}
-      {isProcessing || isLoadingStatus ? 'Loading...' : isFollowingState ? 'Unfollow' : 'Follow'}
+      {isProcessing ? (isFollowingState ? 'Unfollowing...' : 'Following...') : (isFollowingState ? 'Unfollow' : 'Follow')}
     </Button>
   );
 }
