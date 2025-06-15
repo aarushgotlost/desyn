@@ -28,11 +28,10 @@ export function FollowButtonClient({
   const [isLoadingStatus, setIsLoadingStatus] = useState(true); 
 
   useEffect(() => {
-    // Reset state if targetUserId changes or auth state changes significantly
     setIsLoadingStatus(true);
     setIsFollowingState(undefined);
 
-    if (authLoading) {
+    if (authLoading) { // Don't proceed if auth state is still loading
       return;
     }
 
@@ -43,14 +42,15 @@ export function FollowButtonClient({
         })
         .catch(err => {
           console.error("Failed to fetch follow status in FollowButtonClient:", err);
-          setIsFollowingState(false); // Default to false on error
+          setIsFollowingState(false); 
         })
         .finally(() => {
           setIsLoadingStatus(false);
         });
     } else {
+      // Not logged in, or viewing own profile. No follow button needed or status to fetch.
       setIsLoadingStatus(false); 
-      setIsFollowingState(false); 
+      setIsFollowingState(false); // Default to false, button will be hidden by parent or by checks below
     }
   }, [currentUser, targetUserId, authLoading]);
 
@@ -84,6 +84,7 @@ export function FollowButtonClient({
       if (result.success) {
         toast({ title: isFollowingState ? 'Unfollowed!' : 'Followed!', description: result.message });
         setIsFollowingState(!isFollowingState); 
+        // Revalidate relevant paths to update counts and other dependent UI
         router.refresh(); 
       } else {
         toast({ title: 'Error', description: result.message, variant: 'destructive' });
@@ -91,14 +92,16 @@ export function FollowButtonClient({
     });
   };
 
+  // If auth is loading, or current user is not determined, or it's the user's own profile, don't render the button
   if (authLoading) { 
     return <Button disabled className="w-full sm:w-auto" size="sm"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Loading...</Button>;
   }
   
   if (!currentUser || currentUser.uid === targetUserId) {
-    return null; 
+    return null; // Don't show button if not logged in or if it's own profile
   }
 
+  // If still loading the follow status specifically
   if (isLoadingStatus || typeof isFollowingState === 'undefined') {
      return <Button disabled className="w-full sm:w-auto" size="sm"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Loading Status...</Button>;
   }
@@ -106,10 +109,10 @@ export function FollowButtonClient({
   return (
     <Button
       onClick={handleClick}
-      disabled={isProcessing}
+      disabled={isProcessing} // Only disable for processing, not for initial status load
       variant={isFollowingState ? "outline" : "default"}
       size="sm" 
-      className="w-auto" 
+      className="w-auto" // Ensure button doesn't take full width unless intended by parent
     >
       {isProcessing ? ( 
         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -122,4 +125,3 @@ export function FollowButtonClient({
     </Button>
   );
 }
-

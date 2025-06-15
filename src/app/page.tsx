@@ -56,7 +56,6 @@ export default async function HomePage() {
                               <FollowButtonClient 
                                 targetUserId={post.authorId} 
                                 targetUserProfile={{ displayName: post.authorName }}
-                                // initialIsFollowing prop is now optional and will be fetched by the client component
                               />
                            )}
                         </div>
