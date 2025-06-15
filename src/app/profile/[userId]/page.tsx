@@ -261,5 +261,4 @@ export default async function UserProfilePage({ params }: { params: { userId: st
     </div>
   );
 }
-
     
