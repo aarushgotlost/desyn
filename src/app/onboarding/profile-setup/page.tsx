@@ -7,15 +7,17 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label'; // Keep if used elsewhere, or remove if FormLabel is always used.
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useAuth, type UserProfile } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import { Loader2, UserCircle, UploadCloud, Trash2, Image as ImageIcon } from 'lucide-react';
+import { Loader2, UserCircle, UploadCloud, Trash2, Image as ImageIcon, BellRing, CheckCircle, XCircle } from 'lucide-react';
 import Image from 'next/image';
+import { Separator } from '@/components/ui/separator';
+import { messaging, VAPID_KEY } from '@/lib/firebase';
+import { getToken } from 'firebase/messaging';
 
 const MAX_AVATAR_SIZE_MB = 1; 
 const MAX_AVATAR_SIZE_BYTES = MAX_AVATAR_SIZE_MB * 1024 * 1024;
@@ -55,6 +57,8 @@ export default function ProfileSetupPage() {
   const [bannerPreviewUrl, setBannerPreviewUrl] = useState<string | null>(null);
   const [bannerFileError, setBannerFileError] = useState<string | null>(null);
 
+  const [notificationStatus, setNotificationStatus] = useState<NotificationPermission | 'loading' | 'not_requested'>('not_requested');
+  const [isRequestingNotificationPerm, setIsRequestingNotificationPerm] = useState(false);
 
   const form = useForm<ProfileSetupFormInputs>({
     resolver: zodResolver(profileSetupSchema),
@@ -83,6 +87,16 @@ export default function ProfileSetupPage() {
       router.replace('/login'); 
     }
   }, [user, userProfile, authLoading, form, router]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window && 'serviceWorker' in navigator && messaging) {
+      setNotificationStatus(Notification.permission);
+    } else if (typeof window !== 'undefined' && (!('Notification' in window) || !('serviceWorker' in navigator) || !messaging)){
+      setNotificationStatus('denied'); 
+    } else {
+      setNotificationStatus('loading'); // Still determining or SSR
+    }
+  }, []);
 
 
   const handleAvatarFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -162,17 +176,53 @@ export default function ProfileSetupPage() {
       setBannerFileError(null);
   };
 
+  const handleRequestNotificationPermission = async () => {
+    if (!messaging || !user) {
+      toast({ title: "Setup Incomplete", description: "Notification features are not available at the moment.", variant: "destructive" });
+      setNotificationStatus('denied');
+      return;
+    }
+  
+    setIsRequestingNotificationPerm(true);
+    try {
+      const permission = await Notification.requestPermission();
+      setNotificationStatus(permission);
+  
+      if (permission === 'granted') {
+        const currentToken = await getToken(messaging, { vapidKey: VAPID_KEY });
+        if (currentToken && userProfile) {
+          // Call updateCurrentProfile to save this new token
+          await updateCurrentProfile({ newFcmToken: currentToken });
+          toast({ title: "Notifications Enabled!", description: "You'll receive updates from Desyn." });
+        } else if (!currentToken) {
+          toast({ title: "Could Not Get Token", description: "Failed to retrieve notification token. Ensure your browser supports notifications and try again.", variant: "destructive" });
+        }
+      } else {
+        toast({ title: "Permission Denied", description: "Notifications will not be sent. You can change this in your browser settings.", variant: "default" });
+      }
+    } catch (error: any) {
+      console.error('Error requesting notification permission:', error);
+      toast({ title: "Notification Error", description: error.message || "Could not enable notifications. Please try again.", variant: "destructive" });
+      if (typeof window !== 'undefined' && 'Notification' in window) {
+        setNotificationStatus(Notification.permission); // Re-check permission after error
+      }
+    } finally {
+      setIsRequestingNotificationPerm(false);
+    }
+  };
+
 
   const onSubmit: SubmitHandler<ProfileSetupFormInputs> = async (data) => {
     setIsSubmitting(true);
     try {
-      const profileUpdateData = {
+      const profileUpdateData: UpdateProfileData = { // Ensure this type matches AuthContext
         displayName: data.displayName,
         photoDataUrl: data.photoDataUrl, 
         bannerDataUrl: data.bannerDataUrl,
         bio: data.bio,
         techStack: data.techStack ? data.techStack.split(',').map(s => s.trim()).filter(s => s) : [],
         onboardingCompleted: true,
+        // newFcmToken will be handled by the separate notification permission button
       };
       await updateCurrentProfile(profileUpdateData);
       toast({ title: "Profile Updated!", description: "Your profile has been successfully saved." });
@@ -326,8 +376,42 @@ export default function ProfileSetupPage() {
                   </FormItem>
                 )}
               />
+
+              <Separator />
+
+              <FormItem>
+                <FormLabel>Push Notifications</FormLabel>
+                <FormDescription>Stay updated with real-time notifications. (Optional)</FormDescription>
+                <div className="mt-2 space-y-2">
+                  {notificationStatus === 'granted' && (
+                    <div className="flex items-center text-green-500 p-2 bg-green-500/10 rounded-md">
+                      <CheckCircle className="mr-2 h-5 w-5" /> Notifications Enabled
+                    </div>
+                  )}
+                  {notificationStatus === 'denied' && (
+                    <div className="flex items-center text-destructive p-2 bg-destructive/10 rounded-md">
+                      <XCircle className="mr-2 h-5 w-5" /> Notifications Denied/Blocked
+                    </div>
+                  )}
+                  {notificationStatus === 'default' && (
+                    <Button type="button" variant="outline" onClick={handleRequestNotificationPermission} disabled={isRequestingNotificationPerm || !messaging}>
+                      {isRequestingNotificationPerm ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BellRing className="mr-2 h-4 w-4" />}
+                      Enable Notifications
+                    </Button>
+                  )}
+                  {notificationStatus === 'loading' && (
+                    <div className="flex items-center text-muted-foreground"><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Checking permission...</div>
+                  )}
+                  {!messaging && notificationStatus !== 'granted' && (
+                     <p className="text-xs text-destructive">Notifications are not supported or available in your browser/environment.</p>
+                  )}
+                  {notificationStatus === 'denied' && (
+                    <p className="text-xs text-muted-foreground">If you previously denied permission, you might need to change it in your browser's site settings for Desyn.</p>
+                  )}
+                </div>
+              </FormItem>
               
-              <Button type="submit" className="w-full" disabled={isSubmitting || authLoading}>
+              <Button type="submit" className="w-full !mt-8" disabled={isSubmitting || authLoading}>
                 {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Save Profile"}
               </Button>
             </form>

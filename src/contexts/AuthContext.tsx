@@ -14,8 +14,9 @@ import {
   sendPasswordResetEmail,
   updateProfile as updateFirebaseUserProfile,
   sendEmailVerification,
+  deleteUser as deleteFirebaseAuthUser,
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, serverTimestamp, collection, addDoc, DocumentReference, query, where, getDocs, updateDoc, Timestamp } from 'firebase/firestore';
+import { doc, setDoc, getDoc, serverTimestamp, collection, addDoc, DocumentReference, query, where, getDocs, updateDoc, Timestamp, arrayUnion } from 'firebase/firestore'; // Added arrayUnion
 import { useRouter } from 'next/navigation';
 
 export interface UserProfile {
@@ -28,25 +29,27 @@ export interface UserProfile {
   techStack?: string[];
   interests?: string[];
   onboardingCompleted: boolean;
-  createdAt?: string; // ISO string
-  lastLogin?: string; // ISO string
-  updatedAt?: string; // ISO string
+  createdAt?: string; 
+  lastLogin?: string; 
+  updatedAt?: string; 
   followersCount?: number;
   followingCount?: number;
+  fcmTokens?: string[]; // For storing FCM tokens
 }
 
 interface UpdateProfileData {
   displayName?: string;
-  photoDataUrl?: string | null; // Can be a new data URL or an existing URL string, or null to remove
-  bannerDataUrl?: string | null; // Can be a new data URL or an existing URL string, or null to remove
+  photoDataUrl?: string | null; 
+  bannerDataUrl?: string | null; 
   bio?: string;
   techStack?: string[];
   onboardingCompleted?: boolean;
+  newFcmToken?: string; // To add a new FCM token
 }
 
 interface CreateCommunityData {
   name: string;
-  iconFile?: File; // File object for new uploads
+  iconFile?: File; 
   description: string;
   tags: string[];
 }
@@ -57,7 +60,7 @@ interface CreatePostData {
   communityName?: string | null;
   description: string;
   codeSnippet?: string;
-  imageFile?: File; // File object for new uploads
+  imageFile?: File; 
   tags: string[];
 }
 
@@ -79,16 +82,6 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// This function is not used in this iteration, image handling is direct data URLs.
-// const uploadImageToStorage = async (file: File, path: string): Promise<string> => {
-//   const { getStorage, ref: storageRef, uploadBytes, getDownloadURL } = await import('firebase/storage');
-//   const storage = getStorage(app);
-//   const fileRef = storageRef(storage, path);
-//   await uploadBytes(fileRef, file);
-//   return getDownloadURL(fileRef);
-// };
-
-
 const processUserProfileFromFirestore = (docSnapData: any, uid: string): UserProfile => {
     const profileData = { ...docSnapData };
     const dateFields: (keyof UserProfile)[] = ['createdAt', 'lastLogin', 'updatedAt'];
@@ -99,7 +92,6 @@ const processUserProfileFromFirestore = (docSnapData: any, uid: string): UserPro
       } else if (val instanceof Date) {
         profileData[field] = val.toISOString();
       } else if (typeof val === 'string') {
-        // Attempt to parse if it's a string, otherwise keep as is
         try {
             profileData[field] = new Date(val).toISOString();
         } catch (e) { /* keep original string if not parsable */ }
@@ -115,11 +107,12 @@ const processUserProfileFromFirestore = (docSnapData: any, uid: string): UserPro
       techStack: profileData.techStack || [],
       interests: profileData.interests || [],
       onboardingCompleted: typeof profileData.onboardingCompleted === 'boolean' ? profileData.onboardingCompleted : false,
-      createdAt: profileData.createdAt, // Should be ISO string now
-      lastLogin: profileData.lastLogin, // Should be ISO string now
-      updatedAt: profileData.updatedAt, // Should be ISO string now
+      createdAt: profileData.createdAt, 
+      lastLogin: profileData.lastLogin, 
+      updatedAt: profileData.updatedAt, 
       followersCount: profileData.followersCount || 0,
       followingCount: profileData.followingCount || 0,
+      fcmTokens: profileData.fcmTokens || [], // Initialize fcmTokens
     };
 };
 
@@ -132,7 +125,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setLoading(true); // Set loading true at the start of auth state change
+      setLoading(true); 
       if (firebaseUser) {
         setUser(firebaseUser);
         const userDocRef = doc(db, 'users', firebaseUser.uid);
@@ -140,10 +133,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (userDocSnap.exists()) {
           const fetchedProfile = processUserProfileFromFirestore(userDocSnap.data(), firebaseUser.uid);
           setUserProfile(fetchedProfile);
-          // Update lastLogin without necessarily re-fetching the whole profile for this minor update
           await setDoc(userDocRef, { lastLogin: serverTimestamp() }, { merge: true });
         } else {
-          // Create new user profile
           const initialPhotoURL = firebaseUser.photoURL;
           const newProfileData: UserProfile = {
             uid: firebaseUser.uid,
@@ -152,18 +143,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             photoURL: initialPhotoURL,
             bannerURL: null,
             onboardingCompleted: false,
-            createdAt: new Date().toISOString(), // For immediate client use
-            lastLogin: new Date().toISOString(),  // For immediate client use
+            createdAt: new Date().toISOString(), 
+            lastLogin: new Date().toISOString(),  
             followersCount: 0,
             followingCount: 0,
             bio: '',
             techStack: [],
             interests: [],
+            fcmTokens: [], // Initialize fcmTokens
           };
           await setDoc(userDocRef, {
             ...newProfileData,
-            createdAt: serverTimestamp(), // Firestore server timestamp for DB
-            lastLogin: serverTimestamp(),  // Firestore server timestamp for DB
+            createdAt: serverTimestamp(), 
+            lastLogin: serverTimestamp(),  
           });
           setUserProfile(newProfileData);
         }
@@ -171,11 +163,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUser(null);
         setUserProfile(null);
       }
-      setLoading(false); // Set loading false after all processing is done
+      setLoading(false); 
     });
 
     return () => unsubscribe();
-  }, []); // Removed router from dependencies as it's stable
+  }, []); 
 
 
   const createUserProfileDocument = async (
@@ -198,18 +190,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         onboardingCompleted: additionalData.onboardingCompleted || false,
         followersCount: 0,
         followingCount: 0,
-        createdAt: new Date().toISOString(), // For immediate use
-        lastLogin: new Date().toISOString(), // For immediate use
+        createdAt: new Date().toISOString(), 
+        lastLogin: new Date().toISOString(), 
+        fcmTokens: additionalData.fcmTokens || [], // Initialize fcmTokens
       };
       await setDoc(userDocRef, {
         ...newProfile,
         createdAt: serverTimestamp(),
         lastLogin: serverTimestamp(),
       });
-      setUserProfile(newProfile); // Update context state
+      setUserProfile(newProfile); 
       return newProfile;
     } else {
-      // Profile exists, ensure it's up-to-date in context
       const existingProfile = processUserProfileFromFirestore(userDocSnap.data(), firebaseUser.uid);
       setUserProfile(existingProfile);
       await setDoc(userDocRef, { lastLogin: serverTimestamp() }, { merge: true });
@@ -235,10 +227,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     } catch (error) {
       console.error("Error signing in with Google: ", error);
-      // Rethrow to be caught by UI form if necessary
       throw error;
-    } finally {
-      // setLoading(false); // Auth state change listener will handle final loading state
     }
   };
 
@@ -255,9 +244,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error("Error signing up: ", error);
       throw error;
-    } finally {
-      // setLoading(false); // Auth state change listener handles loading
-    }
+    } 
   };
 
   const signInWithEmail = async (email: string, password: string) => {
@@ -265,7 +252,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setLoading(true);
       const result = await signInWithEmailAndPassword(auth, email, password);
        if (result.user) {
-        const currentProfile = await createUserProfileDocument(result.user); // Ensures profile exists and is loaded
+        const currentProfile = await createUserProfileDocument(result.user); 
         if (!currentProfile.onboardingCompleted) {
             router.push('/onboarding/profile-setup');
         } else {
@@ -275,24 +262,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error("Error signing in: ", error);
       throw error;
-    } finally {
-       // setLoading(false); // Auth state change listener handles loading
     }
   };
 
   const logout = async () => {
     try {
-      // setLoading(true); // onAuthStateChanged will handle this
       await signOut(auth);
-      // setUser(null); // Handled by onAuthStateChanged
-      // setUserProfile(null); // Handled by onAuthStateChanged
-      router.push('/login'); // Explicit redirect
+      router.push('/login'); 
     } catch (error) {
       console.error("Error signing out: ", error);
       throw error;
-    } finally {
-        // setLoading(false); // Handled by onAuthStateChanged
-    }
+    } 
   };
 
   const sendPasswordReset = async (email: string) => {
@@ -309,7 +289,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     try {
       const userDocRef = doc(db, 'users', user.uid);
-      const updateForFirestore: Partial<UserProfile & {updatedAt: Timestamp}> = {
+      const updateForFirestore: Partial<UserProfile & {updatedAt: Timestamp; fcmTokens?: any}> = { // Allow 'any' for arrayUnion
         updatedAt: serverTimestamp() as Timestamp,
       };
 
@@ -319,16 +299,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (data.onboardingCompleted !== undefined) updateForFirestore.onboardingCompleted = data.onboardingCompleted;
       if (data.photoDataUrl !== undefined) updateForFirestore.photoURL = data.photoDataUrl;
       if (data.bannerDataUrl !== undefined) updateForFirestore.bannerURL = data.bannerDataUrl;
+      if (data.newFcmToken) {
+        updateForFirestore.fcmTokens = arrayUnion(data.newFcmToken);
+      }
+
 
       await updateDoc(userDocRef, updateForFirestore);
 
-      // Update Firebase Auth profile if displayName or photoURL changed
       if (auth.currentUser) {
         const authUpdates: { displayName?: string; photoURL?: string | null } = {};
         if (data.displayName !== undefined && data.displayName !== auth.currentUser.displayName) {
           authUpdates.displayName = data.displayName;
         }
-        // Only update Firebase Auth photoURL if it's a non-data URL string or null to remove
         if (data.photoDataUrl !== undefined) {
             if (data.photoDataUrl === null && auth.currentUser.photoURL !== null) {
                 authUpdates.photoURL = null;
@@ -343,7 +325,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
       }
 
-      // Re-fetch and update local userProfile state
       const updatedDocSnap = await getDoc(userDocRef);
       if (updatedDocSnap.exists()) {
         setUserProfile(processUserProfileFromFirestore(updatedDocSnap.data(), user.uid));
@@ -372,7 +353,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         iconURL: null, 
       };
 
-      if (data.iconFile) { // Assuming iconFile is a File object
+      if (data.iconFile) { 
         const reader = new FileReader();
         communityPayload.iconURL = await new Promise<string>((resolve, reject) => {
             reader.onloadend = () => resolve(reader.result as string);
@@ -413,7 +394,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         imageURL: null, 
       };
 
-      if (data.imageFile) { // Assuming imageFile is a File object
+      if (data.imageFile) { 
          const reader = new FileReader();
          postPayload.imageURL = await new Promise<string>((resolve, reject) => {
             reader.onloadend = () => resolve(reader.result as string);
@@ -435,19 +416,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const deleteCurrentUserAccount = async () => {
     if (!user) throw new Error("User not authenticated.");
     try {
-      setLoading(true); // Indicate process start
-      // Firestore data deletion is handled by a server action called from settings page
-      await user.delete(); // This will trigger onAuthStateChanged
-      // No need to setUser(null) or router.push here, onAuthStateChanged will handle it
+      setLoading(true); 
+      await deleteFirebaseAuthUser(user); 
     } catch (error: any) {
       console.error("Error deleting Firebase Auth user:", error);
-      setLoading(false); // Reset loading on error
+      setLoading(false); 
       if (error.code === 'auth/requires-recent-login') {
         throw new Error("This operation is sensitive and requires recent authentication. Please log out and log back in, then try again.");
       }
       throw error;
     } 
-    // setLoading(false) is handled by onAuthStateChanged if successful
   };
 
 
