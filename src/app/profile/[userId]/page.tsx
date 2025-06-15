@@ -1,7 +1,7 @@
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"; // Added CardDescription
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Image from "next/image";
 import Link from "next/link";
@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { getInitials } from "@/lib/utils";
 import { LikeButton } from "@/components/posts/LikeButton";
 import { FollowButtonClient } from "@/components/profile/FollowButtonClient";
-import { PostCardOptionsMenu } from "@/components/posts/PostCardOptionsMenu"; // For consistency if needed on their posts
+import { PostCardOptionsMenu } from "@/components/posts/PostCardOptionsMenu";
 
 export default async function UserProfilePage({ params }: { params: { userId: string } }) {
   noStore();
@@ -22,15 +22,9 @@ export default async function UserProfilePage({ params }: { params: { userId: st
 
   const [profileToDisplay, currentUserId] = await Promise.all([
     getUserProfile(targetUserId),
-    getCurrentUserId() // This will be null for now, will be hydrated by client component if needed
+    getCurrentUserId()
   ]);
   
-  // Fetch current user's minimal profile for follow button actor, if logged in
-  // This needs to be done carefully to avoid client-side fetches in server component if possible
-  // For now, FollowButtonClient will rely on useAuth()
-  // const currentUserProfileData = currentUserId ? await getUserProfile(currentUserId) : null;
-
-
   if (!profileToDisplay) {
     return (
       <div className="text-center py-20">
@@ -138,40 +132,103 @@ export default async function UserProfilePage({ params }: { params: { userId: st
           <TabsTrigger value="posts" className="text-base"><FileText className="mr-2 h-5 w-5" />Posts ({userPosts.length})</TabsTrigger>
           <TabsTrigger value="communities" className="text-base"><Users className="mr-2 h-5 w-5" />Joined Communities ({joinedCommunities.length})</TabsTrigger>
         </TabsList>
-        <TabsContent value="posts" className="mt-6 space-y-4">
+        <TabsContent value="posts" className="mt-6 space-y-6">
           {userPosts.length > 0 ? userPosts.map(post => {
             const postCreatedAt = post.createdAt ? new Date(post.createdAt) : new Date();
             return (
-              <Card key={post.id} className="shadow-sm hover:shadow-md transition-shadow duration-200 ease-in-out bg-card">
-                 <CardContent className="p-4 relative">
-                    {/* PostCardOptionsMenu might be restricted to post author only, check its logic */}
-                    {currentUserId === post.authorId && (
-                        <div className="absolute top-1 right-1 z-10">
-                            <PostCardOptionsMenu post={post} />
+              <Card key={post.id} className="overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300 ease-in-out group bg-card">
+                <CardHeader className="p-4 md:p-5">
+                  <div className="flex justify-between items-start">
+                    <div className="flex items-start space-x-3">
+                      <Link href={`/profile/${profileToDisplay.uid}`} className="flex-shrink-0">
+                        <Avatar className="h-10 w-10 border group-hover:border-primary/30 transition-colors">
+                          <AvatarImage
+                            src={profileToDisplay.photoURL || undefined}
+                            alt={profileToDisplay.displayName ? `${profileToDisplay.displayName}'s avatar` : 'User avatar'}
+                            data-ai-hint="user avatar small"
+                          />
+                          <AvatarFallback>{getInitials(profileToDisplay.displayName)}</AvatarFallback>
+                        </Avatar>
+                      </Link>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center space-x-2">
+                          <p className="text-sm font-semibold text-foreground truncate">
+                            <Link href={`/profile/${profileToDisplay.uid}`} className="hover:text-primary transition-colors">
+                              {profileToDisplay.displayName}
+                            </Link>
+                          </p>
+                          {currentUserId && profileToDisplay.uid !== currentUserId && (
+                            <FollowButtonClient
+                              targetUserId={profileToDisplay.uid}
+                              targetUserProfile={{ displayName: profileToDisplay.displayName || '' }}
+                              initialIsFollowing={initialIsFollowing}
+                            />
+                          )}
                         </div>
-                    )}
-                    <Link href={`/posts/${post.id}`}>
-                        <h3 className="text-lg font-semibold hover:text-primary transition-colors mb-1 line-clamp-2 font-headline pr-8">{post.title}</h3>
-                    </Link>
-                    <p className="text-xs text-muted-foreground mb-3">
-                        {post.communityId && post.communityName ? (
-                        <>Posted in <Link href={`/communities/${post.communityId}`} className="text-primary/90 hover:text-primary font-medium">{post.communityName}</Link> &bull; </>
-                        ) : "General Post &bull; "}
-                        {formatDistanceToNowStrict(postCreatedAt, {addSuffix: true})}
-                    </p>
-                    {post.description && (
-                        <p className="text-sm text-foreground/80 mb-3 line-clamp-2">
-                        {post.description}
+                        <p className="text-xs text-muted-foreground">
+                          Posted {formatDistanceToNowStrict(postCreatedAt, { addSuffix: true })}
+                          {post.communityId && post.communityName && (
+                            <> &bull; in <Link href={`/communities/${post.communityId}`} className="text-primary/90 hover:text-primary font-medium">{post.communityName}</Link></>
+                          )}
                         </p>
-                    )}
-                    <div className="flex items-center gap-3 text-muted-foreground">
-                        <LikeButton postId={post.id} initialLikesCount={post.likes || 0} size="sm" showText={false} />
-                        <Link href={`/posts/${post.id}#comments`} className="flex items-center text-xs hover:text-primary transition-colors">
-                            <MessageIcon size={14} className="mr-1"/>
-                            <span>{post.commentsCount || 0}</span>
-                        </Link>
+                      </div>
                     </div>
-                 </CardContent>
+                    {/* PostCardOptionsMenu for the post itself */}
+                    {currentUserId === post.authorId && ( // post.authorId here is profileToDisplay.uid
+                      <div>
+                        <PostCardOptionsMenu post={post} />
+                      </div>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent className="p-4 md:p-5 pt-0">
+                  <Link href={`/posts/${post.id}`}>
+                    <CardTitle className="text-xl lg:text-2xl font-bold font-headline hover:text-primary transition-colors mb-3 leading-tight">
+                      {post.title}
+                    </CardTitle>
+                  </Link>
+                  {post.imageURL && (
+                    <Link href={`/posts/${post.id}`} className="block mb-3">
+                      <div className="overflow-hidden rounded-md aspect-video relative border group-hover:opacity-90 transition-opacity">
+                        <Image
+                          src={post.imageURL}
+                          alt={post.title || "Post image"}
+                          layout="fill"
+                          objectFit="cover"
+                          className="transition-transform duration-300 group-hover:scale-105"
+                          data-ai-hint="post image content"
+                        />
+                      </div>
+                    </Link>
+                  )}
+                   <Link href={`/posts/${post.id}`}>
+                    <CardDescription className="text-sm text-foreground/80 mb-3.5 line-clamp-3 hover:text-primary/80 transition-colors">
+                      {post.description}
+                    </CardDescription>
+                  </Link>
+                  {post.codeSnippet && (
+                    <pre className="bg-muted/70 p-3 rounded-md text-xs overflow-x-auto font-code mb-3.5 max-h-40">
+                        <code>{post.codeSnippet.substring(0,200)}{post.codeSnippet.length > 200 && '...'}</code>
+                    </pre>
+                  )}
+                  {post.tags && post.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-3.5">
+                      {post.tags.slice(0, 5).map(tag => (
+                        <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+                <CardFooter className="p-4 md:p-5 pt-0 flex justify-between items-center border-t">
+                  <div className="flex space-x-2 text-muted-foreground">
+                    <LikeButton postId={post.id} initialLikesCount={post.likes || 0} size="sm" />
+                    <Button variant="ghost" size="sm" className="flex items-center space-x-1 text-muted-foreground text-xs" asChild>
+                        <Link href={`/posts/${post.id}#comments`}>
+                        <MessageIcon size={14} /> <span>{post.commentsCount || 0}</span>
+                        </Link>
+                    </Button>
+                  </div>
+                </CardFooter>
               </Card>
             );
           }) : (
