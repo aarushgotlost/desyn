@@ -21,7 +21,7 @@
     --secondary-foreground: 258 30% 35%; /* Darker Purple for text on secondary */
 
     --muted: 258 50% 94%; /* Light Muted Purple */
-    --muted-foreground: 258 25% 55%; /* Mid-tone Purple for muted text */
+    --muted-foreground: 258 25% 40%; /* Darker Mid-tone Purple for muted text (Adjusted from 55%) */
 
     --accent: 258 88% 60%; /* Violet/Purpleish (Existing, same as primary) */
     --accent-foreground: 210 40% 98%; /* Light color for text on accent (Existing) */
@@ -68,7 +68,7 @@
     --secondary-foreground: 258 50% 85%; /* Lighter Purple for text on secondary */
 
     --muted: 258 12% 16%; /* Even Darker Muted Purple */
-    --muted-foreground: 258 30% 70%; /* Mid-tone Light Purple for muted text */
+    --muted-foreground: 258 40% 80%; /* Lighter Mid-tone Purple for muted text (Adjusted from 258 30% 70%) */
 
     --accent: 258 88% 65%; /* Vibrant Purple (same as primary for dark mode) */
     --accent-foreground: 258 20% 98%; /* Very Light, almost white purple */
