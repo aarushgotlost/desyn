@@ -1,7 +1,7 @@
 
 'use server';
 /**
- * @fileOverview A conversational AI chatbot flow for DevConnect.
+ * @fileOverview A conversational AI chatbot flow for Desyn.
  *
  * - chatBotFlow - A function that handles the chatbot conversation.
  * - ChatBotInput - The input type for the chatBotFlow function.
@@ -32,11 +32,11 @@ export type ChatBotOutput = z.infer<typeof ChatBotOutputSchema>;
 
 // This is the main function Next.js components will call.
 export async function chatBotFlow(input: ChatBotInput): Promise<ChatBotOutput> {
-  return internalChatBotFlow(input);
+  return internalDesynChatBotFlow(input);
 }
 
 const chatBotPrompt = ai.definePrompt({
-  name: 'devConnectChatBotPrompt',
+  name: 'desynChatBotPrompt',
   system: "You are DevBot.", // Simplified system prompt for diagnostics
   input: { schema: ChatBotInputSchema },
   output: { schema: ChatBotOutputSchema },
@@ -50,9 +50,9 @@ DevBot:`,
 });
 
 
-const internalChatBotFlow = ai.defineFlow(
+const internalDesynChatBotFlow = ai.defineFlow(
   {
-    name: 'internalDevConnectChatBotFlow',
+    name: 'internalDesynChatBotFlow',
     inputSchema: ChatBotInputSchema,
     outputSchema: ChatBotOutputSchema,
   },
@@ -65,7 +65,7 @@ const internalChatBotFlow = ai.defineFlow(
       }
       return output;
     } catch (flowError: any) {
-      console.error("Error within internalDevConnectChatBotFlow:", flowError);
+      console.error("Error within internalDesynChatBotFlow:", flowError);
       // This error will be returned to the client if the flow itself fails at runtime
       return { aiResponse: `I encountered an issue processing your request: ${flowError.message || 'Unknown error'}. Please try again.` };
     }
