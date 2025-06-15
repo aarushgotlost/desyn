@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from 'next/link';
@@ -5,7 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import type { Notification } from '@/types/notifications';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNowStrict } from 'date-fns';
-import { ThumbsUp, MessageCircle, UserPlus, MessageSquare } from 'lucide-react'; // Added MessageSquare
+import { ThumbsUp, MessageCircle, UserPlus, MessageSquare } from 'lucide-react'; 
 import { markNotificationAsRead } from '@/actions/notificationActions';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
@@ -26,7 +27,7 @@ const NotificationIconByType = ({ type }: { type: Notification['type'] }) => {
     case 'new_follower':
       return <UserPlus className="h-4 w-4 text-blue-500" aria-label="New follower" />;
     case 'new_message':
-      return <MessageSquare className="h-4 w-4 text-purple-500" aria-label="New message" />; // Added case for new_message
+      return <MessageSquare className="h-4 w-4 text-purple-500" aria-label="New message" />; 
     default:
       return null;
   }

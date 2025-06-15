@@ -9,7 +9,7 @@ export type NotificationType =
   | 'new_like' 
   | 'new_comment' 
   | 'new_follower'
-  | 'new_message'; // Added new_message type
+  | 'new_message'; 
 
 export interface Notification {
   id: string;

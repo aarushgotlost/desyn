@@ -22,7 +22,7 @@ import type { NotificationActor } from '@/types/notifications';
 async function revalidateProfilePaths(userId: string, otherUserId?: string) {
   revalidatePath(`/profile`); // Current user's main profile page
   if (otherUserId) {
-    // revalidatePath(`/profile/${otherUserId}`);
+    revalidatePath(`/profile/${otherUserId}`);
   }
   revalidatePath('/notifications');
 }
@@ -63,7 +63,7 @@ export async function followUser(
         type: 'new_follower',
         actor,
         message: `${currentUserProfile.displayName || 'Someone'} started following you.`,
-        link: `/profile/${currentUserId}`,
+        link: `/profile/${currentUserId}`, // Link to the follower's profile
         relatedEntityId: currentUserId,
       });
     }
