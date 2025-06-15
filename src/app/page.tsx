@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
 import { MessageCircle, ThumbsUp } from "lucide-react"; 
-import { getRecentPosts } from "@/services/firestoreService";
+import { getRecentPosts, getCurrentUserId } from "@/services/firestoreService"; // Added getCurrentUserId
 import type { Post } from "@/types/data";
 import Link from "next/link";
 import { formatDistanceToNowStrict } from 'date-fns';
@@ -13,11 +13,14 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { getInitials } from "@/lib/utils";
 import { PostCardOptionsMenu } from "@/components/posts/PostCardOptionsMenu";
-
+import { FollowButtonClient } from "@/components/profile/FollowButtonClient"; // Added FollowButtonClient
 
 export default async function HomePage() {
   noStore();
-  const posts: Post[] = await getRecentPosts();
+  const [posts, currentUserId] = await Promise.all([
+    getRecentPosts(),
+    getCurrentUserId() // Fetch current user ID on the server
+  ]);
 
   return (
     <div className="space-y-8">
@@ -32,7 +35,7 @@ export default async function HomePage() {
               <Card key={post.id} className="overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300 ease-in-out group bg-card">
                 <CardHeader className="p-4 md:p-5">
                   <div className="flex justify-between items-start">
-                    <div className="flex items-center space-x-3">
+                    <div className="flex items-start space-x-3"> {/* Changed to items-start for button alignment */}
                       <Link href={`/profile/${post.authorId}`} className="flex-shrink-0"> 
                         <Avatar className="h-10 w-10 border group-hover:border-primary/30 transition-colors">
                           <AvatarImage 
@@ -44,9 +47,19 @@ export default async function HomePage() {
                         </Avatar>
                       </Link>
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-foreground truncate">
-                          <Link href={`/profile/${post.authorId}`} className="hover:text-primary transition-colors">{post.authorName}</Link>
-                        </p>
+                        <div className="flex items-center space-x-2">
+                           <p className="text-sm font-semibold text-foreground truncate">
+                             <Link href={`/profile/${post.authorId}`} className="hover:text-primary transition-colors">{post.authorName}</Link>
+                           </p>
+                           {/* Render FollowButtonClient only if not viewing own post and logged in */}
+                           {currentUserId && post.authorId !== currentUserId && (
+                              <FollowButtonClient 
+                                targetUserId={post.authorId} 
+                                targetUserProfile={{ displayName: post.authorName }}
+                                // initialIsFollowing prop is now optional and will be fetched by the client component
+                              />
+                           )}
+                        </div>
                         <p className="text-xs text-muted-foreground">
                           {post.communityId && post.communityName && (
                               <>Posted in <Link href={`/communities/${post.communityId}`} className="text-primary/90 hover:text-primary font-medium">{post.communityName}</Link> &bull; </>

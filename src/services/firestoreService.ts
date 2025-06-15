@@ -76,11 +76,16 @@ const processDoc = <T extends { id: string; createdAt?: string | Timestamp | Dat
   if ('authorId' in data) { 
       processedData.authorAvatar = data.authorAvatar || null;
   }
-  if ('uid' in data) { 
+  // Ensure UserProfile specific fields are defaulted if not present
+  if (typeof data.uid !== 'undefined' || docSnap.ref.parent.id === 'users') { // Check if it's likely a user document
       processedData.photoURL = data.photoURL || null;
       processedData.bannerURL = data.bannerURL || null;
       processedData.followersCount = data.followersCount || 0;
       processedData.followingCount = data.followingCount || 0;
+      processedData.bio = data.bio || '';
+      processedData.techStack = data.techStack || [];
+      processedData.interests = data.interests || [];
+      processedData.onboardingCompleted = typeof data.onboardingCompleted === 'boolean' ? data.onboardingCompleted : false;
   }
 
 
@@ -189,20 +194,25 @@ export function getCommentsForPostRealtime(
 }
 
 
-export async function getAllUsersForNewChat(currentUserId: string | null, count: number = 20): Promise<UserProfile[]> {
+// Renamed from getAllUsersForNewChat for broader use
+export async function getDiscoverableUsers(currentUserId: string | null, count: number = 20): Promise<UserProfile[]> {
     noStore();
     const usersCol = collection(db, 'users');
     let q;
+    // If a currentUserId is provided, exclude them from the list.
+    // Also, we only want users who have completed onboarding to be discoverable.
     if (currentUserId) {
-        q = query(usersCol, where('uid', '!=', currentUserId), limit(count));
+        q = query(usersCol, where('uid', '!=', currentUserId), where('onboardingCompleted', '==', true), orderBy('displayName', 'asc'), limit(count));
     } else {
-        q = query(usersCol, limit(count));
+        // If no current user (e.g., logged out view, though less likely for this feature), fetch all onboarded users.
+        q = query(usersCol, where('onboardingCompleted', '==', true), orderBy('displayName', 'asc'), limit(count));
     }
     
     try {
         const snapshot = await getDocs(q);
         return snapshot.docs.map(docSnap => processDoc<UserProfile>(docSnap));
     } catch (error) {
+        console.error("Error fetching discoverable users:", error);
         return [];
     }
 }
