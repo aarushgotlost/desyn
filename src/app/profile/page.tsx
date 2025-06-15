@@ -20,31 +20,40 @@ import { Badge } from "@/components/ui/badge";
 import { getInitials } from "@/lib/utils";
 import { LikeButton } from "@/components/posts/LikeButton";
 import { PostCardOptionsMenu } from "@/components/posts/PostCardOptionsMenu";
-
+// FollowButtonClient is not used on one's own profile page.
 
 export default function ProfilePage() {
   noStore(); 
-  const { user: currentUser, loading: authLoading } = useAuth(); // Removed userProfile from here
+  const { user: currentUser, loading: authLoadingFromContext } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
 
   const [displayedProfile, setDisplayedProfile] = useState<UserProfileType | null>(null);
-  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true); // For fetching this specific user's profile
   const [userPosts, setUserPosts] = useState<Post[]>([]);
   const [joinedCommunities, setJoinedCommunities] = useState<Community[]>([]);
   const [isLoadingActivity, setIsLoadingActivity] = useState(true);
 
   useEffect(() => {
     async function fetchProfileData() {
+      if (authLoadingFromContext) return; // Wait for auth context to settle
+
       if (!currentUser?.uid) {
         setIsLoadingProfile(false);
-        if (!authLoading) router.replace('/login'); // Redirect if not logged in and auth is not loading
+        router.replace('/login'); // Redirect if not logged in
         return;
       }
+
       setIsLoadingProfile(true);
       try {
-        const profile = await getUserProfile(currentUser.uid);
-        setDisplayedProfile(profile);
+        const profile = await getUserProfile(currentUser.uid); // Fetch own profile
+        if (profile) {
+          setDisplayedProfile(profile);
+        } else {
+          // This case should ideally not happen if user is authenticated and profile creation is robust
+          toast({ title: "Error", description: "Could not load your profile. Please try logging in again.", variant: "destructive"});
+          router.replace('/login');
+        }
       } catch (error) {
         console.error("Error fetching user profile:", error);
         toast({ title: "Error", description: "Could not load your profile.", variant: "destructive"});
@@ -53,11 +62,9 @@ export default function ProfilePage() {
       }
     }
     
-    if (!authLoading) {
-        fetchProfileData();
-    }
+    fetchProfileData();
 
-  }, [currentUser, authLoading, router, toast]);
+  }, [currentUser, authLoadingFromContext, router, toast]);
 
 
   useEffect(() => {
@@ -88,19 +95,19 @@ export default function ProfilePage() {
   }, [displayedProfile, toast]);
 
 
-  if (isLoadingProfile || authLoading) {
+  if (isLoadingProfile || authLoadingFromContext) {
     return <div className="flex justify-center items-center h-[calc(100vh-10rem)]"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
   }
   
-  if (!currentUser && !authLoading) { 
-    // This case should be handled by the useEffect redirecting, but as a fallback:
-    return <div className="flex justify-center items-center h-[calc(100vh-10rem)]"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
+  if (!currentUser && !authLoadingFromContext) { 
+    // Already handled by useEffect redirecting, but as a fallback:
+    return <div className="flex justify-center items-center h-[calc(100vh-10rem)]"><p>Redirecting to login...</p><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
   }
   
   if (!displayedProfile) { 
      return (
         <div className="text-center py-10">
-            <p>Could not load profile. You might need to log in again.</p>
+            <p>Could not load profile details. You might need to log in again.</p>
             <Button onClick={() => router.push('/login')} className="mt-2">Login</Button>
         </div>
     );

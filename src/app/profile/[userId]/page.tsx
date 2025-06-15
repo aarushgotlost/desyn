@@ -1,7 +1,7 @@
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"; // Added CardDescription
+import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Image from "next/image";
 import Link from "next/link";
@@ -20,10 +20,9 @@ export default async function UserProfilePage({ params }: { params: { userId: st
   noStore();
   const { userId: targetUserId } = params;
 
-  // Fetch profile and current user ID in parallel
   const [profileToDisplay, currentUserId] = await Promise.all([
     getUserProfile(targetUserId),
-    getCurrentUserId() // This is crucial for knowing if the viewer is the profile owner
+    getCurrentUserId()
   ]);
   
   if (!profileToDisplay) {
@@ -39,7 +38,6 @@ export default async function UserProfilePage({ params }: { params: { userId: st
     );
   }
 
-  // Fetch posts and communities after confirming profile exists
   const [userPosts, joinedCommunities] = await Promise.all([
     getUserPosts(targetUserId),
     getUserJoinedCommunities(targetUserId),
@@ -87,6 +85,7 @@ export default async function UserProfilePage({ params }: { params: { userId: st
               </div>
             </div>
             <div className="flex flex-col sm:flex-row gap-2 self-center md:self-end">
+              {/* FollowButtonClient only renders if currentUserId is present and not equal to targetUserId */}
               <FollowButtonClient
                 targetUserId={targetUserId}
                 targetUserProfile={{ displayName: profileToDisplay.displayName || '' }}
@@ -138,26 +137,27 @@ export default async function UserProfilePage({ params }: { params: { userId: st
                 <CardHeader className="p-4 md:p-5">
                   <div className="flex justify-between items-start">
                     <div className="flex items-start space-x-3">
-                      <Link href={`/profile/${profileToDisplay.uid}`} className="flex-shrink-0">
+                      <Link href={`/profile/${post.authorId}`} className="flex-shrink-0">
                         <Avatar className="h-10 w-10 border group-hover:border-primary/30 transition-colors">
                           <AvatarImage
-                            src={profileToDisplay.photoURL || undefined}
-                            alt={profileToDisplay.displayName ? `${profileToDisplay.displayName}'s avatar` : 'User avatar'}
+                            src={post.authorAvatar || undefined} // Use post.authorAvatar
+                            alt={post.authorName ? `${post.authorName}'s avatar` : 'User avatar'}
                             data-ai-hint="user avatar small"
                           />
-                          <AvatarFallback>{getInitials(profileToDisplay.displayName)}</AvatarFallback>
+                          <AvatarFallback>{getInitials(post.authorName)}</AvatarFallback>
                         </Avatar>
                       </Link>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center space-x-2">
                           <p className="text-sm font-semibold text-foreground truncate">
-                            <Link href={`/profile/${profileToDisplay.uid}`} className="hover:text-primary transition-colors">
-                              {profileToDisplay.displayName}
+                            <Link href={`/profile/${post.authorId}`} className="hover:text-primary transition-colors">
+                              {post.authorName}
                             </Link>
                           </p>
+                          {/* Follow button for the post author (profile owner in this context) */}
                            <FollowButtonClient
-                              targetUserId={profileToDisplay.uid} 
-                              targetUserProfile={{ displayName: profileToDisplay.displayName || '' }}
+                              targetUserId={post.authorId} 
+                              targetUserProfile={{ displayName: post.authorName || '' }}
                             />
                         </div>
                         <p className="text-xs text-muted-foreground">
@@ -168,6 +168,7 @@ export default async function UserProfilePage({ params }: { params: { userId: st
                         </p>
                       </div>
                     </div>
+                    {/* Options menu for the post itself, visible if current user is the post author */}
                     {currentUserId === post.authorId && ( 
                       <div>
                         <PostCardOptionsMenu post={post} />
@@ -254,4 +255,3 @@ export default async function UserProfilePage({ params }: { params: { userId: st
     </div>
   );
 }
-    

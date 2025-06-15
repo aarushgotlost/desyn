@@ -6,13 +6,13 @@ import { Button } from '@/components/ui/button';
 import { Loader2, UserPlus, UserMinus } from 'lucide-react';
 import { useAuth, type UserProfile } from '@/contexts/AuthContext';
 import { followUser, unfollowUser } from '@/actions/userActions';
-import { isFollowing } from '@/services/firestoreService'; 
+import { isFollowing } from '@/services/firestoreService';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 
 interface FollowButtonClientProps {
   targetUserId: string;
-  targetUserProfile: Pick<UserProfile, 'displayName'>;
+  targetUserProfile: Pick<UserProfile, 'displayName'>; // Only displayName is strictly needed for the notification if following
 }
 
 export function FollowButtonClient({
@@ -22,86 +22,100 @@ export function FollowButtonClient({
   const { user: currentUser, userProfile: currentUserProfile, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
-  const [isProcessing, startTransition] = useTransition(); 
-  
-  const [isFollowingState, setIsFollowingState] = useState<boolean | undefined>(undefined); 
-  const [isLoadingStatus, setIsLoadingStatus] = useState(true); 
+  const [isProcessing, startTransition] = useTransition();
+
+  const [isFollowingState, setIsFollowingState] = useState<boolean | undefined>(undefined);
+  const [isLoadingStatus, setIsLoadingStatus] = useState(true);
 
   useEffect(() => {
     setIsLoadingStatus(true);
-    setIsFollowingState(undefined);
+    setIsFollowingState(undefined); // Reset on targetUser change or auth state change
 
-    if (authLoading) { // Don't proceed if auth state is still loading
+    if (authLoading) {
+      // Wait for auth state to resolve
       return;
     }
 
-    if (currentUser && currentUser.uid !== targetUserId) {
-      isFollowing(currentUser.uid, targetUserId)
-        .then(status => {
-          setIsFollowingState(status);
-        })
-        .catch(err => {
-          console.error("Failed to fetch follow status in FollowButtonClient:", err);
-          setIsFollowingState(false); 
-        })
-        .finally(() => {
-          setIsLoadingStatus(false);
-        });
-    } else {
-      // Not logged in, or viewing own profile. No follow button needed or status to fetch.
-      setIsLoadingStatus(false); 
-      setIsFollowingState(false); // Default to false, button will be hidden by parent or by checks below
+    if (!currentUser || !targetUserId || currentUser.uid === targetUserId) {
+      setIsLoadingStatus(false);
+      setIsFollowingState(false); // Default to not following, button will be hidden or non-interactive
+      return;
     }
+
+    // Proceed to fetch follow status
+    isFollowing(currentUser.uid, targetUserId)
+      .then(status => {
+        setIsFollowingState(status);
+      })
+      .catch(err => {
+        console.error(`Failed to fetch follow status for ${targetUserId}:`, err);
+        setIsFollowingState(false); // Default to false on error
+        // Avoid toast here as it can be noisy on initial load if there's a transient network issue
+      })
+      .finally(() => {
+        setIsLoadingStatus(false);
+      });
   }, [currentUser, targetUserId, authLoading]);
 
 
   const handleClick = async () => {
-    if (!currentUser || !currentUserProfile) {
+    if (isLoadingStatus || isProcessing) return;
+
+    if (!currentUser || !currentUserProfile || !currentUserProfile.uid) {
       toast({ title: 'Authentication Error', description: 'You must be logged in to follow users.', variant: 'destructive' });
-      router.push('/login');
+      if (!currentUser) router.push('/login');
       return;
     }
+
     if (currentUser.uid === targetUserId) {
       toast({ title: 'Action Not Allowed', description: "You cannot follow yourself.", variant: "destructive" });
       return;
     }
-    if (isLoadingStatus || isProcessing || typeof isFollowingState === 'undefined') return;
+    
+    // For the followUser action, ensure current user's displayName is available for notifications
+    if (!isFollowingState && !currentUserProfile.displayName) {
+        toast({ title: 'Profile Incomplete', description: 'Please set your display name in your profile before following users.', variant: 'destructive' });
+        router.push('/onboarding/profile-setup'); // Guide user to complete profile
+        return;
+    }
+
 
     startTransition(async () => {
       let result;
-      const currentUserMinimalProfile = {
+      // Prepare current user's minimal profile for the followUser action (for notifications)
+      const currentUserMinimalProfileForAction = {
         uid: currentUserProfile.uid,
-        displayName: currentUserProfile.displayName,
+        displayName: currentUserProfile.displayName, // Checked above for follow action
         photoURL: currentUserProfile.photoURL,
       };
+
+      // Ensure targetUserProfile.displayName has a fallback for the notification message
+      const targetDisplayNameForNotification = targetUserProfile?.displayName || 'User';
 
       if (isFollowingState) {
         result = await unfollowUser(currentUser.uid, targetUserId);
       } else {
-        result = await followUser(currentUser.uid, currentUserMinimalProfile, targetUserId, targetUserProfile);
+        result = await followUser(currentUser.uid, currentUserMinimalProfileForAction, targetUserId, { displayName: targetDisplayNameForNotification });
       }
 
       if (result.success) {
         toast({ title: isFollowingState ? 'Unfollowed!' : 'Followed!', description: result.message });
-        setIsFollowingState(!isFollowingState); 
-        // Revalidate relevant paths to update counts and other dependent UI
-        router.refresh(); 
+        setIsFollowingState(!isFollowingState);
+        router.refresh(); // Re-fetch server components data
       } else {
         toast({ title: 'Error', description: result.message, variant: 'destructive' });
       }
     });
   };
 
-  // If auth is loading, or current user is not determined, or it's the user's own profile, don't render the button
-  if (authLoading) { 
+  if (authLoading) {
     return <Button disabled className="w-full sm:w-auto" size="sm"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Loading...</Button>;
   }
-  
+
   if (!currentUser || currentUser.uid === targetUserId) {
     return null; // Don't show button if not logged in or if it's own profile
   }
 
-  // If still loading the follow status specifically
   if (isLoadingStatus || typeof isFollowingState === 'undefined') {
      return <Button disabled className="w-full sm:w-auto" size="sm"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Loading Status...</Button>;
   }
@@ -109,12 +123,12 @@ export function FollowButtonClient({
   return (
     <Button
       onClick={handleClick}
-      disabled={isProcessing} // Only disable for processing, not for initial status load
+      disabled={isProcessing}
       variant={isFollowingState ? "outline" : "default"}
-      size="sm" 
-      className="w-auto" // Ensure button doesn't take full width unless intended by parent
+      size="sm"
+      className="w-auto"
     >
-      {isProcessing ? ( 
+      {isProcessing ? (
         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
       ) : isFollowingState ? (
         <UserMinus className="mr-2 h-4 w-4" />

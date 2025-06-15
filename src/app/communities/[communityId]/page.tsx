@@ -16,7 +16,7 @@ import { unstable_noStore as noStore } from 'next/cache';
 import { Badge } from "@/components/ui/badge";
 import { getInitials } from "@/lib/utils";
 import { PostCardOptionsMenu } from "@/components/posts/PostCardOptionsMenu";
-import { FollowButtonClient } from "@/components/profile/FollowButtonClient"; // Added FollowButtonClient
+import { FollowButtonClient } from "@/components/profile/FollowButtonClient";
 
 export default async function CommunityPage({ params }: { params: { communityId: string } }) {
   noStore();
@@ -89,7 +89,7 @@ export default async function CommunityPage({ params }: { params: { communityId:
                 <Card key={post.id} className="overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300 ease-in-out group bg-card">
                   <CardHeader className="p-4 md:p-5">
                     <div className="flex justify-between items-start">
-                      <div className="flex items-start space-x-3"> {/* Changed to items-start */}
+                      <div className="flex items-start space-x-3"> 
                         <Link href={`/profile/${post.authorId}`} className="flex-shrink-0"> 
                           <Avatar className="h-10 w-10 border group-hover:border-primary/30 transition-colors">
                             <AvatarImage 
@@ -105,21 +105,22 @@ export default async function CommunityPage({ params }: { params: { communityId:
                             <p className="text-sm font-semibold text-foreground truncate">
                               <Link href={`/profile/${post.authorId}`} className="hover:text-primary transition-colors">{post.authorName}</Link>
                             </p>
-                            {currentUserId && post.authorId !== currentUserId && (
-                                <FollowButtonClient 
-                                  targetUserId={post.authorId} 
-                                  targetUserProfile={{ displayName: post.authorName }}
-                                />
-                             )}
+                            <FollowButtonClient 
+                                targetUserId={post.authorId} 
+                                targetUserProfile={{ displayName: post.authorName }}
+                            />
                            </div>
                           <p className="text-xs text-muted-foreground">
                              Posted {formatDistanceToNowStrict(postCreatedAt, { addSuffix: true })}
                           </p>
                         </div>
                       </div>
-                      <div>
-                        <PostCardOptionsMenu post={post} />
-                      </div>
+                       {/* Post options menu - only visible to post author */}
+                        {currentUserId === post.authorId && (
+                            <div>
+                                <PostCardOptionsMenu post={post} />
+                            </div>
+                        )}
                     </div>
                   </CardHeader>
                   <CardContent className="p-4 md:p-5 pt-0">

@@ -13,7 +13,7 @@ import {
   signOut,
   sendPasswordResetEmail,
   updateProfile as updateFirebaseUserProfile,
-  sendEmailVerification, // Import sendEmailVerification
+  sendEmailVerification,
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, serverTimestamp, collection, addDoc, DocumentReference, query, where, getDocs, updateDoc, Timestamp } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
@@ -28,17 +28,17 @@ export interface UserProfile {
   techStack?: string[];
   interests?: string[];
   onboardingCompleted: boolean;
-  createdAt?: string;
-  lastLogin?: string;
-  updatedAt?: string;
+  createdAt?: string; // ISO string
+  lastLogin?: string; // ISO string
+  updatedAt?: string; // ISO string
   followersCount?: number;
   followingCount?: number;
 }
 
 interface UpdateProfileData {
   displayName?: string;
-  photoDataUrl?: string | null;
-  bannerDataUrl?: string | null;
+  photoDataUrl?: string | null; // Can be a new data URL or an existing URL string, or null to remove
+  bannerDataUrl?: string | null; // Can be a new data URL or an existing URL string, or null to remove
   bio?: string;
   techStack?: string[];
   onboardingCompleted?: boolean;
@@ -46,7 +46,7 @@ interface UpdateProfileData {
 
 interface CreateCommunityData {
   name: string;
-  iconFile?: File;
+  iconFile?: File; // File object for new uploads
   description: string;
   tags: string[];
 }
@@ -57,7 +57,7 @@ interface CreatePostData {
   communityName?: string | null;
   description: string;
   codeSnippet?: string;
-  imageFile?: File;
+  imageFile?: File; // File object for new uploads
   tags: string[];
 }
 
@@ -67,7 +67,7 @@ interface AuthContextType {
   userProfile: UserProfile | null;
   loading: boolean;
   signInWithGoogle: () => Promise<void>;
-  signUpWithEmail: (email: string, password: string, name: string, interests?: string[], photoURL?: string) => Promise<void>;
+  signUpWithEmail: (email: string, password: string, name: string, interests?: string[]) => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   sendPasswordReset: (email: string) => Promise<void>;
@@ -79,12 +79,48 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const uploadImageToStorage = async (file: File, path: string): Promise<string> => {
-  const { getStorage, ref: storageRef, uploadBytes, getDownloadURL } = await import('firebase/storage');
-  const storage = getStorage(app);
-  const fileRef = storageRef(storage, path);
-  await uploadBytes(fileRef, file);
-  return getDownloadURL(fileRef);
+// This function is not used in this iteration, image handling is direct data URLs.
+// const uploadImageToStorage = async (file: File, path: string): Promise<string> => {
+//   const { getStorage, ref: storageRef, uploadBytes, getDownloadURL } = await import('firebase/storage');
+//   const storage = getStorage(app);
+//   const fileRef = storageRef(storage, path);
+//   await uploadBytes(fileRef, file);
+//   return getDownloadURL(fileRef);
+// };
+
+
+const processUserProfileFromFirestore = (docSnapData: any, uid: string): UserProfile => {
+    const profileData = { ...docSnapData };
+    const dateFields: (keyof UserProfile)[] = ['createdAt', 'lastLogin', 'updatedAt'];
+    dateFields.forEach(field => {
+      const val = profileData[field];
+      if (val && typeof (val as Timestamp).toDate === 'function') {
+        profileData[field] = (val as Timestamp).toDate().toISOString();
+      } else if (val instanceof Date) {
+        profileData[field] = val.toISOString();
+      } else if (typeof val === 'string') {
+        // Attempt to parse if it's a string, otherwise keep as is
+        try {
+            profileData[field] = new Date(val).toISOString();
+        } catch (e) { /* keep original string if not parsable */ }
+      }
+    });
+    return {
+      uid: uid,
+      email: profileData.email || null,
+      displayName: profileData.displayName || null,
+      photoURL: profileData.photoURL || null,
+      bannerURL: profileData.bannerURL || null,
+      bio: profileData.bio || '',
+      techStack: profileData.techStack || [],
+      interests: profileData.interests || [],
+      onboardingCompleted: typeof profileData.onboardingCompleted === 'boolean' ? profileData.onboardingCompleted : false,
+      createdAt: profileData.createdAt, // Should be ISO string now
+      lastLogin: profileData.lastLogin, // Should be ISO string now
+      updatedAt: profileData.updatedAt, // Should be ISO string now
+      followersCount: profileData.followersCount || 0,
+      followingCount: profileData.followingCount || 0,
+    };
 };
 
 
@@ -96,86 +132,65 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      setLoading(true); // Set loading true at the start of auth state change
       if (firebaseUser) {
         setUser(firebaseUser);
         const userDocRef = doc(db, 'users', firebaseUser.uid);
         const userDocSnap = await getDoc(userDocRef);
         if (userDocSnap.exists()) {
-          let profileData = userDocSnap.data() as any;
-          const dateFields: (keyof UserProfile)[] = ['createdAt', 'lastLogin', 'updatedAt'];
-          dateFields.forEach(field => {
-            const val = profileData[field];
-            if (val && typeof (val as Timestamp).toDate === 'function') {
-              profileData[field] = (val as Timestamp).toDate().toISOString();
-            } else if (val instanceof Date) {
-              profileData[field] = val.toISOString();
-            } else if (typeof val === 'string') {
-              profileData[field] = val;
-            } else if (val) {
-                 try {
-                    profileData[field] = new Date(val).toISOString();
-                } catch (e) {
-                    profileData[field] = val;
-                }
-            }
-          });
-          if (typeof profileData.onboardingCompleted === 'undefined') {
-            profileData.onboardingCompleted = false;
-          }
-          profileData.followersCount = profileData.followersCount || 0;
-          profileData.followingCount = profileData.followingCount || 0;
-          profileData.bannerURL = profileData.bannerURL || null;
-          setUserProfile(profileData as UserProfile);
+          const fetchedProfile = processUserProfileFromFirestore(userDocSnap.data(), firebaseUser.uid);
+          setUserProfile(fetchedProfile);
+          // Update lastLogin without necessarily re-fetching the whole profile for this minor update
+          await setDoc(userDocRef, { lastLogin: serverTimestamp() }, { merge: true });
         } else {
+          // Create new user profile
           const initialPhotoURL = firebaseUser.photoURL;
-          const newUserProfile: UserProfile = {
+          const newProfileData: UserProfile = {
             uid: firebaseUser.uid,
             email: firebaseUser.email,
             displayName: firebaseUser.displayName,
             photoURL: initialPhotoURL,
             bannerURL: null,
             onboardingCompleted: false,
-            createdAt: new Date().toISOString(),
-            lastLogin: new Date().toISOString(),
+            createdAt: new Date().toISOString(), // For immediate client use
+            lastLogin: new Date().toISOString(),  // For immediate client use
             followersCount: 0,
             followingCount: 0,
+            bio: '',
+            techStack: [],
+            interests: [],
           };
           await setDoc(userDocRef, {
-            ...newUserProfile,
-            bannerURL: null,
-            createdAt: serverTimestamp(),
-            lastLogin: serverTimestamp(),
+            ...newProfileData,
+            createdAt: serverTimestamp(), // Firestore server timestamp for DB
+            lastLogin: serverTimestamp(),  // Firestore server timestamp for DB
           });
-          setUserProfile(newUserProfile);
+          setUserProfile(newProfileData);
         }
-        await setDoc(userDocRef, { lastLogin: serverTimestamp() }, { merge: true });
-
       } else {
         setUser(null);
         setUserProfile(null);
       }
-      setLoading(false);
+      setLoading(false); // Set loading false after all processing is done
     });
 
     return () => unsubscribe();
-  }, [router]);
+  }, []); // Removed router from dependencies as it's stable
 
-  const createUserProfileDocument = async (firebaseUser: FirebaseUser, additionalData: Partial<UserProfile> = {}) => {
+
+  const createUserProfileDocument = async (
+    firebaseUser: FirebaseUser,
+    additionalData: Partial<UserProfile> = {}
+  ): Promise<UserProfile> => {
     const userDocRef = doc(db, 'users', firebaseUser.uid);
     const userDocSnap = await getDoc(userDocRef);
 
-    let profileDataToSet: Omit<UserProfile, 'createdAt' | 'lastLogin' | 'updatedAt'> & { createdAt: Timestamp, lastLogin: Timestamp, updatedAt?: Timestamp };
-    let clientProfileData: UserProfile;
-
     if (!userDocSnap.exists()) {
-      const { email, displayName } = firebaseUser;
-      const initialPhotoURL = additionalData.photoURL !== undefined ? additionalData.photoURL : firebaseUser.photoURL;
-
-      profileDataToSet = {
+      const newProfile: UserProfile = {
         uid: firebaseUser.uid,
-        email,
-        displayName: additionalData.displayName || displayName,
-        photoURL: initialPhotoURL,
+        email: firebaseUser.email,
+        displayName: additionalData.displayName || firebaseUser.displayName || 'New User',
+        photoURL: additionalData.photoURL !== undefined ? additionalData.photoURL : firebaseUser.photoURL,
         bannerURL: additionalData.bannerURL || null,
         bio: additionalData.bio || '',
         techStack: additionalData.techStack || [],
@@ -183,58 +198,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         onboardingCompleted: additionalData.onboardingCompleted || false,
         followersCount: 0,
         followingCount: 0,
-        ...additionalData,
-        createdAt: serverTimestamp() as Timestamp,
-        lastLogin: serverTimestamp() as Timestamp,
+        createdAt: new Date().toISOString(), // For immediate use
+        lastLogin: new Date().toISOString(), // For immediate use
       };
-      clientProfileData = {
-        ...profileDataToSet,
-        createdAt: new Date().toISOString(),
-        lastLogin: new Date().toISOString(),
-      };
-      try {
-        await setDoc(userDocRef, profileDataToSet);
-      } catch (error) {
-        console.error("Error creating user profile: ", error);
-        throw error;
-      }
+      await setDoc(userDocRef, {
+        ...newProfile,
+        createdAt: serverTimestamp(),
+        lastLogin: serverTimestamp(),
+      });
+      setUserProfile(newProfile); // Update context state
+      return newProfile;
     } else {
-       let existingData = userDocSnap.data() as any;
-        clientProfileData = {
-            ...existingData,
-            uid: userDocSnap.id,
-            createdAt: (existingData.createdAt as Timestamp)?.toDate ? (existingData.createdAt as Timestamp).toDate().toISOString() : new Date().toISOString(),
-            lastLogin: (existingData.lastLogin as Timestamp)?.toDate ? (existingData.lastLogin as Timestamp).toDate().toISOString() : new Date().toISOString(),
-            updatedAt: (existingData.updatedAt as Timestamp)?.toDate ? (existingData.updatedAt as Timestamp).toDate().toISOString() : undefined,
-            onboardingCompleted: typeof existingData.onboardingCompleted === 'undefined' ? false : existingData.onboardingCompleted,
-            followersCount: existingData.followersCount || 0,
-            followingCount: existingData.followingCount || 0,
-            bannerURL: existingData.bannerURL || null,
-        } as UserProfile;
-
-        const updatePayload: { onboardingCompleted?: boolean, lastLogin: Timestamp, followersCount?: number, followingCount?: number, bannerURL?: string | null } = {
-            lastLogin: serverTimestamp() as Timestamp,
-        };
-        if (typeof clientProfileData.onboardingCompleted === 'undefined') {
-            updatePayload.onboardingCompleted = false;
-            clientProfileData.onboardingCompleted = false;
-        }
-        if (typeof clientProfileData.followersCount !== 'number') {
-            updatePayload.followersCount = 0;
-            clientProfileData.followersCount = 0;
-        }
-        if (typeof clientProfileData.followingCount !== 'number') {
-            updatePayload.followingCount = 0;
-            clientProfileData.followingCount = 0;
-        }
-        if (typeof clientProfileData.bannerURL === 'undefined') {
-            updatePayload.bannerURL = null;
-            clientProfileData.bannerURL = null;
-        }
-        await setDoc(userDocRef, updatePayload , { merge: true });
+      // Profile exists, ensure it's up-to-date in context
+      const existingProfile = processUserProfileFromFirestore(userDocSnap.data(), firebaseUser.uid);
+      setUserProfile(existingProfile);
+      await setDoc(userDocRef, { lastLogin: serverTimestamp() }, { merge: true });
+      return existingProfile;
     }
-    setUserProfile(clientProfileData);
-    return clientProfileData;
   };
 
   const signInWithGoogle = async () => {
@@ -245,10 +225,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (result.user) {
         const currentProfile = await createUserProfileDocument(result.user, {
           photoURL: result.user.photoURL,
-          displayName: result.user.displayName
+          displayName: result.user.displayName,
         });
-
-        if (currentProfile && !currentProfile.onboardingCompleted) {
+        if (!currentProfile.onboardingCompleted) {
              router.push('/onboarding/profile-setup');
         } else {
             router.push('/');
@@ -256,9 +235,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     } catch (error) {
       console.error("Error signing in with Google: ", error);
+      // Rethrow to be caught by UI form if necessary
       throw error;
     } finally {
-      setLoading(false);
+      // setLoading(false); // Auth state change listener will handle final loading state
     }
   };
 
@@ -267,18 +247,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setLoading(true);
       const result = await createUserWithEmailAndPassword(auth, email, password);
       if (result.user) {
-        await sendEmailVerification(result.user); // Send verification email
+        await sendEmailVerification(result.user);
         await updateFirebaseUserProfile(result.user, { displayName: name });
         await createUserProfileDocument(result.user, { displayName: name, interests, onboardingCompleted: false, photoURL: null, bannerURL: null });
-        // The toast message will be shown by the SignupForm component, or we could pass a callback for that.
-        // For now, the form will show its own toast.
         router.push('/onboarding/profile-setup');
       }
     } catch (error) {
       console.error("Error signing up: ", error);
       throw error;
     } finally {
-      setLoading(false);
+      // setLoading(false); // Auth state change listener handles loading
     }
   };
 
@@ -287,62 +265,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setLoading(true);
       const result = await signInWithEmailAndPassword(auth, email, password);
        if (result.user) {
-        const userDocRef = doc(db, 'users', result.user.uid);
-        const userDocSnap = await getDoc(userDocRef);
-        if (userDocSnap.exists()) {
-            let profile = userDocSnap.data() as any;
-            const clientProfile = {
-                ...profile,
-                uid: userDocSnap.id,
-                createdAt: (profile.createdAt as Timestamp)?.toDate ? (profile.createdAt as Timestamp).toDate().toISOString() : new Date().toISOString(),
-                lastLogin: (profile.lastLogin as Timestamp)?.toDate ? (profile.lastLogin as Timestamp).toDate().toISOString() : new Date().toISOString(),
-                updatedAt: (profile.updatedAt as Timestamp)?.toDate ? (profile.updatedAt as Timestamp).toDate().toISOString() : undefined,
-                onboardingCompleted: typeof profile.onboardingCompleted === 'undefined' ? false : profile.onboardingCompleted,
-                followersCount: profile.followersCount || 0,
-                followingCount: profile.followingCount || 0,
-                bannerURL: profile.bannerURL || null,
-            } as UserProfile;
-
-            setUserProfile(clientProfile);
-            if (!result.user.emailVerified) {
-              // Optional: Inform user to check their email if not verified.
-              // You might want to restrict access or show a banner until verified.
-              // For now, we just log them in.
-            }
-            if (!clientProfile.onboardingCompleted) {
-                router.push('/onboarding/profile-setup');
-            } else {
-                router.push('/');
-            }
+        const currentProfile = await createUserProfileDocument(result.user); // Ensures profile exists and is loaded
+        if (!currentProfile.onboardingCompleted) {
+            router.push('/onboarding/profile-setup');
         } else {
-            const profile = await createUserProfileDocument(result.user, { onboardingCompleted: false });
-            if (!profile.onboardingCompleted) {
-                 router.push('/onboarding/profile-setup');
-            } else {
-                router.push('/');
-            }
+            router.push('/');
         }
       }
     } catch (error) {
       console.error("Error signing in: ", error);
       throw error;
     } finally {
-      setLoading(false);
+       // setLoading(false); // Auth state change listener handles loading
     }
   };
 
   const logout = async () => {
     try {
-      setLoading(true);
+      // setLoading(true); // onAuthStateChanged will handle this
       await signOut(auth);
-      setUser(null);
-      setUserProfile(null);
-      router.push('/login');
+      // setUser(null); // Handled by onAuthStateChanged
+      // setUserProfile(null); // Handled by onAuthStateChanged
+      router.push('/login'); // Explicit redirect
     } catch (error) {
       console.error("Error signing out: ", error);
       throw error;
     } finally {
-        setLoading(false);
+        // setLoading(false); // Handled by onAuthStateChanged
     }
   };
 
@@ -360,76 +309,44 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     try {
       const userDocRef = doc(db, 'users', user.uid);
-
-      const profileUpdateForFirestore: Partial<UserProfile & {updatedAt: Timestamp}> = {
-        displayName: data.displayName,
-        bio: data.bio,
-        techStack: data.techStack,
-        onboardingCompleted: data.onboardingCompleted,
+      const updateForFirestore: Partial<UserProfile & {updatedAt: Timestamp}> = {
         updatedAt: serverTimestamp() as Timestamp,
       };
 
-      if (data.photoDataUrl !== undefined) {
-        profileUpdateForFirestore.photoURL = data.photoDataUrl;
-      }
-      if (data.bannerDataUrl !== undefined) {
-        profileUpdateForFirestore.bannerURL = data.bannerDataUrl;
-      }
+      if (data.displayName !== undefined) updateForFirestore.displayName = data.displayName;
+      if (data.bio !== undefined) updateForFirestore.bio = data.bio;
+      if (data.techStack !== undefined) updateForFirestore.techStack = data.techStack;
+      if (data.onboardingCompleted !== undefined) updateForFirestore.onboardingCompleted = data.onboardingCompleted;
+      if (data.photoDataUrl !== undefined) updateForFirestore.photoURL = data.photoDataUrl;
+      if (data.bannerDataUrl !== undefined) updateForFirestore.bannerURL = data.bannerDataUrl;
 
-      Object.keys(profileUpdateForFirestore).forEach(key => {
-        const typedKey = key as keyof typeof profileUpdateForFirestore;
-        if (profileUpdateForFirestore[typedKey] === undefined) {
-          delete profileUpdateForFirestore[typedKey];
-        }
-      });
+      await updateDoc(userDocRef, updateForFirestore);
 
-      await updateDoc(userDocRef, profileUpdateForFirestore);
-
+      // Update Firebase Auth profile if displayName or photoURL changed
       if (auth.currentUser) {
-        const updatesForFirebaseAuth: { displayName?: string; photoURL?: string | null } = {};
-        let needsFirebaseAuthUpdate = false;
-
+        const authUpdates: { displayName?: string; photoURL?: string | null } = {};
         if (data.displayName !== undefined && data.displayName !== auth.currentUser.displayName) {
-          updatesForFirebaseAuth.displayName = data.displayName;
-          needsFirebaseAuthUpdate = true;
+          authUpdates.displayName = data.displayName;
         }
-        
-        if (data.photoDataUrl !== undefined) { 
-          if (data.photoDataUrl === null) {
-            if (auth.currentUser.photoURL !== null) { 
-              updatesForFirebaseAuth.photoURL = null;
-              needsFirebaseAuthUpdate = true;
+        // Only update Firebase Auth photoURL if it's a non-data URL string or null to remove
+        if (data.photoDataUrl !== undefined) {
+            if (data.photoDataUrl === null && auth.currentUser.photoURL !== null) {
+                authUpdates.photoURL = null;
+            } else if (typeof data.photoDataUrl === 'string' && !data.photoDataUrl.startsWith('data:') && data.photoDataUrl !== auth.currentUser.photoURL) {
+                authUpdates.photoURL = data.photoDataUrl;
             }
-          } else if (typeof data.photoDataUrl === 'string') {
-            if (data.photoDataUrl.trim() !== '' && !data.photoDataUrl.startsWith('data:')) {
-              if (data.photoDataUrl !== auth.currentUser.photoURL) {
-                updatesForFirebaseAuth.photoURL = data.photoDataUrl;
-                needsFirebaseAuthUpdate = true;
-              }
-            }
-          }
         }
 
 
-        if (needsFirebaseAuthUpdate && Object.keys(updatesForFirebaseAuth).length > 0) {
-          await updateFirebaseUserProfile(auth.currentUser, updatesForFirebaseAuth);
+        if (Object.keys(authUpdates).length > 0) {
+          await updateFirebaseUserProfile(auth.currentUser, authUpdates);
         }
       }
 
-      const updatedDoc = await getDoc(userDocRef);
-      if (updatedDoc.exists()) {
-        let updatedProfileData = updatedDoc.data() as any;
-        const clientProfile = {
-            ...updatedProfileData,
-            uid: updatedDoc.id,
-            createdAt: (updatedProfileData.createdAt as Timestamp)?.toDate ? (updatedProfileData.createdAt as Timestamp).toDate().toISOString() : new Date().toISOString(),
-            lastLogin: (updatedProfileData.lastLogin as Timestamp)?.toDate ? (updatedProfileData.lastLogin as Timestamp).toDate().toISOString() : new Date().toISOString(),
-            updatedAt: (updatedProfileData.updatedAt as Timestamp)?.toDate ? (updatedProfileData.updatedAt as Timestamp).toDate().toISOString() : new Date().toISOString(),
-            followersCount: updatedProfileData.followersCount || 0,
-            followingCount: updatedProfileData.followingCount || 0,
-            bannerURL: updatedProfileData.bannerURL || null,
-        } as UserProfile;
-        setUserProfile(clientProfile);
+      // Re-fetch and update local userProfile state
+      const updatedDocSnap = await getDoc(userDocRef);
+      if (updatedDocSnap.exists()) {
+        setUserProfile(processUserProfileFromFirestore(updatedDocSnap.data(), user.uid));
       }
     } catch (error) {
       console.error("Error updating profile: ", error);
@@ -440,7 +357,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const createCommunity = async (data: CreateCommunityData): Promise<string> => {
-    if (!user) throw new Error("User not authenticated");
+    if (!user || !userProfile) throw new Error("User not authenticated or profile missing");
     setLoading(true);
     try {
       const communityColRef = collection(db, 'communities');
@@ -455,18 +372,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         iconURL: null, 
       };
 
-      if (data.iconFile) {
+      if (data.iconFile) { // Assuming iconFile is a File object
         const reader = new FileReader();
-        await new Promise<void>((resolve, reject) => {
-            reader.onloadend = () => {
-                communityPayload.iconURL = reader.result as string;
-                resolve();
-            };
+        communityPayload.iconURL = await new Promise<string>((resolve, reject) => {
+            reader.onloadend = () => resolve(reader.result as string);
             reader.onerror = reject;
             reader.readAsDataURL(data.iconFile!);
         });
       }
-
 
       const newCommunityDocRef = await addDoc(communityColRef, communityPayload);
       return newCommunityDocRef.id;
@@ -500,18 +413,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         imageURL: null, 
       };
 
-      if (data.imageFile) {
+      if (data.imageFile) { // Assuming imageFile is a File object
          const reader = new FileReader();
-        await new Promise<void>((resolve, reject) => {
-            reader.onloadend = () => {
-                postPayload.imageURL = reader.result as string;
-                resolve();
-            };
+         postPayload.imageURL = await new Promise<string>((resolve, reject) => {
+            reader.onloadend = () => resolve(reader.result as string);
             reader.onerror = reject;
             reader.readAsDataURL(data.imageFile!);
         });
       }
-
 
       const newPostDocRef = await addDoc(postColRef, postPayload);
       return newPostDocRef.id;
@@ -522,21 +431,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setLoading(false);
     }
   };
-
+  
   const deleteCurrentUserAccount = async () => {
     if (!user) throw new Error("User not authenticated.");
     try {
-      setLoading(true);
-      await user.delete();
+      setLoading(true); // Indicate process start
+      // Firestore data deletion is handled by a server action called from settings page
+      await user.delete(); // This will trigger onAuthStateChanged
+      // No need to setUser(null) or router.push here, onAuthStateChanged will handle it
     } catch (error: any) {
       console.error("Error deleting Firebase Auth user:", error);
+      setLoading(false); // Reset loading on error
       if (error.code === 'auth/requires-recent-login') {
         throw new Error("This operation is sensitive and requires recent authentication. Please log out and log back in, then try again.");
       }
       throw error;
-    } finally {
-      setLoading(false);
-    }
+    } 
+    // setLoading(false) is handled by onAuthStateChanged if successful
   };
 
 

@@ -19,26 +19,31 @@ import type { UserProfile } from '@/contexts/AuthContext';
 import { createNotification } from '@/services/notificationService';
 import type { NotificationActor } from '@/types/notifications';
 
-async function revalidateProfilePaths(userId: string, otherUserId?: string) {
-  revalidatePath(`/profile/${userId}`); // Revalidate the current user's profile who initiated the action
-  if (otherUserId) {
-    revalidatePath(`/profile/${otherUserId}`); // Revalidate the target user's profile
+// Updated revalidation paths
+async function revalidateProfilePaths(currentUserId: string, targetUserId?: string) {
+  revalidatePath('/profile'); // For the current user's own profile page (src/app/profile/page.tsx)
+  if (targetUserId) {
+    revalidatePath(`/profile/${targetUserId}`); // For the target user's profile page
   }
   // Revalidate common pages where follow status/counts might appear
-  revalidatePath('/');
-  revalidatePath('/communities'); // Discover page
+  revalidatePath('/'); // Home feed
+  revalidatePath('/communities'); // Discover page (user lists)
   revalidatePath('/notifications'); // For potential notification updates
 }
 
 export async function followUser(
   currentUserId: string,
-  currentUserProfile: Pick<UserProfile, 'uid' | 'displayName' | 'photoURL'>,
+  currentUserProfile: Pick<UserProfile, 'uid' | 'displayName' | 'photoURL'>, // For notification actor
   targetUserId: string,
-  targetUserProfile: Pick<UserProfile, 'displayName'> // Only need display name for notification message
+  targetUserProfile: Pick<UserProfile, 'displayName'> // For notification message
 ): Promise<{ success: boolean; message: string }> {
   if (!currentUserId || !targetUserId || currentUserId === targetUserId) {
     return { success: false, message: 'Invalid user IDs.' };
   }
+  if (!currentUserProfile.uid || !currentUserProfile.displayName) {
+    return { success: false, message: 'Current user profile information is incomplete for notification.' };
+  }
+
 
   const batch = writeBatch(db);
 
@@ -55,22 +60,20 @@ export async function followUser(
   try {
     await batch.commit();
 
-    if (currentUserProfile) {
-       const actor: NotificationActor = {
-        id: currentUserProfile.uid,
-        displayName: currentUserProfile.displayName,
-        avatarUrl: currentUserProfile.photoURL
-      };
-      await createNotification({
-        userId: targetUserId,
-        type: 'new_follower',
-        actor,
-        message: `${currentUserProfile.displayName || 'Someone'} started following you.`,
-        link: `/profile/${currentUserId}`, // Link to the follower's profile
-        relatedEntityId: currentUserId,
-      });
-    }
-
+    const actor: NotificationActor = {
+      id: currentUserProfile.uid,
+      displayName: currentUserProfile.displayName, // Already checked for null/undefined
+      avatarUrl: currentUserProfile.photoURL
+    };
+    await createNotification({
+      userId: targetUserId,
+      type: 'new_follower',
+      actor,
+      message: `${currentUserProfile.displayName} started following you.`,
+      link: `/profile/${currentUserId}`,
+      relatedEntityId: currentUserId,
+    });
+    
     await revalidateProfilePaths(currentUserId, targetUserId);
     return { success: true, message: `Successfully followed ${targetUserProfile.displayName || 'user'}.` };
   } catch (error: any) {
@@ -132,21 +135,13 @@ export async function deleteUserAccountAndBasicData(
       batch.delete(docSnap.ref);
     });
 
-    // IMPORTANT: Add deletion for user's posts
     const postsColRef = collection(db, 'posts');
     const postsQuery = query(postsColRef, where('authorId', '==', userId));
     const postsSnapshot = await getDocs(postsQuery);
     postsSnapshot.forEach(docSnap => {
-        // Further: could delete comments and likes within each post, or handle via Firebase Functions
         batch.delete(docSnap.ref);
     });
 
-    // IMPORTANT: Add deletion for user's comments (more complex, might need iterating through all posts)
-    // For simplicity, this is omitted here but is crucial for full data cleanup.
-    // Example: Iterate all posts, then all comments within those posts, then check authorId.
-    // This is very inefficient without proper indexing or a Firebase Function.
-
-    // IMPORTANT: Remove user from community member lists and decrement counts
     const communitiesColRef = collection(db, 'communities');
     const memberCommunitiesQuery = query(communitiesColRef, where('members', 'array-contains', userId));
     const memberCommunitiesSnapshot = await getDocs(memberCommunitiesQuery);
@@ -157,14 +152,18 @@ export async function deleteUserAccountAndBasicData(
         });
     });
 
+    // Consider deleting user's followers and following entries (from other users' subcollections)
+    // This is more complex and might be better handled by a Firebase Function for atomicity and thoroughness.
+    // For now, focusing on data directly owned by or referencing the user.
+
 
     await batch.commit();
     
-    revalidatePath('/profile');
+    revalidatePath('/profile'); // Current user's profile
     revalidatePath('/settings');
-    revalidatePath('/'); // Revalidate home feed
-    revalidatePath('/communities'); // Revalidate communities list
-    // Other paths might need revalidation depending on how deleted user's content is handled.
+    revalidatePath('/'); 
+    revalidatePath('/communities');
+    // No easy way to revalidate all profiles that might have followed/been followed by this user without knowing their IDs.
 
     return { success: true, message: 'User data (profile, notifications, posts, community memberships) removed successfully. Firebase Auth record to be deleted by client.' };
   } catch (error: any) {

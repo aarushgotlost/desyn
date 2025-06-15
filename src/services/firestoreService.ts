@@ -26,8 +26,12 @@ export async function getCurrentUserId(): Promise<string | null> {
   // Attempt to get current user from Firebase Auth if called in a context where it's available.
   // This is NOT a reliable way to get user in RSCs in general if auth state isn't propagated server-side.
   // For server actions, the user should be explicitly passed or derived from an authenticated context.
-  const currentUser = auth.currentUser; // This might be null on server if not initialized or if state isn't shared
-  return currentUser ? currentUser.uid : null;
+  
+  // This function will be called from Server Components.
+  // auth.currentUser will likely be null in that context unless Firebase Admin SDK is used with sessions.
+  // For now, let's return null, and rely on client components to pass the currentUserId where needed from useAuth().
+  // If a more robust server-side session mechanism is added later, this can be updated.
+  return null; // Modified to reflect typical RSC behavior without complex session setup
 }
 
 // Generic processor for Firestore document snapshots
@@ -38,7 +42,6 @@ const processDoc = <T extends { id: string; createdAt?: string | Timestamp | Dat
     ...data,
   };
 
-  // Standardize date fields to ISO strings
   const dateFields: (keyof T)[] = ['createdAt', 'updatedAt', 'lastLogin', 'lastMessageAt'];
   dateFields.forEach(field => {
     const fieldValue = data[field];
@@ -76,8 +79,8 @@ const processDoc = <T extends { id: string; createdAt?: string | Timestamp | Dat
   if ('authorId' in data) { 
       processedData.authorAvatar = data.authorAvatar || null;
   }
-  // Ensure UserProfile specific fields are defaulted if not present
-  if (typeof data.uid !== 'undefined' || docSnap.ref.parent.id === 'users') { // Check if it's likely a user document
+  
+  if (typeof data.uid !== 'undefined' || docSnap.ref.parent.id === 'users') { 
       processedData.photoURL = data.photoURL || null;
       processedData.bannerURL = data.bannerURL || null;
       processedData.followersCount = data.followersCount || 0;
@@ -187,6 +190,7 @@ export function getCommentsForPostRealtime(
     });
     callback(comments);
   }, (error) => {
+    console.error("Error in getCommentsForPostRealtime snapshot: ", error);
     if (onError) onError(error);
   });
 
@@ -194,25 +198,41 @@ export function getCommentsForPostRealtime(
 }
 
 
-// Renamed from getAllUsersForNewChat for broader use
 export async function getDiscoverableUsers(currentUserId: string | null, count: number = 20): Promise<UserProfile[]> {
     noStore();
     const usersCol = collection(db, 'users');
     let q;
-    // If a currentUserId is provided, exclude them from the list.
-    // Also, we only want users who have completed onboarding to be discoverable.
+    // We only want users who have completed onboarding to be discoverable.
+    // And if currentUserId is provided, exclude them.
     if (currentUserId) {
-        q = query(usersCol, where('uid', '!=', currentUserId), where('onboardingCompleted', '==', true), orderBy('displayName', 'asc'), limit(count));
+        q = query(
+            usersCol, 
+            where('onboardingCompleted', '==', true),
+            where('uid', '!=', currentUserId),  // This might require a composite index if not already present or if combined with other inequalities/orders.
+                                              // However, Firestore often handles inequality on document ID well with single field indexes.
+            orderBy('uid'), // Order by uid to use the inequality filter effectively
+            // orderBy('displayName', 'asc'), // Cannot order by displayName if inequality is on uid without a specific composite index.
+                                         // For simplicity, let's order by uid and then sort client-side if needed, or create the index.
+                                         // Let's remove displayName ordering for now to avoid guaranteed index requirement.
+            limit(count)
+        );
     } else {
-        // If no current user (e.g., logged out view, though less likely for this feature), fetch all onboarded users.
         q = query(usersCol, where('onboardingCompleted', '==', true), orderBy('displayName', 'asc'), limit(count));
     }
     
     try {
         const snapshot = await getDocs(q);
-        return snapshot.docs.map(docSnap => processDoc<UserProfile>(docSnap));
+        let users = snapshot.docs.map(docSnap => processDoc<UserProfile>(docSnap));
+        // If we ordered by uid for the query with currentUserId, sort by displayName now
+        if (currentUserId) {
+            users.sort((a, b) => (a.displayName || '').localeCompare(b.displayName || ''));
+        }
+        return users;
     } catch (error) {
         console.error("Error fetching discoverable users:", error);
+        // This is where "index required" errors would typically surface.
+        // Re-throw or return empty, depending on desired error handling.
+        // throw error; 
         return [];
     }
 }
@@ -245,11 +265,19 @@ export async function getUserJoinedCommunities(userId: string): Promise<Communit
 }
 
 export async function isFollowing(currentUserId: string, targetUserId: string): Promise<boolean> {
-  noStore();
+  // This function is called client-side by FollowButtonClient, noStore is not needed here.
+  // But it's a server-callable function too. If called from RSC, noStore is appropriate.
+  // For client calls, it doesn't hurt.
+  noStore(); 
   if (!currentUserId || !targetUserId) return false;
-  const followingRef = doc(db, 'users', currentUserId, 'following', targetUserId);
-  const docSnap = await getDoc(followingRef);
-  return docSnap.exists();
+  try {
+    const followingRef = doc(db, 'users', currentUserId, 'following', targetUserId);
+    const docSnap = await getDoc(followingRef);
+    return docSnap.exists();
+  } catch (error) {
+    console.error("Error checking follow status:", error);
+    return false; // Default to false on error to prevent unexpected UI states
+  }
 }
 
 export async function getFollowers(userId: string, count: number = 10): Promise<Partial<UserProfile>[]> {
@@ -262,14 +290,16 @@ export async function getFollowers(userId: string, count: number = 10): Promise<
     const followerProfiles: Partial<UserProfile>[] = [];
     for (const followerDoc of snapshot.docs) {
         const followerData = followerDoc.data();
-        const userProfileDoc = await getDoc(doc(db, 'users', followerData.userId));
-        if (userProfileDoc.exists()) {
-            const profile = processDoc<UserProfile>(userProfileDoc); 
-            followerProfiles.push({
-                uid: userProfileDoc.id,
-                displayName: profile.displayName,
-                photoURL: profile.photoURL,
-            });
+        if (followerData.userId) { // Ensure userId field exists
+          const userProfileDoc = await getDoc(doc(db, 'users', followerData.userId));
+          if (userProfileDoc.exists()) {
+              const profile = processDoc<UserProfile>(userProfileDoc); 
+              followerProfiles.push({
+                  uid: userProfileDoc.id,
+                  displayName: profile.displayName,
+                  photoURL: profile.photoURL,
+              });
+          }
         }
     }
     return followerProfiles;
@@ -285,14 +315,16 @@ export async function getFollowing(userId: string, count: number = 10): Promise<
     const followingProfiles: Partial<UserProfile>[] = [];
     for (const followingDoc of snapshot.docs) {
         const followingData = followingDoc.data();
-        const userProfileDoc = await getDoc(doc(db, 'users', followingData.userId));
-        if (userProfileDoc.exists()) {
-            const profile = processDoc<UserProfile>(userProfileDoc); 
-            followingProfiles.push({
-                uid: userProfileDoc.id,
-                displayName: profile.displayName,
-                photoURL: profile.photoURL,
-            });
+        if (followingData.userId) { // Ensure userId field exists
+          const userProfileDoc = await getDoc(doc(db, 'users', followingData.userId));
+          if (userProfileDoc.exists()) {
+              const profile = processDoc<UserProfile>(userProfileDoc); 
+              followingProfiles.push({
+                  uid: userProfileDoc.id,
+                  displayName: profile.displayName,
+                  photoURL: profile.photoURL,
+              });
+          }
         }
     }
     return followingProfiles;
@@ -302,9 +334,14 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
     noStore();
     if (!userId) return null;
     const userDocRef = doc(db, 'users', userId);
-    const docSnap = await getDoc(userDocRef);
-    if (docSnap.exists()) {
-        return processDoc<UserProfile>(docSnap);
+    try {
+        const docSnap = await getDoc(userDocRef);
+        if (docSnap.exists()) {
+            return processDoc<UserProfile>(docSnap);
+        }
+        return null;
+    } catch (error) {
+        console.error(`Error fetching profile for user ${userId}:`, error);
+        return null;
     }
-    return null;
 }
