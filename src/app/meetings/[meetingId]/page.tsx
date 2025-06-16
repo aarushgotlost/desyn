@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Video, Users, ScreenShare, Mic, MicOff, VideoOff, Settings2, ArrowLeft, Loader2, UserPlus, Copy, Check, PhoneOff, Maximize } from "lucide-react";
+import { Input } from "@/components/ui/input"; // Added missing import
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { getMeetingDetails } from '@/services/firestoreService';
@@ -321,5 +322,3 @@ export default function MeetingDetailPage() {
     </div>
   );
 }
-
-  
