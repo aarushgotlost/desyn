@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { HomeIcon, PlusCircle, MessageSquare, User as UserIcon, Compass } from 'lucide-react'; // Removed Video
+import { HomeIcon, PlusCircle, MessageSquare, User as UserIcon, Compass } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -12,7 +12,6 @@ import { getInitials } from '@/lib/utils';
 const navItems = [
   { href: "/", label: "Home", icon: HomeIcon, authRequired: false },
   { href: "/communities", label: "Discover", icon: Compass, authRequired: false },
-  // { href: "/meetings", label: "Meetings", icon: Video, authRequired: true }, // Removed Meetings
   { href: "/posts/create", label: "Create", icon: PlusCircle, authRequired: true },
   { href: "/messages", label: "Messages", icon: MessageSquare, authRequired: true },
   { href: "/profile", label: "Profile", icon: UserIcon, authRequired: true, isProfile: true }, 
@@ -30,9 +29,11 @@ export function BottomNavigationBar() {
   const isChatDetailPage = pathname.startsWith('/messages/') && pathname.split('/').length > 2 && pathname.split('/')[2] !== 'new';
   const isChatBotPage = pathname === '/chatbot';
   const isAnimatorPage = pathname === '/meeting-room/animator';
-  const isMeetingPage = pathname === '/meetings'; 
+  const isMeetingsPage = pathname === '/meetings'; // Main meetings list page
+  const isMeetingDetailPage = pathname.startsWith('/meetings/') && pathname.split('/').length > 2; // Individual meeting page
 
-  if (authPages.includes(pathname) || isChatDetailPage || isChatBotPage || isAnimatorPage || isMeetingPage) { // Added isMeetingPage here
+
+  if (authPages.includes(pathname) || isChatDetailPage || isChatBotPage || isAnimatorPage || isMeetingsPage || isMeetingDetailPage) { 
     return null;
   }
 

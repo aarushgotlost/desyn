@@ -1,6 +1,6 @@
 
 import { db, auth } from '@/lib/firebase'; 
-import type { Community, Post, Comment } from '@/types/data';
+import type { Community, Post, Comment, Meeting } from '@/types/data';
 import type { UserProfile } from '@/contexts/AuthContext';
 import {
   collection,
@@ -19,10 +19,17 @@ import { unstable_noStore as noStore } from 'next/cache';
 
 export async function getCurrentUserId(): Promise<string | null> {
   noStore();
-  return null; 
+  // This is a placeholder. In a real app, you'd get the current user's ID from an auth session.
+  // For now, we'll assume client-side components handle auth state.
+  // If server-side auth is set up, this would be different.
+  // For the purpose of this prototype, if auth.currentUser is available (during server rendering in some contexts or if cached), use it.
+  // This is generally NOT how you get current user ID reliably in Next.js App Router server components.
+  // Auth state should be managed through context or session providers.
+  // return auth.currentUser ? auth.currentUser.uid : null; 
+  return null; // Let client components use useAuth()
 }
 
-const processDoc = <T extends { id: string; createdAt?: string | Timestamp | Date; updatedAt?: string | Timestamp | Date; lastLogin?: string | Timestamp | Date; lastMessageAt?: string | Timestamp | Date; members?: string[]; authorAvatar?: string | null; photoURL?: string | null; bannerURL?: string | null; followersCount?: number; followingCount?: number; skills?: string[]; }>(docSnap: any): T => { // Added skills
+const processDoc = <T extends { id: string; createdAt?: string | Timestamp | Date; updatedAt?: string | Timestamp | Date; lastLogin?: string | Timestamp | Date; lastMessageAt?: string | Timestamp | Date; members?: string[]; authorAvatar?: string | null; photoURL?: string | null; bannerURL?: string | null; followersCount?: number; followingCount?: number; skills?: string[]; participants?: any[]; participantUids?: string[]; }>(docSnap: any): T => {
   const data = docSnap.data();
   const processedData: any = {
     id: docSnap.id,
@@ -74,9 +81,16 @@ const processDoc = <T extends { id: string; createdAt?: string | Timestamp | Dat
       processedData.followersCount = data.followersCount || 0;
       processedData.followingCount = data.followingCount || 0;
       processedData.bio = data.bio || '';
-      processedData.skills = data.skills || []; // Changed from techStack
+      processedData.skills = data.skills || [];
       processedData.interests = data.interests || [];
       processedData.onboardingCompleted = typeof data.onboardingCompleted === 'boolean' ? data.onboardingCompleted : false;
+  }
+
+  // Check for meeting specific fields
+  if (docSnap.ref.parent.id === 'meetings') {
+    processedData.participants = data.participants || [];
+    processedData.participantUids = data.participantUids || [];
+    processedData.isActive = typeof data.isActive === 'boolean' ? data.isActive : true;
   }
 
 
@@ -206,6 +220,7 @@ export async function getDiscoverableUsers(currentUserId: string | null, count: 
         const snapshot = await getDocs(q);
         let users = snapshot.docs.map(docSnap => processDoc<UserProfile>(docSnap));
         if (currentUserId) {
+            // Sort client-side after filtering to avoid composite index if displayName is primary sort
             users.sort((a, b) => (a.displayName || '').localeCompare(b.displayName || ''));
         }
         return users;
@@ -319,4 +334,43 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
         console.error(`Error fetching profile for user ${userId}:`, error);
         return null;
     }
+}
+
+export async function getAllUsersForNewChat(currentUserId: string, count: number = 50): Promise<UserProfile[]> {
+  noStore();
+  const usersCol = collection(db, 'users');
+  // Query for users, excluding the current user, ordered by displayName
+  const q = query(
+    usersCol,
+    where('uid', '!=', currentUserId),
+    where('onboardingCompleted', '==', true), // Only users who completed onboarding
+    orderBy('uid'), // Firestore requires an orderBy on a field involved in inequality filter
+    // limit(count) // Apply limit if needed
+  );
+  
+  const snapshot = await getDocs(q);
+  // Manually sort by displayName after fetching, as Firestore might not allow orderBy('displayName') with '!=' on 'uid'
+  return snapshot.docs
+    .map(docSnap => processDoc<UserProfile>(docSnap))
+    .sort((a, b) => (a.displayName || '').localeCompare(b.displayName || ''))
+    .slice(0, count); // Apply limit after sorting
+}
+
+export async function getMeetings(count: number = 20): Promise<Meeting[]> {
+  noStore();
+  const meetingsCol = collection(db, 'meetings');
+  const q = query(meetingsCol, orderBy('createdAt', 'desc'), limit(count));
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(docSnap => processDoc<Meeting>(docSnap));
+}
+
+export async function getMeetingDetails(meetingId: string): Promise<Meeting | null> {
+  noStore();
+  if (!meetingId) return null;
+  const meetingDocRef = doc(db, 'meetings', meetingId);
+  const docSnap = await getDoc(meetingDocRef);
+  if (docSnap.exists()) {
+    return processDoc<Meeting>(docSnap);
+  }
+  return null;
 }

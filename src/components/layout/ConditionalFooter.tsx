@@ -11,13 +11,15 @@ export function ConditionalFooter() {
     '/signup',
     '/forgot-password',
     '/onboarding', // Main onboarding slides
+    '/meetings', // Main meetings list page
     // '/onboarding/profile-setup', // Footer can be shown here or not, depending on preference
   ];
 
   // Hide if it's a specific chat detail page (e.g., /messages/xxxx), but not on /messages or /messages/new
   const isChatDetailPage = pathname.startsWith('/messages/') && pathname.split('/').length > 2 && pathname.split('/')[2] !== 'new';
+  const isMeetingDetailPage = pathname.startsWith('/meetings/') && pathname.split('/').length > 2;
 
-  if (hiddenFooterPaths.includes(pathname) || isChatDetailPage) {
+  if (hiddenFooterPaths.includes(pathname) || isChatDetailPage || isMeetingDetailPage) {
     return null;
   }
 
