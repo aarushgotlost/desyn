@@ -2,14 +2,14 @@
 import { db } from '@/lib/firebase';
 import { doc, setDoc, getDoc, collection, getDocs, serverTimestamp, query, orderBy, Timestamp, writeBatch } from 'firebase/firestore';
 import type { AnimationFrameData, AnimationProject } from '@/types/data';
-import type { Layer } from '@/context/AnimationContext';
+import type { Layer, Frame } from '@/context/AnimationContext'; // Added Frame import
 
 interface FrameStorageData {
-  id?: string; // The document ID for the frame, e.g., "frame-0"
+  id?: string; 
   dataUrl: string | null;
-  updatedAt: Timestamp; // Firestore ServerTimestamp
-  order?: number; // Optional: if you want to explicitly store order
-  layers?: Layer[]; // Store layer data if it's per-frame
+  updatedAt: Timestamp; 
+  order?: number; 
+  layers?: Layer[]; 
 }
 
 
@@ -17,13 +17,15 @@ export const saveFrameToDb = async (
   projectId: string,
   frameIndex: number,
   dataUrl: string | null,
-  userId: string, // userId is now non-optional
+  userId: string, 
   layers?: Layer[]
 ) => {
   if (!projectId || typeof frameIndex !== 'number') {
     throw new Error("Project ID and frame index are required to save frame data.");
   }
-  // userId is guaranteed by the type signature.
+  if (!userId) {
+    throw new Error("User ID is required to save frame data.");
+  }
 
   const projectDocRef = doc(db, 'projects', projectId);
   const frameDocId = `frame-${frameIndex}`;
@@ -31,50 +33,113 @@ export const saveFrameToDb = async (
 
   const batch = writeBatch(db);
 
-  // Check if project document exists. It should, due to the create flow.
   const projectSnap = await getDoc(projectDocRef);
   if (!projectSnap.exists()) {
-    // This is an unexpected situation. The project document should have been created by createAnimationProject.
-    throw new Error(`Project with ID ${projectId} not found. Frame save aborted as project integrity is compromised.`);
+    throw new Error(`Project with ID ${projectId} not found. Please ensure the project is created before saving frames.`);
   }
 
-  // Project exists, prepare to update its 'updatedAt' and potentially 'thumbnailURL'
   const projectUpdatePayload: { [key: string]: any } = {
     updatedAt: serverTimestamp() as Timestamp,
   };
 
-  // Only update thumbnailURL if it's the first frame (index 0)
   if (frameIndex === 0) {
     const currentThumbnail = projectSnap.data()?.thumbnailURL;
     if (dataUrl !== null && currentThumbnail !== dataUrl) {
       projectUpdatePayload.thumbnailURL = dataUrl;
     } else if (dataUrl === null && currentThumbnail !== null) {
-      projectUpdatePayload.thumbnailURL = null; // Clear thumbnail if first frame is cleared
+      projectUpdatePayload.thumbnailURL = null; 
     }
   }
   batch.update(projectDocRef, projectUpdatePayload);
 
-
-  // Frame document data
   const framePayload: FrameStorageData = {
-    dataUrl, // Can be null for blank frames
+    dataUrl, 
     updatedAt: serverTimestamp() as Timestamp,
     order: frameIndex,
-    layers: layers || [], // Save current layers of the frame, default to empty array if undefined
+    layers: layers || [], 
   };
-  batch.set(frameDocRef, framePayload, { merge: true }); // Use set with merge for frames
+  batch.set(frameDocRef, framePayload, { merge: true }); 
 
   try {
     await batch.commit();
   } catch (error) {
-     throw error; // Re-throw to be caught by the context
+     console.error("Error committing frame save batch:", error);
+     throw error; 
+  }
+};
+
+
+export const saveAllFramesToDb = async (
+  projectId: string,
+  frames: Frame[], // Use the Frame type from context
+  userId: string,
+  projectName?: string, // Optional, for initial creation if needed
+  projectFps?: number     // Optional, for initial creation if needed
+) => {
+  if (!projectId) {
+    throw new Error("Project ID is required to save all frames.");
+  }
+  if (!userId) {
+    throw new Error("User ID is required to save all frames.");
+  }
+  if (!frames || frames.length === 0) {
+    // console.log("No frames to save."); // Or throw an error, or return silently
+    return;
+  }
+
+  const batch = writeBatch(db);
+  const projectDocRef = doc(db, 'projects', projectId);
+
+  // Prepare project document update/creation
+  const projectSnap = await getDoc(projectDocRef);
+  const projectDataToUpdate: { [key: string]: any } = {
+    updatedAt: serverTimestamp() as Timestamp,
+  };
+
+  if (frames[0]?.dataUrl) {
+    projectDataToUpdate.thumbnailURL = frames[0].dataUrl;
+  } else if (projectSnap.exists() && projectSnap.data()?.thumbnailURL) {
+    // If first frame is now blank, but project had a thumbnail, clear it
+    projectDataToUpdate.thumbnailURL = null;
+  }
+
+
+  if (!projectSnap.exists()) {
+    // This case should ideally be handled by the create animation flow.
+    // If it happens, create the project with basic info.
+    projectDataToUpdate.name = projectName || `Untitled Project ${projectId.substring(projectId.length - 6)}`;
+    projectDataToUpdate.createdBy = userId;
+    projectDataToUpdate.fps = projectFps || 12;
+    projectDataToUpdate.createdAt = serverTimestamp() as Timestamp;
+    batch.set(projectDocRef, projectDataToUpdate);
+  } else {
+    batch.update(projectDocRef, projectDataToUpdate);
+  }
+
+  // Prepare frame documents
+  frames.forEach((frame, index) => {
+    const frameDocId = `frame-${index}`; // Or use frame.id if it's structured like that
+    const frameDocRef = doc(db, 'projects', projectId, 'frames', frameDocId);
+    const framePayload: FrameStorageData = {
+      dataUrl: frame.dataUrl,
+      updatedAt: serverTimestamp() as Timestamp,
+      order: index,
+      layers: frame.layers || [],
+    };
+    batch.set(frameDocRef, framePayload, { merge: true });
+  });
+
+  try {
+    await batch.commit();
+  } catch (error) {
+    console.error("Error committing save all frames batch:", error);
+    throw error;
   }
 };
 
 
 export const loadFrame = async (projectId: string, frameIndex: number): Promise<FrameStorageData | null> => {
   if (!projectId || typeof frameIndex !== 'number') {
-    // console.error("Invalid parameters for loadFrame"); // No console logs
     return null;
   }
   const frameDocRef = doc(db, 'projects', projectId, 'frames', `frame-${frameIndex}`);
@@ -84,9 +149,9 @@ export const loadFrame = async (projectId: string, frameIndex: number): Promise<
     return {
         id: docSnap.id,
         dataUrl: data.dataUrl,
-        updatedAt: data.updatedAt, // This will be a Firestore Timestamp
+        updatedAt: data.updatedAt, 
         order: data.order,
-        layers: data.layers || [], // Ensure layers array exists
+        layers: data.layers || [], 
     } as FrameStorageData;
   } else {
     return null;
@@ -95,7 +160,6 @@ export const loadFrame = async (projectId: string, frameIndex: number): Promise<
 
 export const loadAllFrames = async (projectId: string): Promise<AnimationFrameData[]> => {
   if (!projectId) {
-    // console.error("Invalid projectId for loadAllFrames"); // No console logs
     return [];
   }
   const framesColRef = collection(db, 'projects', projectId, 'frames');
@@ -109,13 +173,12 @@ export const loadAllFrames = async (projectId: string): Promise<AnimationFrameDa
       frames.push({
         id: docSnap.id,
         dataUrl: data.dataUrl,
-        layers: data.layers || [], // Ensure layers array exists
+        layers: data.layers || [], 
         order: data.order,
       } as AnimationFrameData);
     });
     return frames;
   } catch (error) {
-    // console.error("Error loading all frames: ", error); // No console logs
     return [];
   }
 };
@@ -141,15 +204,12 @@ export const getProjectMetadata = async (projectId: string): Promise<AnimationPr
     }
     return null;
   } catch (error) {
-    // console.error(`Error fetching project metadata for ${projectId}:`, error); // No console logs
     return null;
   }
 };
 
-// Save project metadata (like name, fps, etc.) - typically from a settings page, not frame save
 export const saveProjectMetadata = async (projectId: string, metadata: Partial<AnimationProject>) => {
   if (!projectId) {
-    // console.error("Project ID is required to save metadata."); // No console logs
     return;
   }
   const projectDocRef = doc(db, 'projects', projectId);

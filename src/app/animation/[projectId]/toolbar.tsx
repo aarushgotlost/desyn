@@ -3,8 +3,8 @@
 
 import { useAnimation } from '@/context/AnimationContext';
 import { Button } from '@/components/ui/button';
-import { Pencil, Eraser, Hand, Palette, Undo, Redo, Play, Pause, Save, Loader2 } from 'lucide-react'; // Added Pause
-import { useToast } from '@/hooks/use-toast'; // For save feedback
+import { Pencil, Eraser, Hand, Palette, Undo, Redo, Play, Pause, Save, Loader2, Disc3 } from 'lucide-react'; // Added Pause, Disc3 for Save All
+import { useToast } from '@/hooks/use-toast'; 
 import { useState } from 'react';
 
 
@@ -18,10 +18,12 @@ export default function Toolbar() {
     undoDrawing, redoDrawing,
     canUndoDrawing, canRedoDrawing,
     saveActiveFrameManually,
-    projectId // Ensure projectId is available if needed for save status
+    saveAllFramesManually, // New context function
+    projectId 
   } = useAnimation();
   const { toast } = useToast();
-  const [isSaving, setIsSaving] = useState(false);
+  const [isSavingFrame, setIsSavingFrame] = useState(false);
+  const [isSavingAll, setIsSavingAll] = useState(false);
 
 
   const tools = [
@@ -40,23 +42,41 @@ export default function Toolbar() {
     setIsPlaying(!isPlaying);
   };
   
-  const handleSave = async () => {
+  const handleSaveFrame = async () => {
     if (!projectId) {
         toast({ title: "Error", description: "Project ID not found. Cannot save.", variant: "destructive"});
         return;
     }
-    setIsSaving(true);
+    setIsSavingFrame(true);
     try {
       await saveActiveFrameManually();
       // Toast for success/error is handled within saveActiveFrameManually in context
     } catch (error) {
       // This catch might be redundant if saveActiveFrameManually handles its own errors with toasts
-      console.error("Toolbar save failed:", error); 
-      toast({ title: "Save Error", description: "An unexpected error occurred while saving.", variant: "destructive" });
+      console.error("Toolbar save frame failed:", error); 
+      toast({ title: "Save Frame Error", description: "An unexpected error occurred while saving the frame.", variant: "destructive" });
     } finally {
-      setIsSaving(false);
+      setIsSavingFrame(false);
     }
   };
+
+  const handleSaveAllFrames = async () => {
+    if (!projectId) {
+        toast({ title: "Error", description: "Project ID not found. Cannot save all frames.", variant: "destructive"});
+        return;
+    }
+    setIsSavingAll(true);
+    try {
+      await saveAllFramesManually();
+      // Toast for success/error is handled within saveAllFramesManually in context
+    } catch (error) {
+      console.error("Toolbar save all frames failed:", error);
+      toast({ title: "Save All Frames Error", description: "An unexpected error occurred while saving all frames.", variant: "destructive" });
+    } finally {
+      setIsSavingAll(false);
+    }
+  };
+
 
   return (
     <div className="h-16 bg-card border-b p-2 flex items-center justify-between shadow-sm">
@@ -94,9 +114,13 @@ export default function Toolbar() {
         <Button variant="ghost" size="icon" onClick={togglePlay} title={isPlaying ? "Pause Animation" : "Play Animation"} aria-label={isPlaying ? "Pause Animation" : "Play Animation"}>
           {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
         </Button>
-         <Button variant="outline" size="sm" title="Save Project" aria-label="Save Project" onClick={handleSave} disabled={isSaving || !projectId}>
-          {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-           {isSaving ? "Saving..." : "Save Frame"}
+         <Button variant="outline" size="sm" title="Save Current Frame" aria-label="Save Current Frame" onClick={handleSaveFrame} disabled={isSavingFrame || isSavingAll || !projectId}>
+          {isSavingFrame ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+           {isSavingFrame ? "Saving..." : "Save Frame"}
+        </Button>
+        <Button variant="default" size="sm" title="Save All Frames" aria-label="Save All Frames" onClick={handleSaveAllFrames} disabled={isSavingFrame || isSavingAll || !projectId}>
+          {isSavingAll ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Disc3 className="mr-2 h-4 w-4" />}
+           {isSavingAll ? "Saving All..." : "Save All"}
         </Button>
       </div>
     </div>
