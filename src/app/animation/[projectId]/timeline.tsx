@@ -6,16 +6,16 @@ import { Button } from '@/components/ui/button';
 import { PlusCircle, Trash2 } from 'lucide-react';
 
 export default function Timeline() {
-  const { frames, setFrames, activeFrame, setActiveFrame } = useAnimation();
+  const { frames, setFrames, activeFrameIndex, setActiveFrameIndex } = useAnimation();
 
   const addFrame = () => {
     const newFrame = { id: `frame-${frames.length}`, dataUrl: null, layers: [] }; // Basic frame structure
     setFrames([...frames, newFrame]);
-    setActiveFrame(frames.length); // Activate the new frame
+    setActiveFrameIndex(frames.length); // Activate the new frame
   };
 
   const selectFrame = (index: number) => {
-    setActiveFrame(index);
+    setActiveFrameIndex(index);
   };
 
   const deleteFrame = (index: number) => {
@@ -25,11 +25,11 @@ export default function Timeline() {
     }
     const newFrames = frames.filter((_, i) => i !== index);
     setFrames(newFrames);
-    // Adjust activeFrame if the deleted frame was active or before active
-    if (activeFrame === index) {
-      setActiveFrame(Math.max(0, index - 1));
-    } else if (activeFrame > index) {
-      setActiveFrame(activeFrame - 1);
+    // Adjust activeFrameIndex if the deleted frame was active or before active
+    if (activeFrameIndex === index) {
+      setActiveFrameIndex(Math.max(0, index - 1));
+    } else if (activeFrameIndex > index) {
+      setActiveFrameIndex(activeFrameIndex - 1);
     }
   };
 
@@ -46,8 +46,8 @@ export default function Timeline() {
           <div
             key={frame.id || index}
             onClick={() => selectFrame(index)}
-            className={`relative flex-shrink-0 w-24 h-full border-2 rounded-md cursor-pointer flex flex-col items-center justify-center bg-muted hover:border-primary
-                        ${index === activeFrame ? 'border-primary ring-2 ring-primary' : 'border-muted-foreground/30'}`}
+            className={`group relative flex-shrink-0 w-24 h-full border-2 rounded-md cursor-pointer flex flex-col items-center justify-center bg-muted hover:border-primary
+                        ${index === activeFrameIndex ? 'border-primary ring-2 ring-primary' : 'border-muted-foreground/30'}`}
           >
             {/* Placeholder for frame preview - replace with actual FramePreview component if desired */}
             <img 
