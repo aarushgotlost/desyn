@@ -67,12 +67,11 @@ export default function MeetingsPage() {
       return;
     }
      setIsJoiningMeetingMap(prev => ({ ...prev, [meetingId]: true }));
-     startStartingMeetingTransition(async () => { // Using the same transition for now, or create a new one
+     startStartingMeetingTransition(async () => { 
       const result = await joinMeeting(meetingId, { uid: user.uid, displayName: userProfile.displayName, photoURL: userProfile.photoURL });
       if (result.success) {
         toast({ title: "Joined Meeting!", description: result.message });
-        // fetchMeetings(); // Refresh the list to show updated participant count (if displayed)
-        router.push(`/meetings/${meetingId}`); // Navigate to the meeting room
+        router.push(`/meetings/${meetingId}`); 
       } else {
         toast({ title: "Error Joining Meeting", description: result.message, variant: "destructive" });
       }
@@ -88,14 +87,19 @@ export default function MeetingsPage() {
   return (
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-bold font-headline flex items-center">
-            <Video className="mr-3 w-8 h-8 text-primary" /> 
+        <div className="text-center md:text-left">
+          <h1 className="text-2xl sm:text-3xl font-bold font-headline flex items-center justify-center md:justify-start">
+            <Video className="mr-3 w-7 h-7 sm:w-8 sm:h-8 text-primary" /> 
             Meetings
           </h1>
-          <p className="text-muted-foreground">Collaborate with video, audio, and screen sharing.</p>
+          <p className="text-muted-foreground text-sm sm:text-base">Collaborate with video, audio, and screen sharing.</p>
         </div>
-        <Button size="lg" onClick={handleStartNewMeeting} disabled={isStartingMeeting || !user}>
+        <Button 
+          size="lg" 
+          onClick={handleStartNewMeeting} 
+          disabled={isStartingMeeting || !user}
+          className="w-full md:w-auto"
+        >
           {isStartingMeeting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <PlusCircle className="mr-2 h-5 w-5" />}
           Start New Meeting
         </Button>
@@ -103,7 +107,7 @@ export default function MeetingsPage() {
 
       <Card className="shadow-lg">
         <CardHeader>
-          <CardTitle>Your Meetings</CardTitle>
+          <CardTitle className="text-xl sm:text-2xl">Your Meetings</CardTitle>
           <CardDescription>Join ongoing meetings or review past ones.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -112,43 +116,54 @@ export default function MeetingsPage() {
           ) : meetings.length > 0 ? (
             meetings.map((meeting) => {
               const isJoiningThisMeeting = isJoiningMeetingMap[meeting.id] || false;
+              const currentUserIsParticipant = user && meeting.participantUids.includes(user.uid);
               return (
               <Card key={meeting.id} className="hover:shadow-md transition-shadow">
-                <CardHeader className="flex flex-row justify-between items-start pb-3">
-                  <div>
+                <CardHeader className="flex flex-col sm:flex-row justify-between items-start gap-3 pb-3">
+                  <div className="flex-grow">
                     <Link href={`/meetings/${meeting.id}`}>
                         <CardTitle className="text-lg hover:text-primary">{meeting.title}</CardTitle>
                     </Link>
-                    <CardDescription className="text-xs">
+                    <CardDescription className="text-xs mt-1">
                       Started by {meeting.createdByName || 'User'} &bull; {formatDistanceToNowStrict(new Date(meeting.createdAt), { addSuffix: true })} &bull; {meeting.participants.length} participant(s)
                     </CardDescription>
                   </div>
-                  {meeting.isActive ? (
-                    <Button
-                      variant="default"
-                      size="sm"
-                      onClick={() => handleJoinMeeting(meeting.id)}
-                      disabled={isJoiningThisMeeting}
-                    >
-                      {isJoiningThisMeeting ? (
-                        <Fragment>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Joining...
-                        </Fragment>
-                      ) : (
-                        <Fragment>
-                          Join Meeting <ArrowRight className="ml-2 h-4 w-4" />
-                        </Fragment>
-                      )}
-                    </Button>
-                  ) : (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      asChild
-                    >
-                      <Link href={`/meetings/${meeting.id}`}>View Details</Link>
-                    </Button>
-                  )}
+                  <div className="w-full sm:w-auto flex-shrink-0">
+                    {meeting.isActive ? (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => handleJoinMeeting(meeting.id)}
+                        disabled={isJoiningThisMeeting}
+                        className="w-full"
+                      >
+                        {isJoiningThisMeeting ? (
+                          <Fragment>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Joining...
+                          </Fragment>
+                        ) : (
+                           currentUserIsParticipant ? (
+                            <Fragment>
+                              Open Meeting <ArrowRight className="ml-2 h-4 w-4" />
+                            </Fragment>
+                          ) : (
+                            <Fragment>
+                              Join Meeting <ArrowRight className="ml-2 h-4 w-4" />
+                            </Fragment>
+                          )
+                        )}
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        asChild
+                        className="w-full"
+                      >
+                        <Link href={`/meetings/${meeting.id}`}>View Details</Link>
+                      </Button>
+                    )}
+                  </div>
                 </CardHeader>
                  <CardContent className="py-3">
                   <div className="flex items-center space-x-2 mb-3">
@@ -167,21 +182,21 @@ export default function MeetingsPage() {
                       )}
                     </div>
                   </div>
-                  {meeting.isActive && (
+                  {meeting.isActive && currentUserIsParticipant && ( // Only show controls if user is participant and meeting active
                     <div className="mt-2 p-3 bg-muted/50 rounded-md">
-                      <p className="text-sm font-medium mb-2 text-center text-green-600 dark:text-green-400">Meeting in Progress (Placeholder Controls)</p>
-                      <div className="flex justify-center items-center space-x-3">
-                        <Button variant="outline" size="icon" title="Toggle Microphone (Placeholder)" disabled>
-                          <Mic className="h-5 w-5" />
+                      <p className="text-sm font-medium mb-2 text-center text-green-600 dark:text-green-400">Meeting in Progress</p>
+                      <div className="flex justify-center items-center space-x-2 sm:space-x-3">
+                        <Button variant="outline" size="icon" className="h-8 w-8 sm:h-9 sm:w-9" title="Toggle Microphone (Placeholder)" disabled>
+                          <Mic className="h-4 w-4 sm:h-5 sm:w-5" />
                         </Button>
-                        <Button variant="outline" size="icon" title="Toggle Video (Placeholder)" disabled>
-                          <Video className="h-5 w-5" />
+                        <Button variant="outline" size="icon" className="h-8 w-8 sm:h-9 sm:w-9" title="Toggle Video (Placeholder)" disabled>
+                          <Video className="h-4 w-4 sm:h-5 sm:w-5" />
                         </Button>
-                        <Button variant="outline" size="icon" title="Share Screen (Placeholder)" disabled>
-                          <ScreenShare className="h-5 w-5" />
+                        <Button variant="outline" size="icon" className="h-8 w-8 sm:h-9 sm:w-9" title="Share Screen (Placeholder)" disabled>
+                          <ScreenShare className="h-4 w-4 sm:h-5 sm:w-5" />
                         </Button>
-                         <Button variant="ghost" size="icon" title="Meeting Settings (Placeholder)" disabled>
-                          <Settings2 className="h-5 w-5" />
+                         <Button variant="ghost" size="icon" className="h-8 w-8 sm:h-9 sm:w-9" title="Meeting Settings (Placeholder)" disabled>
+                          <Settings2 className="h-4 w-4 sm:h-5 sm:w-5" />
                         </Button>
                       </div>
                     </div>
@@ -201,7 +216,7 @@ export default function MeetingsPage() {
 
       <Card className="shadow-lg">
         <CardHeader>
-            <CardTitle>How Meetings Work (Placeholder)</CardTitle>
+            <CardTitle className="text-xl sm:text-2xl">How Meetings Work (Placeholder)</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-sm text-muted-foreground">
             <p>This section is a placeholder to illustrate where information about Desyn's meeting features would go.</p>
@@ -217,3 +232,4 @@ export default function MeetingsPage() {
     </div>
   );
 }
+
