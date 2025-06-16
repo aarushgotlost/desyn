@@ -14,7 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, User, Settings, PlusCircle, HomeIcon, Bell, MessageSquare, Bot, Compass } from 'lucide-react';
+import { LogOut, User, Settings, PlusCircle, HomeIcon, Bell, MessageSquare, Bot, Compass, Video } from 'lucide-react'; // Added Video
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { NotificationIcon } from '@/components/notifications/NotificationIcon'; 
@@ -27,13 +27,15 @@ export default function Header() {
   const navLinks = [
     { href: "/", label: "Home", icon: HomeIcon, authRequired: false },
     { href: "/communities", label: "Discover", icon: Compass, authRequired: false },
-    // { href: "/meeting-room", label: "Meeting Room", icon: Presentation, authRequired: true }, // Removed
+    { href: "/meetings", label: "Meetings", icon: Video, authRequired: true },
     { href: "/posts/create", label: "Create Post", icon: PlusCircle, authRequired: true },
     { href: "/messages", label: "Messages", icon: MessageSquare, authRequired: true },
   ];
 
   const authRestrictedPages = ['/login', '/signup', '/forgot-password', '/onboarding', '/onboarding/profile-setup'];
-  if (authRestrictedPages.includes(pathname)) {
+  const isMeetingRoomPages = pathname.startsWith('/meeting-room'); // Hide header for old animator pages if needed
+
+  if (authRestrictedPages.includes(pathname) || isMeetingRoomPages) {
     return null;
   }
 
@@ -48,7 +50,9 @@ export default function Header() {
         <nav className="hidden md:flex items-center space-x-6 text-sm font-medium">
           {navLinks.map(link => {
             if (link.authRequired && !user) return null;
-            const isActive = (link.href === "/" && pathname === link.href) || (link.href !== "/" && pathname.startsWith(link.href));
+            const isActive = (link.href === "/" && pathname === link.href) || 
+                             (link.href !== "/" && pathname.startsWith(link.href) && !(link.href === "/messages" && pathname.includes("/messages/")) );
+
             return (
               <Link
                 key={link.href}
@@ -102,7 +106,6 @@ export default function Header() {
                      <DropdownMenuItem asChild>
                        <Link href="/notifications"><Bell className="mr-2 h-4 w-4" /> Notifications</Link>
                     </DropdownMenuItem>
-                    {/* DevBot link removed from dropdown, now an icon button */}
                     <DropdownMenuItem asChild>
                       <Link href="/settings"><Settings className="mr-2 h-4 w-4" /> Settings</Link>
                     </DropdownMenuItem>
@@ -114,7 +117,6 @@ export default function Header() {
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
-              {/* Mobile settings link - kept for quick access to full settings page */}
               <div className="md:hidden">
                 <Button variant="ghost" size="icon" asChild aria-label="Open settings" className="h-8 w-8 rounded-full">
                   <Link href="/settings">

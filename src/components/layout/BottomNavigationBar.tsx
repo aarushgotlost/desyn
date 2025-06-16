@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { HomeIcon, PlusCircle, MessageSquare, User as UserIcon, Compass } from 'lucide-react'; // Removed Presentation
+import { HomeIcon, PlusCircle, MessageSquare, User as UserIcon, Compass, Video } from 'lucide-react'; // Added Video
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -12,7 +12,7 @@ import { getInitials } from '@/lib/utils';
 const navItems = [
   { href: "/", label: "Home", icon: HomeIcon, authRequired: false },
   { href: "/communities", label: "Discover", icon: Compass, authRequired: false },
-  // { href: "/meeting-room", label: "Meeting", icon: Presentation, authRequired: true }, // Removed
+  { href: "/meetings", label: "Meetings", icon: Video, authRequired: true },
   { href: "/posts/create", label: "Create", icon: PlusCircle, authRequired: true },
   { href: "/messages", label: "Messages", icon: MessageSquare, authRequired: true },
   { href: "/profile", label: "Profile", icon: UserIcon, authRequired: true, isProfile: true }, 
@@ -30,7 +30,7 @@ export function BottomNavigationBar() {
   const isChatDetailPage = pathname.startsWith('/messages/') && pathname.split('/').length > 2 && pathname.split('/')[2] !== 'new';
   const isChatBotPage = pathname === '/chatbot';
   const isAnimatorPage = pathname === '/meeting-room/animator';
-
+  const isMeetingPage = pathname === '/meetings'; // Hide bottom nav if on a specific meeting page in future, for now just /meetings
 
   if (authPages.includes(pathname) || isChatDetailPage || isChatBotPage || isAnimatorPage) {
     return null;
@@ -61,7 +61,10 @@ export function BottomNavigationBar() {
           }
 
           const isActive = (item.href === "/" && pathname === item.href) || 
-                           (item.href !== "/" && pathname.startsWith(item.href) && !(item.href === "/messages" && isChatDetailPage) && !(item.href === "/meeting-room" && isAnimatorPage));
+                           (item.href !== "/" && pathname.startsWith(item.href) && 
+                            !(item.href === "/messages" && isChatDetailPage) && 
+                            !(item.href === "/meetings" && pathname.startsWith("/meetings/")) // future: if meeting detail pages exist
+                           );
           
           return (
             <Link
