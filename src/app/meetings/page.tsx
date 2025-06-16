@@ -1,13 +1,13 @@
 
 "use client";
 
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useState, useTransition, Fragment } from 'react';
 import Link from 'next/link';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Video, PlusCircle, Users, ScreenShare, Mic, Settings2, Loader2, ArrowRight } from "lucide-react";
-import type { Metadata } from 'next';
+// import type { Metadata } from 'next'; // Metadata needs to be static for client components or handled differently
 import Image from "next/image";
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -16,17 +16,15 @@ import { getMeetings } from '@/services/firestoreService';
 import type { Meeting } from '@/types/data';
 import { formatDistanceToNowStrict } from 'date-fns';
 import { getInitials } from '@/lib/utils';
+import { useRouter } from 'next/navigation';
 
-// export const metadata: Metadata = { // Metadata needs to be static for client components or handled differently
-//   title: 'Meetings - Desyn',
-//   description: 'Collaborate with your team in real-time video meetings on Desyn.',
-// };
 
 export default function MeetingsPage() {
   const { user, userProfile, loading: authLoading } = useAuth();
   const { toast } = useToast();
+  const router = useRouter();
   const [isStartingMeeting, startStartingMeetingTransition] = useTransition();
-  const [isJoiningMeeting, startJoiningMeetingTransition] = useTransition();
+  const [isJoiningMeetingMap, setIsJoiningMeetingMap] = useState<Record<string, boolean>>({});
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [isLoadingMeetings, setIsLoadingMeetings] = useState(true);
 
@@ -55,8 +53,8 @@ export default function MeetingsPage() {
       const result = await startNewMeeting(user.uid, userProfile.displayName);
       if (result.success && result.meetingId) {
         toast({ title: "Meeting Started!", description: result.message });
-        fetchMeetings(); // Refresh the list
-        // Optionally, navigate to the new meeting room: router.push(`/meetings/${result.meetingId}`);
+        fetchMeetings(); 
+        router.push(`/meetings/${result.meetingId}`);
       } else {
         toast({ title: "Error Starting Meeting", description: result.message, variant: "destructive" });
       }
@@ -68,15 +66,17 @@ export default function MeetingsPage() {
       toast({ title: "Authentication Error", description: "You must be logged in to join a meeting.", variant: "destructive" });
       return;
     }
-     startJoiningMeetingTransition(async () => {
+     setIsJoiningMeetingMap(prev => ({ ...prev, [meetingId]: true }));
+     startStartingMeetingTransition(async () => { // Using the same transition for now, or create a new one
       const result = await joinMeeting(meetingId, { uid: user.uid, displayName: userProfile.displayName, photoURL: userProfile.photoURL });
       if (result.success) {
         toast({ title: "Joined Meeting!", description: result.message });
-        fetchMeetings(); // Refresh the list to show updated participant count (if displayed)
-        // router.push(`/meetings/${meetingId}`); // Navigate to the meeting room
+        // fetchMeetings(); // Refresh the list to show updated participant count (if displayed)
+        router.push(`/meetings/${meetingId}`); // Navigate to the meeting room
       } else {
         toast({ title: "Error Joining Meeting", description: result.message, variant: "destructive" });
       }
+      setIsJoiningMeetingMap(prev => ({ ...prev, [meetingId]: false }));
     });
   };
 
@@ -110,7 +110,9 @@ export default function MeetingsPage() {
           {isLoadingMeetings ? (
             <div className="flex justify-center py-10"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
           ) : meetings.length > 0 ? (
-            meetings.map((meeting) => (
+            meetings.map((meeting) => {
+              const isJoiningThisMeeting = isJoiningMeetingMap[meeting.id] || false;
+              return (
               <Card key={meeting.id} className="hover:shadow-md transition-shadow">
                 <CardHeader className="flex flex-row justify-between items-start pb-3">
                   <div>
@@ -121,22 +123,32 @@ export default function MeetingsPage() {
                       Started by {meeting.createdByName || 'User'} &bull; {formatDistanceToNowStrict(new Date(meeting.createdAt), { addSuffix: true })} &bull; {meeting.participants.length} participant(s)
                     </CardDescription>
                   </div>
-                  <Button 
-                    variant={meeting.isActive ? "default" : "outline"} 
-                    size="sm"
-                    asChild={meeting.isActive}
-                    onClick={!meeting.isActive ? undefined : () => handleJoinMeeting(meeting.id)}
-                    disabled={isJoiningMeeting && meeting.isActive}
-                  >
-                    {meeting.isActive ? (
-                      // This structure is a bit tricky with asChild. For direct action, don't use asChild.
-                      // If navigating, Link inside asChild is better.
-                      // For now, direct action on "Join"
-                       isJoiningMeeting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Joining...</> : <>Join Meeting <ArrowRight className="ml-2 h-4 w-4" /></>
-                    ) : (
+                  {meeting.isActive ? (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => handleJoinMeeting(meeting.id)}
+                      disabled={isJoiningThisMeeting}
+                    >
+                      {isJoiningThisMeeting ? (
+                        <Fragment>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Joining...
+                        </Fragment>
+                      ) : (
+                        <Fragment>
+                          Join Meeting <ArrowRight className="ml-2 h-4 w-4" />
+                        </Fragment>
+                      )}
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      asChild
+                    >
                       <Link href={`/meetings/${meeting.id}`}>View Details</Link>
-                    )}
-                  </Button>
+                    </Button>
+                  )}
                 </CardHeader>
                  <CardContent className="py-3">
                   <div className="flex items-center space-x-2 mb-3">
@@ -175,11 +187,8 @@ export default function MeetingsPage() {
                     </div>
                   )}
                 </CardContent>
-                 {/* <CardFooter className="text-xs text-muted-foreground pt-2">
-                  <p>Placeholder: Add friends, view agenda, chat, etc.</p>
-                </CardFooter> */}
               </Card>
-            ))
+            )})
           ) : (
             <div className="text-center py-10 text-muted-foreground">
               <Video size={48} className="mx-auto mb-4 opacity-50" />
