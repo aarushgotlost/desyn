@@ -1,3 +1,4 @@
+
 "use client";
 
 import { use, useEffect, useState, useRef, FormEvent } from 'react'; 
@@ -9,12 +10,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardFooter, CardTitle }
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Send, Loader2, ArrowLeft } from 'lucide-react';
+import { Send, Loader2, ArrowLeft, Film } from 'lucide-react'; // Added Film icon
 import { useRouter } from 'next/navigation';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { MessageBubble } from '@/components/messaging/MessageBubble';
 import { getInitials } from '@/lib/utils';
+import Link from 'next/link'; // Added Link
 
 export default function ChatPage({ params }: { params: { chatId: string } }) {
   const { user, userProfile, loading: authLoading } = useAuth();
@@ -72,7 +74,6 @@ export default function ChatPage({ params }: { params: { chatId: string } }) {
           setOtherParticipant(otherP || null);
         }
       } else {
-        // console.error("Chat not found"); // Avoid console logs in prod
         router.push('/messages');
       }
     };
@@ -84,7 +85,6 @@ export default function ChatPage({ params }: { params: { chatId: string } }) {
       setMessages(newMessages);
       setIsLoadingMessages(false);
     }, (error) => {
-      // console.error("Error fetching chat messages:", error); // Avoid console logs in prod
       setIsLoadingMessages(false);
     });
 
@@ -101,7 +101,7 @@ export default function ChatPage({ params }: { params: { chatId: string } }) {
       await sendMessage(chatId, userProfile, newMessageText);
       setNewMessageText('');
     } catch (error) {
-      // console.error("Error sending message:", error); // Avoid console logs in prod
+      // console.error("Error sending message:", error);
     } finally {
       setIsSending(false);
     }
@@ -132,9 +132,15 @@ export default function ChatPage({ params }: { params: { chatId: string } }) {
               <AvatarFallback>{getInitials(otherParticipant.displayName)}</AvatarFallback>
             </Avatar>
           )}
-          <div>
+          <div className="flex-1">
             <CardTitle className="text-lg">{otherParticipant?.displayName || 'Chat'}</CardTitle>
           </div>
+          <Button variant="outline" size="icon" asChild title="Go to Meeting Room">
+            <Link href="/meeting-room">
+              <Film className="h-5 w-5" />
+              <span className="sr-only">Go to Meeting Room</span>
+            </Link>
+          </Button>
         </div>
       </CardHeader>
       <CardContent ref={chatContentRef} className="flex-1 overflow-y-auto p-4 space-y-0.5">
