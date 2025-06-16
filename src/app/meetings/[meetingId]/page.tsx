@@ -24,7 +24,7 @@ import AgoraRTC, { type IAgoraRTCClient, type ILocalAudioTrack, type ILocalVideo
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const AGORA_APP_ID = process.env.NEXT_PUBLIC_AGORA_APP_ID || "";
-const AGORA_PLACEHOLDER_APP_ID = "YOUR_AGORA_APP_ID";
+const AGORA_PLACEHOLDER_APP_ID = "YOUR_AGORA_APP_ID"; // A common placeholder
 
 interface RemoteUserWithTracks extends IAgoraRTCRemoteUser {
   displayName?: string;
@@ -44,7 +44,7 @@ export default function MeetingDetailPage() {
   const [hasCopied, setHasCopied] = useState(false);
 
   const [isMicMuted, setIsMicMuted] = useState(false);
-  const [isCameraOff, setIsCameraOff] = useState(true); // Camera starts off
+  const [isCameraOff, setIsCameraOff] = useState(true); 
   const [isScreenSharing, setIsScreenSharing] = useState(false);
 
   const agoraClientRef = useRef<IAgoraRTCClient | null>(null);
@@ -103,8 +103,8 @@ export default function MeetingDetailPage() {
     setIsAgoraJoined(false);
     setRemoteUsers([]);
     setIsCameraOff(true); 
-    setIsMicMuted(false);
-    setHasCameraPermission(null); // Reset camera permission status
+    setIsMicMuted(false); // Default to unmuted after leaving
+    setHasCameraPermission(null); 
     console.log("Agora cleanup finished.");
   }, [isAgoraJoined, toast]);
   
@@ -213,13 +213,41 @@ export default function MeetingDetailPage() {
       toast({ title: "Joined video call" });
       console.log("Successfully joined Agora channel. Client connection state:", agoraClientRef.current.connectionState);
 
-      console.log("Attempting to create and publish local tracks...");
+      console.log("Attempting to create local media tracks...");
       try {
-        const tracks = await AgoraRTC.createMicrophoneAndCameraTracks();
+        // Create tracks first
+        const tracks = await AgoraRTC.createMicrophoneAndCameraTracks(
+          {}, // Default microphone config
+          { encoderConfig: "480p_1" } // Example: Lower resolution for testing
+        );
         localAudioTrackRef.current = tracks[0];
         localVideoTrackRef.current = tracks[1];
-        setHasCameraPermission(true);
-        console.log("Local audio and video tracks created.");
+        setHasCameraPermission(true); // Assume permission granted if tracks created
+        console.log("Local audio and video tracks created successfully.");
+
+        // Play local video
+        if (localVideoTrackRef.current && localVideoContainerRef.current) {
+          console.log("Local video track found, attempting to play in container:", localVideoContainerRef.current);
+          // Ensure container is empty before playing
+          while (localVideoContainerRef.current.firstChild) {
+            localVideoContainerRef.current.removeChild(localVideoContainerRef.current.firstChild);
+          }
+          localVideoTrackRef.current.play(localVideoContainerRef.current);
+          setIsCameraOff(false); // Camera is now on and playing
+          console.log("Local video track play initiated. IsPlaying:", localVideoTrackRef.current.isPlaying);
+        } else {
+          console.warn("Local video track or container not available for playback. Will not play local video.");
+          setIsCameraOff(true);
+        }
+
+        // Initialize mic state
+        if (localAudioTrackRef.current) {
+          setIsMicMuted(false); 
+          console.log("Local audio track initialized (default unmuted).");
+        } else {
+          console.warn("Local audio track not created.");
+        }
+
       } catch (mediaError: any) {
         console.error("Failed to create media tracks:", mediaError);
         setHasCameraPermission(false);
@@ -231,28 +259,18 @@ export default function MeetingDetailPage() {
         }
         toast({ title: "Media Error", description: errorDesc, variant: "destructive", duration: 7000 });
         
-        // Do not publish if tracks failed to create
-        await cleanupAgora(false); // Don't leave channel, just cleanup local tracks
+        // Cleanup only local tracks if media failed, don't leave channel yet
+        if (localAudioTrackRef.current) { localAudioTrackRef.current.close(); localAudioTrackRef.current = null; }
+        if (localVideoTrackRef.current) { localVideoTrackRef.current.close(); localVideoTrackRef.current = null; }
         setIsPublishing(false);
-        setIsCameraOff(true); // Ensure camera is shown as off
-        setIsMicMuted(true); // Ensure mic is shown as muted
+        setIsCameraOff(true); 
+        setIsMicMuted(true);
         return; 
       }
       
-      if (localVideoTrackRef.current && localVideoContainerRef.current) {
-        localVideoTrackRef.current.play(localVideoContainerRef.current);
-        setIsCameraOff(false); // Camera is now on
-        console.log("Local video track playing.");
-      } else {
-        console.warn("Local video track or container not available for playback.");
-        setIsCameraOff(true);
-      }
-      if (localAudioTrackRef.current) {
-        setIsMicMuted(false); 
-        console.log("Local audio track initialized (default unmuted).");
-      }
-      
+      // Publish tracks only if both are available and client is connected
       if (agoraClientRef.current && localAudioTrackRef.current && localVideoTrackRef.current && agoraClientRef.current.connectionState === "CONNECTED") {
+        console.log("Publishing local tracks...");
         await agoraClientRef.current.publish([localAudioTrackRef.current, localVideoTrackRef.current]);
         console.log("Published local tracks successfully.");
       } else {
@@ -268,7 +286,7 @@ export default function MeetingDetailPage() {
                 variant: "destructive",
                 duration: 7000,
             });
-            await cleanupAgora();
+            await cleanupAgora(); // Full cleanup if publish fails due to connection state after join
         }
       }
     } catch (error: any) {
@@ -353,9 +371,15 @@ export default function MeetingDetailPage() {
         if (container && !container.hasChildNodes()) { 
           console.log(`Playing video for remote user ${user.uid}.`);
           user.videoTrack.play(container);
-        } else if (container && container.firstChild && (container.firstChild as HTMLElement).id !== `video-${user.uid}` ) {
+        } else if (container && container.firstChild && (container.firstChild as HTMLElement).id !== `video-track-${user.uid}` ) {
+          // If container has children but not the one we expect, clear and play
+          console.log(`Re-playing video for remote user ${user.uid} after clearing container.`);
           while(container.firstChild) container.removeChild(container.firstChild);
-          user.videoTrack.play(container);
+          const videoPlayerContainer = document.createElement('div');
+          videoPlayerContainer.id = `video-track-${user.uid}`; // Give it an ID for easier debugging
+          videoPlayerContainer.className = 'w-full h-full';
+          container.appendChild(videoPlayerContainer);
+          user.videoTrack.play(videoPlayerContainer);
         }
       }
     });
@@ -392,23 +416,29 @@ export default function MeetingDetailPage() {
       return;
     }
 
-    if (!localVideoTrackRef.current) { // Try to create track if it doesn't exist
+    if (!localVideoTrackRef.current) { 
       if (isPublishing) return;
       console.log("Attempting to create and publish camera track on demand...");
       setIsPublishing(true);
       try {
-        const videoTrack = await AgoraRTC.createCameraVideoTrack();
+        const videoTrack = await AgoraRTC.createCameraVideoTrack({ encoderConfig: "480p_1" });
         localVideoTrackRef.current = videoTrack;
-        if (localVideoContainerRef.current) localVideoTrackRef.current.play(localVideoContainerRef.current);
+        if (localVideoContainerRef.current) {
+            console.log("Playing on-demand camera track in container:", localVideoContainerRef.current);
+            while (localVideoContainerRef.current.firstChild) {
+              localVideoContainerRef.current.removeChild(localVideoContainerRef.current.firstChild);
+            }
+            localVideoTrackRef.current.play(localVideoContainerRef.current);
+        }
         await agoraClientRef.current?.publish([localVideoTrackRef.current]);
         setIsCameraOff(false);
         setHasCameraPermission(true);
-        console.log("Camera track created and published on demand.");
+        console.log("Camera track created and published on demand. IsPlaying:", localVideoTrackRef.current.isPlaying);
       } catch (error: any) {
         console.error("Failed to start camera on demand:", error);
         setHasCameraPermission(false);
         toast({ title: "Camera Error", description: `Could not start camera: ${error.message}. Check permissions.`, variant: "destructive" });
-        localVideoTrackRef.current = null;
+        localVideoTrackRef.current = null; // Ensure it's nulled if creation failed
         setIsCameraOff(true);
       } finally {
         setIsPublishing(false);
@@ -416,7 +446,7 @@ export default function MeetingDetailPage() {
       return;
     }
 
-    try { // If track exists, toggle its enabled state
+    try { 
       await localVideoTrackRef.current.setEnabled(!localVideoTrackRef.current.enabled);
       setIsCameraOff(!localVideoTrackRef.current.enabled);
       console.log(`Camera toggled. Enabled: ${localVideoTrackRef.current.enabled}`);
@@ -445,7 +475,6 @@ export default function MeetingDetailPage() {
     console.log("User clicked Leave Call button.");
     await cleanupAgora();
     toast({title: "You left the video call."});
-    // UI updates based on isAgoraJoined state
   };
 
   const handleEndMeeting = async () => {
@@ -454,11 +483,9 @@ export default function MeetingDetailPage() {
         const result = await endMeetingAction(meeting.id, user.uid);
         if (result.success) {
             toast({ title: "Meeting Ended", description: "The meeting has been ended for all participants." });
-            await cleanupAgora(); // Host also cleans up their Agora session
-            // Update local meeting state or re-fetch
+            await cleanupAgora(); 
             const updatedMeeting = await getMeetingDetails(meeting.id);
             if (updatedMeeting) setMeeting(updatedMeeting);
-            // router.push('/meetings'); // Optionally redirect host
         } else {
             toast({ title: "Error", description: result.message, variant: "destructive" });
         }
@@ -491,7 +518,7 @@ export default function MeetingDetailPage() {
             <AlertTriangle className="h-5 w-5" />
             <AlertTitle>Agora App ID Missing</AlertTitle>
             <AlertDescription>
-              Video call functionality is disabled. Please set <code className="font-mono bg-muted px-1 py-0.5 rounded">NEXT_PUBLIC_AGORA_APP_ID</code> in your <code className="font-mono bg-muted px-1 py-0.5 rounded">.env</code> or <code className="font-mono bg-muted px-1 py-0.5 rounded">.env.local</code> file.
+              Video call functionality is disabled. Please set <code className="font-mono bg-muted px-1 py-0.5 rounded">NEXT_PUBLIC_AGORA_APP_ID</code> in your <code className="font-mono bg-muted px-1 py-0.5 rounded">.env.local</code> file.
             </AlertDescription>
           </Alert>
       )}
@@ -534,12 +561,20 @@ export default function MeetingDetailPage() {
               {currentUserIsParticipant && isAgoraJoined && isMeetingActive && (
                 <div className="mb-4">
                   <h3 className="text-sm font-medium text-muted-foreground mb-1">Your Camera</h3>
-                  <div ref={localVideoContainerRef} id="local-video-container" className="aspect-video bg-black rounded-lg shadow-md relative overflow-hidden border">
-                    {(isCameraOff || hasCameraPermission === false) && (
+                  <div 
+                    ref={localVideoContainerRef} 
+                    id="local-video-container" 
+                    className="aspect-video bg-black rounded-lg shadow-md relative overflow-hidden border"
+                    // Ensure the container has a defined size for Agora to attach the video
+                    style={{ minHeight: '150px' }} 
+                  >
+                    {(isCameraOff || hasCameraPermission === false || !localVideoTrackRef.current) && (
                         <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 rounded-md p-4 text-center">
                             <VideoOff className="h-10 w-10 sm:h-12 sm:w-12 text-muted-foreground mb-2" />
                             <p className="text-muted-foreground text-xs sm:text-sm">
-                              {hasCameraPermission === false ? "Camera permission denied or no camera found." : "Your camera is off."}
+                              {hasCameraPermission === false ? "Camera permission denied or no camera found." : 
+                               !localVideoTrackRef.current && isAgoraJoined ? "Initializing camera..." :
+                               "Your camera is off."}
                             </p>
                             {hasCameraPermission === false && <p className="text-xs text-muted-foreground/80 mt-1">Check browser settings.</p>}
                         </div>
@@ -565,8 +600,9 @@ export default function MeetingDetailPage() {
                       <div 
                         key={remoteU.uid} 
                         ref={el => remoteVideoContainerRefs.current.set(remoteU.uid, el)}
-                        id={`video-${remoteU.uid}`} // Ensure ID for direct play
+                        id={`video-container-${remoteU.uid}`} 
                         className="aspect-video bg-muted/70 rounded-lg flex flex-col items-center justify-center border border-muted-foreground/20 shadow-inner relative overflow-hidden"
+                        style={{ minHeight: '120px' }} // Ensure remote containers also have min size
                       >
                          {!remoteU.hasVideo && (
                             <>
@@ -683,7 +719,7 @@ export default function MeetingDetailPage() {
                 className="h-10 w-10 sm:h-12 sm:w-12" 
                 title={isCameraOff ? "Turn Camera On" : "Turn Camera Off"}
                 onClick={toggleCamera}
-                disabled={isPublishing && !localVideoTrackRef.current && !isCameraOff }
+                disabled={isPublishing && !localVideoTrackRef.current && !isCameraOff } 
              >
                 {isCameraOff ? <VideoOff className="h-5 w-5 sm:h-6 sm:w-6" /> : <Video className="h-5 w-5 sm:h-6 sm:w-6" />}
              </Button>
@@ -730,5 +766,3 @@ export default function MeetingDetailPage() {
     </div>
   );
 }
-
-    
