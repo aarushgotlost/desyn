@@ -1,20 +1,39 @@
 
 "use client";
 
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useState, useTransition, useRef } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Video, Users, ScreenShare, Mic, Settings2, ArrowLeft, Loader2, UserPlus, Copy, Check, PhoneOff } from "lucide-react";
+import { Video, Users, ScreenShare, Mic, MicOff, VideoOff, Settings2, ArrowLeft, Loader2, UserPlus, Copy, Check, PhoneOff, Maximize } from "lucide-react";
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { getMeetingDetails } from '@/services/firestoreService';
 import { joinMeeting } from '@/actions/meetingActions';
-import type { Meeting } from '@/types/data';
+import type { Meeting, MeetingParticipant } from '@/types/data';
 import { formatDistanceToNowStrict } from 'date-fns';
 import { getInitials } from '@/lib/utils';
+import { cn } from '@/lib/utils';
+
+// Placeholder for participant video streams
+const ParticipantVideoPlaceholder = ({ participant, isLocal = false }: { participant?: MeetingParticipant; isLocal?: boolean }) => {
+  return (
+    <div className={cn(
+      "bg-muted/70 rounded-lg flex flex-col items-center justify-center aspect-video border border-muted-foreground/20 shadow-inner relative overflow-hidden",
+      isLocal && "border-2 border-primary"
+    )}>
+      <Video className="h-12 w-12 text-muted-foreground opacity-30" />
+      <p className="mt-2 text-xs text-muted-foreground text-center px-2 truncate w-full absolute bottom-2 bg-black/30 text-white py-1">
+        {participant ? participant.displayName : (isLocal ? "Your Video" : "Participant Video")}
+      </p>
+      {/* Mute icon placeholder */}
+      {/* {participant && Math.random() > 0.5 && <MicOff className="absolute top-2 right-2 h-4 w-4 text-white bg-black/50 rounded-full p-0.5" />} */}
+    </div>
+  );
+};
+
 
 export default function MeetingDetailPage() {
   const params = useParams();
@@ -27,6 +46,15 @@ export default function MeetingDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isJoining, startJoiningTransition] = useTransition();
   const [hasCopied, setHasCopied] = useState(false);
+
+  // Mock state for call controls
+  const [isMicMuted, setIsMicMuted] = useState(false);
+  const [isCameraOff, setIsCameraOff] = useState(false);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
+
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+
 
   useEffect(() => {
     if (!meetingId) {
@@ -52,6 +80,33 @@ export default function MeetingDetailPage() {
     }
     fetchMeeting();
   }, [meetingId, router, toast]);
+
+  // Basic camera permission check - non-functional for actual streaming
+  useEffect(() => {
+    const getCameraPermission = async () => {
+      if (typeof navigator !== "undefined" && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        try {
+          // Only request permission if not already determined
+          if (hasCameraPermission === null) {
+            // This is a simplified request, doesn't actually stream to the video element here
+            // as it's just a UI prototype.
+            await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            setHasCameraPermission(true);
+          }
+        } catch (error) {
+          console.warn('Camera/Mic access denied or unavailable:', error);
+          setHasCameraPermission(false);
+          // Don't toast here as it could be annoying on every load if always denied
+        }
+      } else {
+        setHasCameraPermission(false); // Browser doesn't support getUserMedia
+      }
+    };
+    if (user && meeting && meeting.participantUids.includes(user.uid)) { // Only try if user is a participant
+        getCameraPermission();
+    }
+  }, [user, meeting, hasCameraPermission]);
+
 
   const handleJoinMeeting = () => {
     if (!user || !userProfile || !meeting) {
@@ -103,6 +158,7 @@ export default function MeetingDetailPage() {
   }
   
   const currentUserIsParticipant = user && meeting.participantUids.includes(user.uid);
+  const remoteParticipants = meeting.participants.filter(p => p.uid !== user?.uid);
 
   return (
     <div className="container mx-auto py-6 sm:py-8 space-y-6 sm:space-y-8">
@@ -133,67 +189,131 @@ export default function MeetingDetailPage() {
           </div>
         </CardHeader>
         <CardContent className="pt-6 space-y-6">
-          <div className="grid md:grid-cols-3 gap-6">
-            <div className="md:col-span-2 h-64 sm:h-80 md:h-96 bg-muted rounded-lg flex flex-col items-center justify-center border shadow-inner p-4">
-              <Video className="h-16 w-16 sm:h-24 sm:w-24 text-muted-foreground opacity-50" />
-              <p className="mt-4 text-muted-foreground text-base sm:text-lg text-center">Main Video Feed Area</p>
-              <p className="text-xs sm:text-sm text-muted-foreground text-center">(Video conferencing not yet implemented)</p>
-               {meeting.isActive && currentUserIsParticipant && (
-                <div className="mt-4 sm:mt-6 p-2 sm:p-3 flex flex-wrap justify-center items-center gap-2 sm:space-x-3">
-                    <Button variant="outline" size="icon" className="h-10 w-10 sm:h-12 sm:w-12" title="Toggle Microphone (Placeholder)" disabled>
-                      <Mic className="h-5 w-5 sm:h-6 sm:w-6" />
-                    </Button>
-                    <Button variant="destructive" size="icon" className="h-10 w-10 sm:h-12 sm:w-12" title="Leave Meeting (Placeholder)" disabled>
-                        <PhoneOff className="h-5 w-5 sm:h-6 sm:w-6" /> 
-                    </Button>
-                    <Button variant="outline" size="icon" className="h-10 w-10 sm:h-12 sm:w-12" title="Toggle Video (Placeholder)" disabled>
-                      <Video className="h-5 w-5 sm:h-6 sm:w-6" />
-                    </Button>
-                    <Button variant="outline" size="icon" className="h-10 w-10 sm:h-12 sm:w-12" title="Share Screen (Placeholder)" disabled>
-                      <ScreenShare className="h-5 w-5 sm:h-6 sm:w-6" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-12 sm:w-12" title="Meeting Settings (Placeholder)" disabled>
-                      <Settings2 className="h-5 w-5 sm:h-6 sm:w-6" />
-                    </Button>
+          <div className="grid md:grid-cols-12 gap-4">
+            {/* Main video grid area */}
+            <div className="md:col-span-9 space-y-4">
+              {/* Local Video Placeholder */}
+              {currentUserIsParticipant && (
+                <div className="mb-4">
+                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Your Camera</h3>
+                  <ParticipantVideoPlaceholder participant={userProfile ? { uid: userProfile.uid, displayName: userProfile.displayName, photoURL: userProfile.photoURL } : undefined} isLocal={true} />
                 </div>
               )}
+
+              {/* Remote Participants Grid */}
+              {remoteParticipants.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-2">Participants</h3>
+                  <div className={cn(
+                    "grid gap-2",
+                    remoteParticipants.length === 1 ? "grid-cols-1" :
+                    remoteParticipants.length === 2 ? "grid-cols-1 sm:grid-cols-2" :
+                    remoteParticipants.length === 3 ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-3" :
+                    "grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3" // Max 3 for better view on typical screens
+                  )}>
+                    {remoteParticipants.slice(0,6).map(p => ( // Show up to 6 remote participants
+                      <ParticipantVideoPlaceholder key={p.uid} participant={p} />
+                    ))}
+                  </div>
+                   {remoteParticipants.length > 6 && (
+                      <p className="text-xs text-muted-foreground text-center mt-2">+{remoteParticipants.length - 6} more participants not shown in grid</p>
+                  )}
+                </div>
+              )}
+              {remoteParticipants.length === 0 && currentUserIsParticipant && (
+                  <div className="h-64 bg-muted rounded-lg flex flex-col items-center justify-center border shadow-inner p-4">
+                    <Users className="h-16 w-16 sm:h-24 sm:w-24 text-muted-foreground opacity-50" />
+                    <p className="mt-4 text-muted-foreground text-base sm:text-lg text-center">Waiting for others to join...</p>
+                  </div>
+              )}
+              {!currentUserIsParticipant && (
+                 <div className="h-64 bg-muted rounded-lg flex flex-col items-center justify-center border shadow-inner p-4">
+                    <Video className="h-16 w-16 sm:h-24 sm:w-24 text-muted-foreground opacity-50" />
+                    <p className="mt-4 text-muted-foreground text-base sm:text-lg text-center">Join the meeting to see participants.</p>
+                  </div>
+              )}
+
             </div>
 
-            <Card className="md:col-span-1">
-              <CardHeader>
-                <CardTitle className="flex items-center text-base sm:text-lg"><Users className="mr-2 h-5 w-5 text-primary"/> Participants ({meeting.participants.length})</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3 max-h-72 sm:max-h-96 overflow-y-auto">
-                {meeting.participants.map(p => (
-                  <div key={p.uid} className="flex items-center space-x-3 p-2 hover:bg-muted/50 rounded-md">
-                    <Avatar className="h-8 w-8">
-                      <AvatarImage src={p.photoURL || undefined} alt={p.displayName || 'User'} data-ai-hint="participant avatar"/>
-                      <AvatarFallback>{getInitials(p.displayName)}</AvatarFallback>
-                    </Avatar>
-                    <span className="text-sm font-medium truncate">{p.displayName || 'User'}</span>
+            {/* Sidebar: Participants List & Chat */}
+            <div className="md:col-span-3 space-y-4">
+              <Card>
+                <CardHeader className="p-3">
+                  <CardTitle className="flex items-center text-base"><Users className="mr-2 h-4 w-4 text-primary"/> Participants ({meeting.participants.length})</CardTitle>
+                </CardHeader>
+                <CardContent className="p-3 space-y-2 max-h-60 overflow-y-auto">
+                  {meeting.participants.map(p => (
+                    <div key={p.uid} className="flex items-center space-x-2 p-1.5 hover:bg-muted/50 rounded-md">
+                      <Avatar className="h-7 w-7">
+                        <AvatarImage src={p.photoURL || undefined} alt={p.displayName || 'User'} data-ai-hint="participant avatar"/>
+                        <AvatarFallback className="text-xs">{getInitials(p.displayName)}</AvatarFallback>
+                      </Avatar>
+                      <span className="text-xs font-medium truncate">{p.displayName || 'User'}</span>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="p-3">
+                  <CardTitle className="text-base">Meeting Chat</CardTitle>
+                </CardHeader>
+                <CardContent className="p-3">
+                  <div className="h-32 border rounded-md p-2 bg-muted/50 flex items-center justify-center">
+                    <p className="text-muted-foreground italic text-xs">Chat (placeholder).</p>
                   </div>
-                ))}
-              </CardContent>
-            </Card>
+                  {/* Placeholder for chat input */}
+                   <Input type="text" placeholder="Send a message..." className="mt-2 text-xs" disabled />
+                </CardContent>
+              </Card>
+            </div>
           </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base sm:text-lg">Meeting Chat (Placeholder)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-32 sm:h-40 border rounded-md p-3 bg-muted/50 flex items-center justify-center">
-                <p className="text-muted-foreground italic text-sm">Chat functionality is a placeholder.</p>
-              </div>
-            </CardContent>
-          </Card>
-
         </CardContent>
-         <CardFooter>
-            <p className="text-xs text-muted-foreground">
-                {!meeting.isActive ? "This meeting has ended or is not currently active." : "This meeting is currently active (placeholder status)."}
-            </p>
-         </CardFooter>
+
+        {/* Call Controls Footer */}
+        {meeting.isActive && currentUserIsParticipant && (
+          <CardFooter className="border-t p-3 sm:p-4 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3">
+             <Button 
+                variant={isMicMuted ? "destructive" : "outline"} 
+                size="icon" 
+                className="h-10 w-10 sm:h-12 sm:w-12" 
+                title={isMicMuted ? "Unmute Microphone" : "Mute Microphone"} 
+                onClick={() => setIsMicMuted(!isMicMuted)}
+             >
+                {isMicMuted ? <MicOff className="h-5 w-5 sm:h-6 sm:w-6" /> : <Mic className="h-5 w-5 sm:h-6 sm:w-6" />}
+             </Button>
+             <Button 
+                variant={isCameraOff ? "destructive" : "outline"} 
+                size="icon" 
+                className="h-10 w-10 sm:h-12 sm:w-12" 
+                title={isCameraOff ? "Turn Camera On" : "Turn Camera Off"}
+                onClick={() => setIsCameraOff(!isCameraOff)}
+             >
+                {isCameraOff ? <VideoOff className="h-5 w-5 sm:h-6 sm:w-6" /> : <Video className="h-5 w-5 sm:h-6 sm:w-6" />}
+             </Button>
+             <Button 
+                variant={isScreenSharing ? "default" : "outline"} 
+                size="icon" 
+                className="h-10 w-10 sm:h-12 sm:w-12" 
+                title={isScreenSharing ? "Stop Sharing Screen" : "Share Screen"}
+                onClick={() => setIsScreenSharing(!isScreenSharing)}
+            >
+                <ScreenShare className="h-5 w-5 sm:h-6 sm:w-6" />
+            </Button>
+            <Button variant="destructive" size="lg" className="h-10 px-4 sm:h-12 sm:px-6" title="Leave Meeting">
+                <PhoneOff className="h-5 w-5 sm:h-6 sm:w-6 mr-0 sm:mr-2" />
+                <span className="hidden sm:inline">Leave</span>
+            </Button>
+            <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-12 sm:w-12" title="Meeting Settings (Placeholder)" disabled>
+              <Settings2 className="h-5 w-5 sm:h-6 sm:w-6" />
+            </Button>
+          </CardFooter>
+        )}
+        {!meeting.isActive && (
+            <CardFooter className="border-t p-3 sm:p-4">
+                 <p className="text-xs text-muted-foreground text-center w-full">This meeting has ended or is not currently active.</p>
+            </CardFooter>
+        )}
       </Card>
        <Button variant="outline" size="sm" onClick={() => router.push('/meetings')} className="sm:hidden w-full mt-4">
           <ArrowLeft className="mr-2 h-4 w-4" /> All Meetings
@@ -201,3 +321,5 @@ export default function MeetingDetailPage() {
     </div>
   );
 }
+
+  
