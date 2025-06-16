@@ -5,7 +5,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Image from "next/image";
 import Link from "next/link";
-import { Mail, Users, FileText, CalendarDays, MessageSquare, Loader2, ThumbsUp, MessageCircle as MessageIcon, ArrowLeft, Palette } from "lucide-react"; // Added Palette
+import { Mail, Users, FileText, CalendarDays, MessageSquare, Loader2, ThumbsUp, MessageCircle as MessageIcon, ArrowLeft, Palette, Video as VideoIcon } from "lucide-react"; // Added Palette, VideoIcon
 import { getUserProfile, getUserPosts, getUserJoinedCommunities, getCurrentUserId } from "@/services/firestoreService";
 import type { UserProfile as UserProfileType, Post, Community } from "@/types/data";
 import { format, formatDistanceToNowStrict } from 'date-fns';
@@ -15,6 +15,7 @@ import { getInitials } from "@/lib/utils";
 import { LikeButton } from "@/components/posts/LikeButton";
 import { FollowButtonClient } from "@/components/profile/FollowButtonClient";
 import { PostCardOptionsMenu } from "@/components/posts/PostCardOptionsMenu";
+import { StartVideoCallButton } from "@/components/video-chat/StartVideoCallButton"; // New import
 
 export default async function UserProfilePage({ params }: { params: { userId: string } }) {
   noStore();
@@ -22,7 +23,7 @@ export default async function UserProfilePage({ params }: { params: { userId: st
 
   const [profileToDisplay, currentUserId] = await Promise.all([
     getUserProfile(targetUserId),
-    getCurrentUserId()
+    getCurrentUserId() // This will be null server-side unless auth is passed differently
   ]);
   
   if (!profileToDisplay) {
@@ -43,8 +44,16 @@ export default async function UserProfilePage({ params }: { params: { userId: st
     getUserJoinedCommunities(targetUserId),
   ]);
   
-  const { displayName, email, photoURL, bannerURL, bio, skills, createdAt, followersCount = 0, followingCount = 0 } = profileToDisplay; // Changed techStack to skills
+  const { displayName, email, photoURL, bannerURL, bio, skills, createdAt, followersCount = 0, followingCount = 0, fcmTokens } = profileToDisplay; 
   const joinedDate = createdAt ? new Date(createdAt) : null;
+
+  // Construct minimal profiles for actions
+  const minimalTargetProfile = {
+    uid: targetUserId,
+    displayName: profileToDisplay.displayName || '',
+    photoURL: profileToDisplay.photoURL,
+    fcmTokens: profileToDisplay.fcmTokens || []
+  };
 
   return (
     <div className="space-y-8">
@@ -89,6 +98,8 @@ export default async function UserProfilePage({ params }: { params: { userId: st
                 targetUserId={targetUserId}
                 targetUserProfile={{ displayName: profileToDisplay.displayName || '' }}
               />
+              {/* StartVideoCallButton is a client component, needs current user from context */}
+              <StartVideoCallButton targetUser={minimalTargetProfile} />
               {currentUserId && currentUserId !== targetUserId && (
                 <Button variant="outline" asChild>
                   <Link href={`/messages/new?userId=${targetUserId}`}>

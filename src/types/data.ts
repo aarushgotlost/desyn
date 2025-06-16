@@ -41,3 +41,17 @@ export interface Comment {
 
 // UserProfile is defined in AuthContext.tsx
 
+export interface VideoCallSession {
+  id: string;
+  callerId: string;
+  calleeId: string;
+  callerName?: string;
+  calleeName?: string;
+  callerFcmTokens?: string[];
+  calleeFcmTokens?: string[];
+  offer?: RTCSessionDescriptionInit;
+  answer?: RTCSessionDescriptionInit;
+  status: 'pending' | 'offered' | 'answered' | 'connected' | 'ended' | 'declined' | 'error' | 'cancelled';
+  createdAt: string; // ISO string
+  updatedAt: string; // ISO string
+}
