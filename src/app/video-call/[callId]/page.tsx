@@ -23,8 +23,8 @@ export default function VideoCallPage() {
   const [appCallSession, setAppCallSession] = useState<VideoCallSession | null>(null);
   const [isLoadingSession, setIsLoadingSession] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [targetUserDetails, setTargetUserDetails] = useState<Pick<UserProfile, 'displayName' | 'photoURL'> | null>(null);
-
+  const [targetUserDetails, setTargetUserDetails] = useState<Pick<UserProfile, 'uid' | 'displayName' | 'photoURL'> | null>(null);
+  const [isCaller, setIsCaller] = useState(false);
 
   useEffect(() => {
     if (authLoading || !appCallId) {
@@ -54,16 +54,27 @@ export default function VideoCallPage() {
               setIsLoadingSession(false);
               return;
           }
-          // Determine target user for display purposes
-          const targetId = sessionDetails.callerId === user.uid ? sessionDetails.calleeId : sessionDetails.callerId;
+          
+          const resolvedIsCaller = sessionDetails.callerId === user.uid;
+          setIsCaller(resolvedIsCaller);
+
+          const targetId = resolvedIsCaller ? sessionDetails.calleeId : sessionDetails.callerId;
           const targetProfile = await getUserProfile(targetId);
           if (targetProfile) {
-            setTargetUserDetails({displayName: targetProfile.displayName, photoURL: targetProfile.photoURL});
+            setTargetUserDetails({uid: targetProfile.uid, displayName: targetProfile.displayName, photoURL: targetProfile.photoURL});
+          } else {
+            // Set fallback target user details if profile fetch fails
+            setTargetUserDetails({
+              uid: targetId,
+              displayName: resolvedIsCaller ? sessionDetails.calleeName : sessionDetails.callerName, 
+              photoURL: null
+            });
           }
 
         } else {
           setError("User not authenticated.");
           setIsLoadingSession(false);
+          router.push('/login');
           return;
         }
 
@@ -83,7 +94,7 @@ export default function VideoCallPage() {
 
   if (authLoading || isLoadingSession) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-background text-foreground">
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
         <p className="text-lg">Loading call details...</p>
       </div>
@@ -91,15 +102,16 @@ export default function VideoCallPage() {
   }
 
   if (!user) {
+    // This case should ideally be handled before reaching here if fetchCallData runs
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
-        <Card className="w-full max-w-md text-center">
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 p-4">
+        <Card className="w-full max-w-md text-center bg-gray-800 text-white border-gray-700">
           <CardHeader>
             <CardTitle>Authentication Required</CardTitle>
-            <CardDescription>You need to be logged in to join a video call.</CardDescription>
+            <CardDescription className="text-gray-400">You need to be logged in to join a video call.</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button asChild><Link href="/login">Log In</Link></Button>
+            <Button asChild className="bg-primary hover:bg-primary/90 text-primary-foreground"><Link href="/login">Log In</Link></Button>
           </CardContent>
         </Card>
       </div>
@@ -108,21 +120,22 @@ export default function VideoCallPage() {
 
   if (error) {
      return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4 text-center">
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 p-4 text-center">
         <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
-        <CardTitle className="text-xl mb-2">Call Error</CardTitle>
-        <CardDescription className="mb-4">{error}</CardDescription>
-        <Button onClick={() => router.push('/')} variant="outline">Go Home</Button>
+        <CardTitle className="text-xl mb-2 text-white">Call Error</CardTitle>
+        <CardDescription className="mb-4 text-gray-300">{error}</CardDescription>
+        <Button onClick={() => router.push('/')} variant="outline" className="text-white border-white hover:bg-white/10">Go Home</Button>
       </div>
     );
   }
 
   if (!appCallSession) {
+    // This state might be hit if session becomes null after initial load, or fetch failed silently
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-background text-foreground">
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white">
          <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
         <p className="text-lg text-destructive">Could not initialize call. Session information is missing.</p>
-         <Button asChild variant="link" className="mt-4">
+         <Button asChild variant="link" className="mt-4 text-primary hover:text-primary/80">
             <Link href="/">Go Home</Link>
         </Button>
       </div>
@@ -132,8 +145,11 @@ export default function VideoCallPage() {
   return (
     <VideoCallUIWrapper
       appCallId={appCallId}
-      targetUserName={targetUserDetails?.displayName || appCallSession.calleeName || appCallSession.callerName || "Participant"}
+      targetUserName={targetUserDetails?.displayName}
       targetUserAvatar={targetUserDetails?.photoURL}
+      initialCallStatus={appCallSession.status}
+      isCaller={isCaller}
     />
   );
 }
+
