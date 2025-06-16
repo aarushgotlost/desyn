@@ -3,7 +3,7 @@
 
 import type { ReactNode } from 'react';
 import { createContext, useState, useContext, useEffect, Dispatch, SetStateAction, useCallback } from 'react';
-import { loadAllFrames, saveFrameToDb, saveAllFramesToDb, getProjectMetadata } from '@/lib/animationUtils'; // Added saveAllFramesToDb
+import { loadAllFrames, saveFrameToDb, saveAllFramesToDb, getProjectMetadata } from '@/lib/animationUtils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
@@ -49,7 +49,7 @@ interface AnimationContextType {
   canRedoDrawing: boolean;
 
   saveActiveFrameManually: () => Promise<void>;
-  saveAllFramesManually: () => Promise<void>; // New function
+  saveAllFramesManually: () => Promise<void>;
 }
 
 const AnimationContext = createContext<AnimationContextType | undefined>(undefined);
@@ -81,82 +81,84 @@ export const AnimationProvider = ({ children, projectId: routeProjectId }: { chi
   const [drawingHistoryPointer, setDrawingHistoryPointer] = useState<number>(-1);
 
   useEffect(() => {
-    if (routeProjectId) {
-      setIsLoadingProject(true);
-      setProjectName("Loading...");
+    if (!routeProjectId) {
+      setIsLoadingProject(false);
+      setProjectName("No Project Loaded");
       setFps(12);
       setActiveFrameIndex(0);
-      _setFramesInternal([]); 
-      _setPanelLayersInternal(createDefaultLayers()); 
-      setDrawingHistory([null]); 
+      _setFramesInternal([{ id: `frame-no-project-0-${Date.now()}`, dataUrl: null, layers: createDefaultLayers() }]);
+      _setPanelLayersInternal(createDefaultLayers());
+      setDrawingHistory([null]);
       setDrawingHistoryPointer(0);
+      return;
+    }
+    
+    setIsLoadingProject(true);
+    setProjectName("Loading...");
+    setFps(12);
+    setActiveFrameIndex(0);
+    _setFramesInternal([]);
+    _setPanelLayersInternal(createDefaultLayers());
+    setDrawingHistory([null]);
+    setDrawingHistoryPointer(0);
 
-      Promise.all([
-        getProjectMetadata(routeProjectId),
-        loadAllFrames(routeProjectId)
-      ]).then(([metadata, loadedFramesDb]) => {
-        setProjectName(metadata?.name || `Untitled Project ${routeProjectId.substring(routeProjectId.length - 6)}`);
-        setFps(metadata?.fps || 12);
+    Promise.all([
+      getProjectMetadata(routeProjectId),
+      loadAllFrames(routeProjectId)
+    ]).then(([metadata, loadedFramesDb]) => {
+      setProjectName(metadata?.name || `Untitled Project ${routeProjectId.substring(routeProjectId.length - 6)}`);
+      setFps(metadata?.fps || 12);
 
-        let initialFramesToSet: Frame[];
-        if (loadedFramesDb && loadedFramesDb.length > 0) {
-          initialFramesToSet = loadedFramesDb.map((fDb, index) => ({
-            id: fDb.id || `frame-loaded-${index}-${Date.now()}`,
-            dataUrl: fDb.dataUrl || null,
-            layers: (fDb.layers && fDb.layers.length > 0
-              ? fDb.layers
-              : createDefaultLayers()
-            ).map(layer => ({ ...layer, id: layer.id || `layer-db-${index}-${Date.now()}-${Math.random()}` }))
-          }));
-        } else {
-          initialFramesToSet = [{
-            id: `frame-new-0-${Date.now()}`,
-            dataUrl: null,
-            layers: createDefaultLayers()
-          }];
-        }
-        _setFramesInternal(initialFramesToSet);
-
-        const newActiveIndex = 0; 
-        setActiveFrameIndex(newActiveIndex);
-
-        if (initialFramesToSet.length > 0 && initialFramesToSet[newActiveIndex]) {
-          const activeFrameData = initialFramesToSet[newActiveIndex];
-          setDrawingHistory([activeFrameData.dataUrl]);
-          setDrawingHistoryPointer(0);
-          _setPanelLayersInternal(activeFrameData.layers);
-        } else {
-          setDrawingHistory([null]);
-          setDrawingHistoryPointer(0);
-          _setPanelLayersInternal(createDefaultLayers());
-        }
-      }).catch(error => {
-        toast({title: "Load Error", description: `Failed to load animation project: ${error.message}`, variant: "destructive"});
-        const fallbackFrames: Frame[] = [{
-          id: `frame-fallback-0-${Date.now()}`,
+      let initialFramesToSet: Frame[];
+      if (loadedFramesDb && loadedFramesDb.length > 0) {
+        initialFramesToSet = loadedFramesDb.map((fDb, index) => ({
+          id: fDb.id || `frame-loaded-${index}-${Date.now()}`,
+          dataUrl: fDb.dataUrl || null,
+          layers: (fDb.layers && fDb.layers.length > 0
+            ? fDb.layers
+            : createDefaultLayers()
+          ).map((layer, lIdx) => ({ ...layer, id: layer.id || `layer-db-${index}-${lIdx}-${Date.now()}-${Math.random()}` }))
+        }));
+      } else {
+        initialFramesToSet = [{
+          id: `frame-new-0-${Date.now()}`,
           dataUrl: null,
           layers: createDefaultLayers()
         }];
-        _setFramesInternal(fallbackFrames);
-        setActiveFrameIndex(0);
-        setProjectName(`Untitled Project (Error)`);
-        setFps(12);
+      }
+      _setFramesInternal(initialFramesToSet);
+
+      const newActiveIndex = 0; 
+      setActiveFrameIndex(newActiveIndex);
+
+      if (initialFramesToSet.length > 0 && initialFramesToSet[newActiveIndex]) {
+        const activeFrameData = initialFramesToSet[newActiveIndex];
+        setDrawingHistory([activeFrameData.dataUrl]);
+        setDrawingHistoryPointer(0);
+        _setPanelLayersInternal(activeFrameData.layers);
+      } else {
+        // This case should be rare if initialFramesToSet is guaranteed to have at least one frame
         setDrawingHistory([null]);
         setDrawingHistoryPointer(0);
-        _setPanelLayersInternal(fallbackFrames[0]?.layers || createDefaultLayers());
-      }).finally(() => {
-        setIsLoadingProject(false);
-      });
-    } else {
-        setIsLoadingProject(false);
-        _setFramesInternal([]);
-        setActiveFrameIndex(0);
         _setPanelLayersInternal(createDefaultLayers());
-        setDrawingHistory([null]);
-        setDrawingHistoryPointer(0);
-        setProjectName("No Project Loaded");
-        setFps(12);
-    }
+      }
+    }).catch(error => {
+      toast({title: "Load Error", description: `Failed to load animation project: ${error.message}`, variant: "destructive"});
+      const fallbackFrames: Frame[] = [{
+        id: `frame-fallback-0-${Date.now()}`,
+        dataUrl: null,
+        layers: createDefaultLayers()
+      }];
+      _setFramesInternal(fallbackFrames);
+      setActiveFrameIndex(0);
+      setProjectName(`Untitled Project (Error)`);
+      setFps(12);
+      setDrawingHistory([null]);
+      setDrawingHistoryPointer(0);
+      _setPanelLayersInternal(fallbackFrames[0]?.layers || createDefaultLayers());
+    }).finally(() => {
+      setIsLoadingProject(false);
+    });
   }, [routeProjectId, toast]);
 
 
@@ -166,7 +168,6 @@ export const AnimationProvider = ({ children, projectId: routeProjectId }: { chi
     if (frames.length > 0 && activeFrameIndex >= 0 && activeFrameIndex < frames.length) {
       const currentFrame = frames[activeFrameIndex];
       if (currentFrame) {
-        // Only reset drawing history if the dataUrl truly differs from current history pointer
         if (drawingHistory[drawingHistoryPointer] !== currentFrame.dataUrl) {
             setDrawingHistory([currentFrame.dataUrl]);
             setDrawingHistoryPointer(0);
@@ -174,6 +175,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectId }: { chi
         _setPanelLayersInternal(currentFrame.layers); 
       }
     } else if (frames.length === 0 && !isLoadingProject) {
+      // This ensures that if frames array becomes empty AFTER loading, we reset to a default state
       const defaultFrameForEmpty: Frame = {
           id: `frame-empty-default-0-${Date.now()}`, dataUrl: null, layers: createDefaultLayers()
       };
@@ -183,19 +185,21 @@ export const AnimationProvider = ({ children, projectId: routeProjectId }: { chi
       setDrawingHistory([null]);
       setDrawingHistoryPointer(0);
     }
-  }, [activeFrameIndex, frames, isLoadingProject, drawingHistoryPointer]); // Removed drawingHistory from deps to avoid potential loop
+  }, [activeFrameIndex, frames, isLoadingProject]);
 
 
   const setFramesDispatch: Dispatch<SetStateAction<Frame[]>> = useCallback((valueOrFn) => {
     _setFramesInternal(prevFrames => {
         const newFramesRaw = typeof valueOrFn === 'function' ? valueOrFn(prevFrames) : valueOrFn;
+        // Ensure every frame has a layers property
         const newFramesWithLayers = newFramesRaw.map((frame, index) => {
             if (frame.layers && frame.layers.length > 0) {
                 return frame;
             }
+            // If layers are missing or empty, initialize with default
             return {
                 ...frame,
-                layers: createDefaultLayers().map(l => ({...l, id: `layer-dispatch-${index}-${l.id}-${Date.now()}`}))
+                layers: createDefaultLayers().map(l => ({...l, id: `layer-dispatch-${index}-${l.name.replace(/\s+/g, '-')}-${Date.now()}`}))
             };
         });
         return newFramesWithLayers;
@@ -203,8 +207,10 @@ export const AnimationProvider = ({ children, projectId: routeProjectId }: { chi
   }, []);
 
   const setLayersForActiveFrameAndPanel = useCallback((newLayersOrFn: SetStateAction<Layer[]>) => {
+    // Update the panel's layer state directly
     _setPanelLayersInternal(newLayersOrFn); 
 
+    // Update the layers for the active frame within the main frames array
     _setFramesInternal(prevFrames => {
         const updatedFrames = [...prevFrames];
         if (activeFrameIndex >= 0 && activeFrameIndex < updatedFrames.length && updatedFrames[activeFrameIndex]) {
@@ -225,9 +231,12 @@ export const AnimationProvider = ({ children, projectId: routeProjectId }: { chi
       return newFrames;
     });
 
+    // Update drawing history
     setDrawingHistory(prevHistory => {
+        // Trim history if pointer is not at the end (i.e., after an undo)
         const newHistorySlice = prevHistory.slice(0, drawingHistoryPointer + 1);
         newHistorySlice.push(newDataUrl);
+        // Limit history size (e.g., to 30 steps)
         while (newHistorySlice.length > 30) { newHistorySlice.shift(); }
         setDrawingHistoryPointer(newHistorySlice.length - 1);
         return newHistorySlice;
@@ -277,7 +286,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectId }: { chi
       return;
     }
     if (activeFrameIndex < 0 || activeFrameIndex >= frames.length) {
-      toast({ title: "Save Error", description: "Invalid active frame selected or frame index is out of bounds.", variant: "destructive" });
+      toast({ title: "Save Error", description: "Invalid active frame selected.", variant: "destructive" });
       return;
     }
     const frameToSave = frames[activeFrameIndex];
@@ -295,26 +304,16 @@ export const AnimationProvider = ({ children, projectId: routeProjectId }: { chi
     try {
       await saveFrameToDb(routeProjectId, activeFrameIndex, frameToSave.dataUrl, user.uid, frameToSave.layers);
       
-      toast.update(savingToastId, { 
-        title: "Frame Saved!",
-        description: `Frame ${activeFrameIndex + 1} for "${projectName || 'Untitled Project'}" has been successfully saved.`,
-        variant: "default",
-        open: false, // This will dismiss the "Saving..." toast
-      });
-      toast({ // Show a new success toast
+      toast.dismiss(savingToastId);
+      toast({ 
         title: "Frame Saved!",
         description: `Frame ${activeFrameIndex + 1} for "${projectName || 'Untitled Project'}" has been successfully saved.`,
         duration: 3000,
       });
 
     } catch (error: any) {
-      toast.update(savingToastId, { 
-        title: "Save Failed",
-        description: error.message || "Could not save the frame. Please try again.",
-        variant: "destructive",
-        open: false, 
-      });
-       toast({ // Show a new error toast
+      toast.dismiss(savingToastId);
+      toast({ 
         title: "Save Failed",
         description: error.message || "Could not save the frame. Please try again.",
         variant: "destructive",
@@ -340,30 +339,20 @@ export const AnimationProvider = ({ children, projectId: routeProjectId }: { chi
     const { id: savingAllToastId } = toast({
       title: "Saving All Frames...",
       description: `All ${frames.length} frames for "${projectName || 'Untitled Project'}" are being saved.`,
-      duration: 100000, // Long duration for persistent "saving" message
+      duration: 100000, 
     });
 
     try {
       await saveAllFramesToDb(routeProjectId, frames, user.uid, projectName, fps);
       
-      toast.update(savingAllToastId, {
-        title: "All Frames Saved!",
-        description: `All ${frames.length} frames for "${projectName || 'Untitled Project'}" have been successfully saved.`,
-        variant: "default",
-        open: false,
-      });
-       toast({ 
+      toast.dismiss(savingAllToastId);
+      toast({ 
         title: "All Frames Saved!",
         description: `All ${frames.length} frames for "${projectName || 'Untitled Project'}" have been successfully saved.`,
         duration: 4000,
       });
     } catch (error: any) {
-      toast.update(savingAllToastId, {
-        title: "Save All Failed",
-        description: error.message || "Could not save all frames. Please try again.",
-        variant: "destructive",
-        open: false,
-      });
+      toast.dismiss(savingAllToastId);
       toast({ 
         title: "Save All Failed",
         description: error.message || "Could not save all frames. Please try again.",
@@ -416,25 +405,26 @@ export const useAnimation = (): AnimationContextType & { _updateActiveFrameDrawi
     throw new Error('useAnimation must be used within an AnimationProvider');
   }
   
+  // Re-casting to access the internal function passed via context value
+  // This is a bit of a workaround for exposing an "internal" update function.
+  // A cleaner way might involve more complex reducer patterns or dedicated action dispatchers.
   const _updateActiveFrameDrawing = (context as any).updateActiveFrameDrawing || ((newDataUrl: string | null) => {
-    // This is a fallback implementation. The real `updateActiveFrameDrawing` is defined inside the provider.
-    // This fallback is unlikely to be called if the context structure is correct.
-    const { setFrames: _setFrames, activeFrameIndex: _activeIndex, drawingHistory: _hist, drawingHistoryPointer: _histPtr, setDrawingHistory: _setHist, setDrawingHistoryPointer: _setHistPtr } = context as any;
+    const { _setFramesInternal, activeFrameIndex, setDrawingHistory, drawingHistoryPointer, setDrawingHistoryPointer } = context as any;
 
-    _setFrames((prevFrames: Frame[]) => {
+    _setFramesInternal((prevFrames: Frame[]) => {
       const newFrames = [...prevFrames];
-      if (_activeIndex >= 0 && _activeIndex < newFrames.length && newFrames[_activeIndex]) {
-        newFrames[_activeIndex] = { ...newFrames[_activeIndex], dataUrl: newDataUrl };
+      if (activeFrameIndex >= 0 && activeFrameIndex < newFrames.length && newFrames[activeFrameIndex]) {
+        newFrames[activeFrameIndex] = { ...newFrames[activeFrameIndex], dataUrl: newDataUrl };
       }
       return newFrames;
     });
 
-    if (_setHist && _setHistPtr) { 
-        _setHist((prevHistory: (string | null)[]) => {
-            const newHistorySlice = prevHistory.slice(0, _histPtr + 1);
+    if (setDrawingHistory && setDrawingHistoryPointer) { 
+        setDrawingHistory((prevHistory: (string | null)[]) => {
+            const newHistorySlice = prevHistory.slice(0, drawingHistoryPointer + 1);
             newHistorySlice.push(newDataUrl);
             while (newHistorySlice.length > 30) { newHistorySlice.shift(); }
-            _setHistPtr(newHistorySlice.length - 1);
+            setDrawingHistoryPointer(newHistorySlice.length - 1);
             return newHistorySlice;
         });
     }
@@ -446,3 +436,5 @@ export const useAnimation = (): AnimationContextType & { _updateActiveFrameDrawi
     _updateActiveFrameDrawing,
   };
 };
+
+    
