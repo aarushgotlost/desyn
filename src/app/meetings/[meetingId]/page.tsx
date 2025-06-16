@@ -28,9 +28,9 @@ export default function MeetingPage() {
   const [isLoadingMeeting, setIsLoadingMeeting] = useState(true);
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [isJoiningVideo, setIsJoiningVideo] = useState(false);
-  const [showTokenInput, setShowTokenInput] = useState(false);
-  const [manualToken, setManualToken] = useState('');
-  const [tokenError, setTokenError] = useState<string | null>(null);
+  const [showTokenInputPrompt, setShowTokenInputPrompt] = useState(false); // Renamed for clarity
+  const [manualToken, setManualToken] = useState(''); // Still needed if hardcoded token fails
+  const [tokenGenerationMessage, setTokenGenerationMessage] = useState<string | null>(null); // Store messages from token flow
   const [needsToJoinFirestore, setNeedsToJoinFirestore] = useState(false);
   const [isProcessingFirestoreJoin, setIsProcessingFirestoreJoin] = useState(false);
 
@@ -48,27 +48,21 @@ export default function MeetingPage() {
           setMeetingDetails(details);
           if (!details.isActive) {
             toast({ title: "Meeting Ended", description: "This meeting has already ended.", variant: "destructive" });
-            // No further action if meeting ended. UI will reflect this.
-          } else if (user && user.uid) { // Ensure user object is available
+          } else if (user && user.uid) {
             const isCurrentUserHost = details.hostUid === user.uid;
-            // Host is implicitly a participant from creation.
-            // Other users need to explicitly join if not already in participantUids.
             const isCurrentUserParticipant = details.participantUids.includes(user.uid);
 
             if (isCurrentUserHost || isCurrentUserParticipant) {
-              // User is either the host or already a participant in Firestore
-              setNeedsToJoinFirestore(false); // Don't show "Join Meeting Session" button
+              setNeedsToJoinFirestore(false);
               attemptTokenGeneration(
                 details.roomId100ms,
                 user.uid,
                 isCurrentUserHost ? USER_ROLES_100MS.SPEAKER : USER_ROLES_100MS.LISTENER
               );
             } else {
-              // User is not the host and not a participant, and meeting is active
-              setNeedsToJoinFirestore(true); // Show "Join Meeting Session" button
+              setNeedsToJoinFirestore(true);
             }
           }
-          // else: user object not available yet, or meeting not active. AuthLoading handles initial user loading.
         } else {
           toast({ title: "Not Found", description: "Meeting not found.", variant: "destructive" });
           router.replace('/meetings');
@@ -87,20 +81,28 @@ export default function MeetingPage() {
 
   const attemptTokenGeneration = async (roomId100ms: string, userId: string, role: string) => {
     setIsJoiningVideo(true);
-    setTokenError(null);
+    setTokenGenerationMessage(null);
+    setShowTokenInputPrompt(false);
     try {
       const tokenResult = await get100msTokenAction(userId, roomId100ms, role);
       if (tokenResult.token) {
         setAuthToken(tokenResult.token);
-        setShowTokenInput(false);
+        if (tokenResult.message) {
+          // Log the prototype message, but don't show it as an error if token is present
+          console.info("Token Generation Info:", tokenResult.message);
+          // You might want to display this message to the user in a non-error way if it's important
+          // For now, we prioritize getting into the meeting.
+        }
       } else {
-        setTokenError(tokenResult.message || tokenResult.error || "A 100ms auth token is required.");
-        setShowTokenInput(true);
+        // If no token, but there's a message (e.g. simulation warning or dev note), show it.
+        // And prompt for manual input as a fallback.
+        setTokenGenerationMessage(tokenResult.message || tokenResult.error || "A 100ms auth token is required.");
+        setShowTokenInputPrompt(true);
       }
     } catch (error: any) {
       toast({ title: "Token Error", description: error.message || "Failed to get meeting token.", variant: "destructive" });
-      setTokenError(error.message || "Failed to get meeting token.");
-      setShowTokenInput(true);
+      setTokenGenerationMessage(error.message || "Failed to get meeting token.");
+      setShowTokenInputPrompt(true);
     } finally {
       setIsJoiningVideo(false);
     }
@@ -110,10 +112,10 @@ export default function MeetingPage() {
     e.preventDefault();
     if (manualToken.trim()) {
       setAuthToken(manualToken.trim());
-      setShowTokenInput(false);
-      setTokenError(null);
+      setShowTokenInputPrompt(false);
+      setTokenGenerationMessage(null);
     } else {
-      setTokenError("Please enter a valid 100ms auth token.");
+      setTokenGenerationMessage("Please enter a valid 100ms auth token.");
     }
   };
   
@@ -121,14 +123,12 @@ export default function MeetingPage() {
     if (!user || !userProfile || !meetingDetails) return;
     setIsProcessingFirestoreJoin(true);
     try {
-      // Determine role for joining; if somehow host is joining through this, they are speaker.
       const role = meetingDetails.hostUid === user.uid ? USER_ROLES_100MS.SPEAKER : USER_ROLES_100MS.LISTENER;
       const result = await joinMeetingSession(meetingId, userProfile, role);
       if (result.success) {
         toast({ title: "Joined Meeting", description: "You have successfully joined the meeting session." });
         setNeedsToJoinFirestore(false);
         
-        // Refresh meeting details to include self as participant (or use Firestore listener if implemented)
         const updatedDetails = await getMeetingDetailsFirestore(meetingId);
         if (updatedDetails) setMeetingDetails(updatedDetails);
         
@@ -155,6 +155,7 @@ export default function MeetingPage() {
         toast({ title: "Error", description: result.message, variant: "destructive" });
       }
     } else {
+      // For non-hosts, "leaving" is handled by 100ms SDK's leave(). Firestore data isn't changed.
       toast({ title: "Left Meeting", description: "You have left the meeting." });
     }
     router.push('/meetings');
@@ -218,8 +219,8 @@ export default function MeetingPage() {
     );
   }
 
-
-  if (!authToken && showTokenInput) {
+  // If authToken is not yet available AND we are supposed to show the token input prompt
+  if (!authToken && showTokenInputPrompt) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-4">
         <Card className="w-full max-w-md shadow-lg">
@@ -232,15 +233,18 @@ export default function MeetingPage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleManualTokenSubmit} className="space-y-4">
-              <div className="p-3 rounded-md bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700">
-                  <div className="flex items-start">
-                    <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 mr-2 mt-0.5 flex-shrink-0" />
-                    <div className="text-sm text-yellow-700 dark:text-yellow-300">
-                      <p className="font-semibold">Developer Note:</p>
-                      <p>For this prototype, obtain a short-lived Auth Token from your <a href="https://dashboard.100ms.live/" target="_blank" rel="noopener noreferrer" className="underline hover:text-yellow-500">100ms Dashboard</a> for Room ID: <code className="bg-yellow-200 dark:bg-yellow-800/50 px-1 py-0.5 rounded text-xs">{meetingDetails.roomId100ms}</code>. In production, tokens must be generated by a secure backend.</p>
+              {tokenGenerationMessage && (
+                <div className="p-3 rounded-md bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700">
+                    <div className="flex items-start">
+                      <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 mr-2 mt-0.5 flex-shrink-0" />
+                      <div className="text-sm text-yellow-700 dark:text-yellow-300">
+                        <p className="font-semibold">Developer Note:</p>
+                        <p>{tokenGenerationMessage}</p>
+                        <p>For this prototype, if automatic token retrieval fails or is simulated, you may need to obtain a short-lived Auth Token from your <a href="https://dashboard.100ms.live/" target="_blank" rel="noopener noreferrer" className="underline hover:text-yellow-500">100ms Dashboard</a> for Room ID: <code className="bg-yellow-200 dark:bg-yellow-800/50 px-1 py-0.5 rounded text-xs">{meetingDetails.roomId100ms}</code> and paste it below. In production, tokens must be generated by a secure backend.</p>
+                      </div>
                     </div>
-                  </div>
-              </div>
+                </div>
+              )}
               <div>
                 <Label htmlFor="manualToken">100ms Auth Token</Label>
                 <Input
@@ -252,7 +256,6 @@ export default function MeetingPage() {
                   className="mt-1"
                 />
               </div>
-              {tokenError && <p className="text-sm text-destructive">{tokenError}</p>}
               <Button type="submit" className="w-full" disabled={isJoiningVideo || !manualToken.trim()}>
                 {isJoiningVideo ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Join Video Call"}
               </Button>
@@ -266,6 +269,7 @@ export default function MeetingPage() {
     );
   }
   
+  // If authToken is still not available, but we are trying to join (e.g. flow is running)
   if (!authToken && isJoiningVideo) {
      return (
       <div className="flex flex-col items-center justify-center min-h-screen p-4">
@@ -275,7 +279,7 @@ export default function MeetingPage() {
     );
   }
 
-
+  // If authToken is available, render the meeting room UI
   if (authToken && user && userProfile && meetingDetails) {
     return (
       <MeetingRoomUI
@@ -288,12 +292,13 @@ export default function MeetingPage() {
     );
   }
 
-  // Fallback if something unexpected happens (e.g. meetingDetails is null after loading)
+  // Fallback loading or error state if none of the above conditions are met
+  // (e.g., meetingDetails is somehow null after initial load, or user logs out during the process)
   return (
       <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
          <VideoOff size={64} className="text-destructive mb-4" />
         <h1 className="text-2xl font-semibold mb-2">Cannot Join Meeting</h1>
-        <p className="text-muted-foreground mb-6">There was an issue preparing the meeting. Please try again or contact support.</p>
+        <p className="text-muted-foreground mb-6">There was an issue preparing the meeting. Please try again or check your connection.</p>
         <Button asChild variant="outline">
           <Link href="/meetings"><ArrowLeft className="mr-2 h-4 w-4" />Back to Meetings</Link>
         </Button>

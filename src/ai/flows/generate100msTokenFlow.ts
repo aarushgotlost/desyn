@@ -30,6 +30,10 @@ export async function generate100msToken(input: GenerateTokenInput): Promise<Gen
   return internalGenerate100msTokenFlow(input);
 }
 
+// THIS IS A TEMPORARY PROTOTYPING TOKEN. DO NOT USE IN PRODUCTION.
+const PROTOTYPE_GUEST_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ2ZXJzaW9uIjoyLCJ0eXBlIjoiYXBwIiwiYXBwX2RhdGEiOm51bGwsImFjY2Vzc19rZXkiOiI2ODUwMTAyMGJkMGRhYjVmOWEwMTI4YWQiLCJyb2xlIjoiZ3Vlc3QiLCJyb29tX2lkIjoiNjg1MDEzMDVhNDhjYTYxYzQ2NDc0MGU3IiwidXNlcl9pZCI6ImEyY2FhYjcyLTMxOWEtNDI5YS05MTkwLTM2OWJhYTI0NDhjOCIsImV4cCI6MTc1MDE2NTQ0MCwianRpIjoiYjc5Y2EyMjctNTVjZS00MmNmLTg0NjEtYzRmNTA3N2QwMDFkIiwiaWF0IjoxNzUwMDc5MDQwLCJpc3MiOiI2ODUwMTAyMGJkMGRhYjVmOWEwMTI4YWIiLCJuYmYiOjE3NTAwNzkwNDAsInN1YiI6ImFwaSJ9.0ALU1v2WrZo8phrYvky1vX-yLtyXkOJ0i785LRtK2jk";
+
+
 const internalGenerate100msTokenFlow = ai.defineFlow(
   {
     name: 'internalGenerate100msTokenFlow',
@@ -43,19 +47,24 @@ const internalGenerate100msTokenFlow = ai.defineFlow(
     // 100ms Management Token (App Access Key's management_token).
     // Never expose your Management Token on the client-side or in insecure server code.
 
-    // For this prototype, the frontend (`MeetingRoom.tsx`) will guide the user
-    // to manually obtain a short-lived auth token from the 100ms Dashboard
-    // for the specified `input.roomId` and paste it.
-
     console.warn(
-      `SECURITY WARNING: Simulated 100ms token generation for room ${input.roomId}, user ${input.userId}, role ${input.role}.` +
-      ` This is NOT for production. A real backend is required.`
+      `SECURITY WARNING: Using a hardcoded prototype 100ms token for room ${input.roomId}, user ${input.userId}, role ${input.role}.` +
+      ` This is NOT for production. A real backend is required for secure token generation.`
     );
 
+    // For this prototype, if the role is "guest", we return the hardcoded guest token.
+    // For other roles (like "host"), we'll still indicate simulation.
+    if (input.role === "guest" || input.role === "host") { // Simplified: using the same token for host for now.
+      return {
+        token: PROTOTYPE_GUEST_TOKEN,
+        message: "Using a hardcoded prototype token. This is insecure and for development testing only. Replace with real backend token generation for production."
+      };
+    }
+
     return {
-      token: undefined, // No token is generated here.
-      error: "Token generation is simulated.",
-      message: "For this prototype, please obtain an auth token from your 100ms Dashboard for the room and paste it into the UI. A secure backend is required for real token generation."
+      token: undefined, 
+      error: "Token generation is simulated for this role.",
+      message: "For this prototype, a hardcoded token is used for 'guest'. Other roles are simulated. A secure backend is required for real token generation for all roles."
     };
   }
 );
