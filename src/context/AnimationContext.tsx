@@ -98,7 +98,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
 
 
   useEffect(() => {
-    const currentRouteProjectId = routeProjectIdRef.current; // Use ref for consistency in this effect
+    const currentRouteProjectId = routeProjectIdRef.current; 
     if (!currentRouteProjectId) {
       setIsLoadingProject(false);
       setProjectName("No Project Loaded");
@@ -179,7 +179,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
     }).finally(() => {
       setIsLoadingProject(false);
     });
-  }, [routeProjectIdFromProp, toast]); // Depend on the prop directly for re-initialization
+  }, [routeProjectIdFromProp, toast]); 
 
 
   useEffect(() => {
@@ -188,7 +188,6 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
     const currentFrame = _framesInternal[activeFrameIndex];
     if (currentFrame) {
       const currentFrameDataUrl = currentFrame.dataUrl;
-      // Only reset history if dataUrl genuinely changes or history is uninitialized for the frame.
       if (drawingHistoryPointer === -1 || drawingHistory[drawingHistoryPointer] !== currentFrameDataUrl) {
          setDrawingHistory([currentFrameDataUrl]);
          setDrawingHistoryPointer(0);
@@ -197,7 +196,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
     } else if (_framesInternal.length > 0 && (activeFrameIndex < 0 || activeFrameIndex >= _framesInternal.length)) {
         setActiveFrameIndex(0); 
     }
-  }, [activeFrameIndex, _framesInternal, isLoadingProject]);
+  }, [activeFrameIndex, _framesInternal, isLoadingProject, drawingHistory, drawingHistoryPointer]);
 
 
   const setFramesDispatch: Dispatch<SetStateAction<Frame[]>> = useCallback((valueOrFn) => {
@@ -248,14 +247,14 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
     });
 
     setDrawingHistory(prevHistory => {
-        const currentHistoryPointer = drawingHistoryPointer; // Use state value directly
+        const currentHistoryPointer = drawingHistoryPointer; 
         const newHistorySlice = prevHistory.slice(0, currentHistoryPointer + 1);
         newHistorySlice.push(newDataUrl);
-        const limitedHistory = newHistorySlice.slice(-30); // Limit history size
+        const limitedHistory = newHistorySlice.slice(-30); 
         setDrawingHistoryPointer(limitedHistory.length - 1);
         return limitedHistory;
     });
-  }, [drawingHistoryPointer]); // Added drawingHistoryPointer to dependencies
+  }, [drawingHistoryPointer]); 
 
   const undoDrawing = useCallback(() => {
     if (drawingHistoryPointer > 0) {
@@ -293,7 +292,8 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
   const canRedoDrawing = drawingHistoryPointer < drawingHistory.length - 1;
 
   const saveActiveFrameManually = useCallback(async () => {
-    const currentPId = routeProjectIdRef.current; // Use the ref's current value
+    const currentPId = routeProjectIdRef.current;
+    const currentProjectNameForToast = projectName || "Untitled Project";
 
     if (!user || !user.uid) {
       toast({ title: "Authentication Error", description: "You must be logged in to save.", variant: "destructive" });
@@ -317,7 +317,6 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
         return;
     }
 
-    const currentProjectNameForToast = projectName || "Untitled Project";
     const { id: savingToastId } = toast({
       title: "Saving Frame...",
       description: `Frame ${currentActiveFrameIndex + 1} of "${currentProjectNameForToast}" is being saved.`,
@@ -341,11 +340,13 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
         duration: 7000,
       });
     }
-  }, [user, toast, projectName]); // routeProjectIdFromProp is implicitly handled via routeProjectIdRef
+  }, [user, toast, projectName]); 
 
 
   const saveAllFramesManually = useCallback(async () => {
-    const currentPId = routeProjectIdRef.current; // Use the ref's current value
+    const currentPId = routeProjectIdRef.current; 
+    const currentProjectNameForToast = projectName || "Untitled Project";
+    const currentFpsForSave = fps || 12;
 
     if (!user || !user.uid) {
       toast({ title: "Authentication Error", description: "You must be logged in to save all frames.", variant: "destructive" });
@@ -361,9 +362,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
       toast({ title: "Save All Error", description: "No frames to save.", variant: "default" });
       return;
     }
-
-    const currentProjectNameForToast = projectName || "Untitled Project";
-    const currentFpsForSave = fps || 12;
+    
     const { id: savingAllToastId } = toast({
       title: "Saving All Frames...",
       description: `All ${currentFrames.length} frames for "${currentProjectNameForToast}" are being saved.`,
@@ -387,7 +386,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
         duration: 7000,
       });
     }
-  }, [user, toast, projectName, fps]); // routeProjectIdFromProp is implicitly handled via routeProjectIdRef
+  }, [user, toast, projectName, fps]); 
 
 
   const contextValue: AnimationContextType = useMemo(() => ({
@@ -399,7 +398,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
     setLayers: setLayersForActiveFrameAndPanel,
     currentTool,
     setCurrentTool,
-    projectId: routeProjectIdRef.current || null, // Use ref's current value for context consumers
+    projectId: routeProjectIdRef.current || null, 
     projectName,
     setProjectName,
     isLoadingProject,
@@ -421,7 +420,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
   }), [
     _framesInternal, setFramesDispatch, activeFrameIndex, 
     _panelLayers, setLayersForActiveFrameAndPanel, currentTool, 
-    projectName, isLoadingProject, currentColor, brushSize, // routeProjectIdFromProp is not directly here, uses ref
+    projectName, isLoadingProject, currentColor, brushSize, 
     isPlaying, fps, updateActiveFrameDrawing, undoDrawing, redoDrawing,
     canUndoDrawing, canRedoDrawing, saveActiveFrameManually, saveAllFramesManually
   ]);
