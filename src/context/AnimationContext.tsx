@@ -81,6 +81,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
   const [drawingHistory, setDrawingHistory] = useState<(string | null)[]>([]);
   const [drawingHistoryPointer, setDrawingHistoryPointer] = useState<number>(-1);
 
+  // Refs to hold current values for use in callbacks that might have stale closures
   const framesRef = useRef(_framesInternal);
   useEffect(() => {
     framesRef.current = _framesInternal;
@@ -91,15 +92,9 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
     activeFrameIndexRef.current = activeFrameIndex;
   }, [activeFrameIndex]);
 
-  const routeProjectIdRef = useRef(routeProjectIdFromProp);
-  useEffect(() => {
-    routeProjectIdRef.current = routeProjectIdFromProp;
-  }, [routeProjectIdFromProp]);
-
 
   useEffect(() => {
-    const currentRouteProjectId = routeProjectIdRef.current; 
-    if (!currentRouteProjectId) {
+    if (!routeProjectIdFromProp) {
       setIsLoadingProject(false);
       setProjectName("No Project Loaded");
       setFps(12);
@@ -122,10 +117,10 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
     setDrawingHistoryPointer(0);
 
     Promise.all([
-      getProjectMetadata(currentRouteProjectId),
-      loadAllFrames(currentRouteProjectId)
+      getProjectMetadata(routeProjectIdFromProp),
+      loadAllFrames(routeProjectIdFromProp)
     ]).then(([metadata, loadedFramesDb]) => {
-      setProjectName(metadata?.name || `Project ${currentRouteProjectId.substring(currentRouteProjectId.length - 4)}`);
+      setProjectName(metadata?.name || `Project ${routeProjectIdFromProp.substring(routeProjectIdFromProp.length - 4)}`);
       setFps(metadata?.fps || 12);
 
       let initialFramesToSet: Frame[];
@@ -292,7 +287,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
   const canRedoDrawing = drawingHistoryPointer < drawingHistory.length - 1;
 
   const saveActiveFrameManually = useCallback(async () => {
-    const currentPId = routeProjectIdRef.current;
+    const currentPId = routeProjectIdFromProp;
     const currentProjectNameForToast = projectName || "Untitled Project";
 
     if (!user || !user.uid) {
@@ -300,7 +295,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
       return;
     }
     if (currentPId === null || currentPId === undefined || currentPId.trim() === "") {
-      toast({ title: "Save Error", description: "Project ID is not available. Please ensure you are on a valid project page.", variant: "destructive" });
+      toast({ title: "Save Frame Error", description: "Project ID is not available. Please ensure you are on a valid project page.", variant: "destructive" });
       return;
     }
     
@@ -308,12 +303,12 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
     const currentFrames = framesRef.current;
 
     if (currentActiveFrameIndex < 0 || currentActiveFrameIndex >= currentFrames.length) {
-      toast({ title: "Save Error", description: "Invalid active frame selected.", variant: "destructive" });
+      toast({ title: "Save Frame Error", description: "Invalid active frame selected.", variant: "destructive" });
       return;
     }
     const frameToSave = currentFrames[currentActiveFrameIndex];
     if (!frameToSave) {
-        toast({ title: "Save Error", description: "Active frame data is missing.", variant: "destructive" });
+        toast({ title: "Save Frame Error", description: "Active frame data is missing.", variant: "destructive" });
         return;
     }
 
@@ -334,17 +329,17 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
     } catch (error: any) {
       toast.dismiss(savingToastId);
       toast({
-        title: "Save Failed",
+        title: "Save Frame Failed",
         description: error.message || "Could not save the frame. Please try again.",
         variant: "destructive",
         duration: 7000,
       });
     }
-  }, [user, toast, projectName]); 
+  }, [user, toast, projectName, routeProjectIdFromProp]); 
 
 
   const saveAllFramesManually = useCallback(async () => {
-    const currentPId = routeProjectIdRef.current; 
+    const currentPId = routeProjectIdFromProp; 
     const currentProjectNameForToast = projectName || "Untitled Project";
     const currentFpsForSave = fps || 12;
 
@@ -386,7 +381,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
         duration: 7000,
       });
     }
-  }, [user, toast, projectName, fps]); 
+  }, [user, toast, projectName, fps, routeProjectIdFromProp]); 
 
 
   const contextValue: AnimationContextType = useMemo(() => ({
@@ -398,7 +393,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
     setLayers: setLayersForActiveFrameAndPanel,
     currentTool,
     setCurrentTool,
-    projectId: routeProjectIdRef.current || null, 
+    projectId: routeProjectIdFromProp || null, 
     projectName,
     setProjectName,
     isLoadingProject,
@@ -420,7 +415,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
   }), [
     _framesInternal, setFramesDispatch, activeFrameIndex, 
     _panelLayers, setLayersForActiveFrameAndPanel, currentTool, 
-    projectName, isLoadingProject, currentColor, brushSize, 
+    routeProjectIdFromProp, projectName, isLoadingProject, currentColor, brushSize, 
     isPlaying, fps, updateActiveFrameDrawing, undoDrawing, redoDrawing,
     canUndoDrawing, canRedoDrawing, saveActiveFrameManually, saveAllFramesManually
   ]);
