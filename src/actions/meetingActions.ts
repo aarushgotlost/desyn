@@ -20,14 +20,18 @@ export async function createMeetingAction(
 
   const meetingsColRef = collection(db, 'meetings');
   try {
-    const initialParticipant: MeetingParticipant = {
+    // Construct the initial participant directly for clarity
+    const initialParticipantForFirestore = {
       uid: hostProfile.uid,
-      displayName: hostProfile.displayName,
-      photoURL: hostProfile.photoURL,
-      joinedAt: new Date().toISOString(), // Will be serverTimestamp in DB
+      displayName: hostProfile.displayName, // This can be null if user's profile displayName is null
+      photoURL: hostProfile.photoURL,       // This can be null
+      joinedAt: serverTimestamp(), // Use serverTimestamp() directly
     };
 
-    const newMeetingData: Omit<Meeting, 'id' | 'createdAt'> & { createdAt: Timestamp } = {
+    const newMeetingData: Omit<Meeting, 'id' | 'createdAt' | 'participants'> & { 
+      createdAt: Timestamp; 
+      participants: Array<Omit<MeetingParticipant, 'joinedAt'> & { joinedAt: any }>; // Allow 'any' for serverTimestamp on write
+    } = {
       title: title.trim(),
       createdBy: hostProfile.uid,
       hostProfile: {
@@ -36,7 +40,7 @@ export async function createMeetingAction(
         photoURL: hostProfile.photoURL,
       },
       isActive: true,
-      participants: [{ ...initialParticipant, joinedAt: serverTimestamp() as unknown as string }], // Firestore will convert this
+      participants: [initialParticipantForFirestore],
       createdAt: serverTimestamp() as Timestamp,
     };
 
@@ -71,18 +75,20 @@ export async function joinMeetingAction(
     const isAlreadyParticipant = meetingData.participants.some(p => p.uid === userProfile.uid);
 
     if (isAlreadyParticipant) {
-      return { success: true, message: 'Already a participant.' };
+      // If they are already a participant (e.g. host, or joined before), just confirm success.
+      // The UI on the meeting page should then allow them to connect to Jitsi.
+      return { success: true, message: 'Already a participant. You can join the video call.' };
     }
 
-    const newParticipant: MeetingParticipant = {
+    const newParticipantForFirestore = {
       uid: userProfile.uid,
       displayName: userProfile.displayName,
       photoURL: userProfile.photoURL,
-      joinedAt: new Date().toISOString(), // Will be serverTimestamp in DB
+      joinedAt: serverTimestamp(), // Use serverTimestamp() directly
     };
 
     await updateDoc(meetingRef, {
-      participants: arrayUnion({ ...newParticipant, joinedAt: serverTimestamp() }),
+      participants: arrayUnion(newParticipantForFirestore),
     });
     revalidatePath(`/meetings/${meetingId}`);
     revalidatePath('/meetings');
@@ -126,3 +132,5 @@ export async function endMeetingAction(
     return { success: false, message: error.message || 'Could not end meeting.' };
   }
 }
+
+    
