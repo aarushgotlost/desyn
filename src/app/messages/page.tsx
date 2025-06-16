@@ -9,12 +9,11 @@ import type { ChatSession } from '@/types/messaging';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { MessageSquareText, UserPlus, Loader2, AlertTriangle, Search, Video } from 'lucide-react'; // Added Video
+import { MessageSquareText, UserPlus, Loader2, AlertTriangle, Search } from 'lucide-react';
 import { formatDistanceToNowStrict } from 'date-fns';
 import { Input } from '@/components/ui/input';
-import { useRouter, useSearchParams } from 'next/navigation'; 
+import { useRouter } from 'next/navigation'; 
 import { getInitials } from '@/lib/utils';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"; // Added Tabs
 
 function ChatListItem({ session, currentUserUid }: { session: ChatSession; currentUserUid: string }) {
   const otherParticipant = session.participants.find(p => p.uid !== currentUserUid);
@@ -52,10 +51,8 @@ function ChatListItem({ session, currentUserUid }: { session: ChatSession; curre
 }
 
 export default function MessagesPage() {
-  const { user, userProfile, loading: authLoading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter(); 
-  const searchParams = useSearchParams();
-  const defaultTab = searchParams.get('tab') === 'meetings' ? 'meetings' : 'chats';
 
   const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
   const [isLoadingSessions, setIsLoadingSessions] = useState(true);
@@ -104,7 +101,7 @@ export default function MessagesPage() {
       <Card className="shadow-xl max-w-2xl mx-auto mt-8">
         <CardHeader>
           <CardTitle>Access Denied</CardTitle>
-          <CardDescription>Please log in to view your messages and meetings.</CardDescription>
+          <CardDescription>Please log in to view your messages.</CardDescription>
         </CardHeader>
         <CardContent className="text-center">
           <Button asChild><Link href="/login">Log In</Link></Button>
@@ -139,62 +136,41 @@ export default function MessagesPage() {
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
             <CardTitle className="text-2xl font-bold font-headline flex items-center">
               <MessageSquareText className="mr-3 w-7 h-7 text-primary" />
-              Communication Hub
+              Your Chats
             </CardTitle>
             <Button variant="outline" size="sm" onClick={handleNewChat}>
               <UserPlus className="mr-2 h-4 w-4" /> New Chat
             </Button>
           </div>
           <CardDescription>
-            Your direct messages and meeting information.
+            Your direct messages with other users.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Tabs defaultValue={defaultTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="chats"><MessageSquareText className="mr-2 h-4 w-4" />Chats</TabsTrigger>
-              <TabsTrigger value="meetings"><Video className="mr-2 h-4 w-4" />Meetings</TabsTrigger>
-            </TabsList>
-            <TabsContent value="chats" className="mt-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                <Input 
-                  placeholder="Search chats..." 
-                  className="pl-10"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+              <Input 
+                placeholder="Search chats..." 
+                className="pl-10"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            {filteredSessions.length > 0 ? (
+              <div className="space-y-3 max-h-[calc(100vh-22rem)] overflow-y-auto pr-1 mt-4">
+                {filteredSessions.map(session => (
+                  <ChatListItem key={session.id} session={session} currentUserUid={user.uid} />
+                ))}
               </div>
-              {filteredSessions.length > 0 ? (
-                <div className="space-y-3 max-h-[calc(100vh-26rem)] overflow-y-auto pr-1 mt-4">
-                  {filteredSessions.map(session => (
-                    <ChatListItem key={session.id} session={session} currentUserUid={user.uid} />
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-10">
-                  <MessageSquareText size={48} className="mx-auto text-muted-foreground mb-4 opacity-50" />
-                  <h3 className="text-lg font-semibold text-foreground mb-1">No Chats Yet</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Start a conversation by clicking "New Chat" or from a user's profile.
-                  </p>
-                </div>
-              )}
-            </TabsContent>
-            <TabsContent value="meetings" className="mt-4 text-center py-10">
-                <Video size={48} className="mx-auto text-muted-foreground mb-4 opacity-50" />
-                <h3 className="text-lg font-semibold text-foreground mb-1">Meeting Integration</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  This is where meetings related to your chats might appear, or quick actions to start meetings with chat participants.
+            ) : (
+              <div className="text-center py-10">
+                <MessageSquareText size={48} className="mx-auto text-muted-foreground mb-4 opacity-50" />
+                <h3 className="text-lg font-semibold text-foreground mb-1">No Chats Yet</h3>
+                <p className="text-sm text-muted-foreground">
+                  Start a conversation by clicking "New Chat" or from a user's profile.
                 </p>
-                <Button asChild>
-                  <Link href="/meetings">Go to Main Meetings Page</Link>
-                </Button>
-                <p className="text-xs text-muted-foreground mt-3 italic">
-                    Full video/audio meeting functionality is a complex feature. This is a placeholder.
-                </p>
-            </TabsContent>
-          </Tabs>
+              </div>
+            )}
         </CardContent>
       </Card>
     </div>
