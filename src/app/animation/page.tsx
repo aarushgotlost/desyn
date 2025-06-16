@@ -38,7 +38,8 @@ export default function AnimationLandingPage() {
     }
   }, [user, authLoading]);
 
-  const newProjectId = `new-project-${Date.now()}`;
+  // Link to the new create page
+  const createNewProjectLink = "/animation/create";
 
   if (authLoading) {
     return (
@@ -61,7 +62,7 @@ export default function AnimationLandingPage() {
         <CardContent className="space-y-6">
           <div className="flex justify-end mb-6">
             <Button asChild size="lg">
-              <Link href={`/animation/${newProjectId}`}>
+              <Link href={createNewProjectLink}>
                 <PlusCircle className="mr-2 h-5 w-5" /> Create New Animation
               </Link>
             </Button>
@@ -107,7 +108,7 @@ export default function AnimationLandingPage() {
                         <CardTitle className="text-lg font-semibold hover:text-primary truncate">{project.name || "Untitled Project"}</CardTitle>
                       </Link>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Last updated: {formatDistanceToNowStrict(new Date(project.updatedAt), { addSuffix: true })}
+                        Last updated: {project.updatedAt ? formatDistanceToNowStrict(new Date(project.updatedAt), { addSuffix: true }) : 'N/A'}
                       </p>
                     </CardContent>
                     <CardFooter className="p-4 pt-0">

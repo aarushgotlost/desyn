@@ -17,45 +17,74 @@ export const saveFrame = async (projectId: string, frameIndex: number, dataUrl: 
     console.error("Invalid parameters for saveFrame: projectId or frameIndex missing.");
     return;
   }
-  if (dataUrl === null) {
-    // console.warn(`Attempted to save null dataUrl for frame ${frameIndex} in project ${projectId}. Skipping save for this frame.`);
-    // Depending on desired behavior, you might still want to update the project's updatedAt timestamp
-    // For now, we'll just update project timestamp if other conditions met
-  }
-
+  
   const projectDocRef = doc(db, 'projects', projectId);
   const frameDocId = `frame-${frameIndex}`;
   const frameDocRef = doc(db, 'projects', projectId, 'frames', frameDocId);
 
   const batch = writeBatch(db);
 
-  const framePayload: FrameStorageData = {
-    dataUrl,
-    updatedAt: serverTimestamp() as Timestamp,
-    order: frameIndex,
-  };
-  batch.set(frameDocRef, framePayload, { merge: true });
+  if (dataUrl !== null) { // Only save frame if dataUrl is not null
+    const framePayload: FrameStorageData = {
+      dataUrl,
+      updatedAt: serverTimestamp() as Timestamp,
+      order: frameIndex,
+    };
+    batch.set(frameDocRef, framePayload, { merge: true });
+  }
 
-  // Ensure project document exists and update its 'updatedAt'
-  const projectSnap = await getDoc(projectDocRef);
-  const projectUpdateData: Partial<AnimationProject & {createdAt: Timestamp, updatedAt: Timestamp}> = {
+  // Project document should already exist from the create flow.
+  // We only update its 'updatedAt' timestamp and potentially the thumbnail.
+  const projectUpdateData: Partial<AnimationProject & {updatedAt: Timestamp, thumbnailURL?: string | null}> = {
     updatedAt: serverTimestamp() as Timestamp,
   };
-
-  if (!projectSnap.exists()) {
-    projectUpdateData.name = `Untitled Animation ${projectId.substring(projectId.length - 6)}`;
-    projectUpdateData.createdAt = serverTimestamp() as Timestamp;
-    if (userId) {
-      projectUpdateData.createdBy = userId;
+  
+  // Update thumbnail only if this is the first frame being saved and it has data
+  // Or if a specific logic for thumbnail update is implemented (e.g. user chooses thumbnail frame)
+  if (frameIndex === 0 && dataUrl !== null) {
+    const projectSnap = await getDoc(projectDocRef);
+    if (projectSnap.exists()) {
+        const currentProjectData = projectSnap.data() as AnimationProject;
+        // Only update thumbnail if it's not already set or if a new one is explicitly provided
+        // For simplicity, if frame 0 is saved and has data, we set/update its thumbnail.
+        if (dataUrl) { // Check ensures dataUrl is not null before setting as thumbnail
+             projectUpdateData.thumbnailURL = dataUrl;
+        }
     }
-    projectUpdateData.fps = 12; // Default FPS
-    // Set initial thumbnail or other defaults if necessary
   }
   
-  batch.set(projectDocRef, projectUpdateData, { merge: true });
+  batch.update(projectDocRef, projectUpdateData); // Use update instead of set with merge if we're sure it exists
   
-  await batch.commit();
-  console.log(`Frame ${frameIndex} and project ${projectId} metadata saved/updated.`);
+  try {
+    await batch.commit();
+    console.log(`Frame ${frameIndex} and project ${projectId} metadata updated.`);
+  } catch (error) {
+     console.error(`Error committing batch for saveFrame (project ${projectId}, frame ${frameIndex}):`, error);
+     // Check if projectDocRef actually exists if batch.update fails
+     const checkProjectSnap = await getDoc(projectDocRef);
+     if (!checkProjectSnap.exists()) {
+         console.error(`Project document ${projectId} does not exist. This should have been created by the /animation/create flow.`);
+         // As a fallback, attempt to create it, though this indicates a flow issue
+         const fallbackProjectData: Partial<AnimationProject & {createdAt: Timestamp, updatedAt: Timestamp, createdBy?: string}> = {
+             name: `Untitled Project ${projectId.slice(-4)}`,
+             fps: 12,
+             createdAt: serverTimestamp() as Timestamp,
+             updatedAt: serverTimestamp() as Timestamp,
+             thumbnailURL: frameIndex === 0 && dataUrl ? dataUrl : null
+         };
+         if (userId) fallbackProjectData.createdBy = userId;
+         await setDoc(projectDocRef, fallbackProjectData, { merge: true });
+         console.warn(`Fallback: Created missing project document ${projectId}.`);
+         // Retry saving the frame data (optional, or just log)
+         if (dataUrl !== null) {
+             const framePayloadRetry: FrameStorageData = { dataUrl, updatedAt: serverTimestamp() as Timestamp, order: frameIndex };
+             await setDoc(frameDocRef, framePayloadRetry, { merge: true });
+         }
+     } else {
+        // If project exists but update failed, it's another issue.
+        throw error; // Re-throw original error if project exists.
+     }
+  }
 };
 
 

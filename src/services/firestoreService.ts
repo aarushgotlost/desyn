@@ -416,6 +416,33 @@ export async function getAllUsersForNewChat(currentUserId: string, count: number
   }
 }
 
+export async function createAnimationProject(userId: string, projectName: string, fps: number): Promise<string> {
+  if (!userId) {
+    throw new Error("User ID is required to create an animation project.");
+  }
+  if (!projectName.trim()) {
+    throw new Error("Project name cannot be empty.");
+  }
+
+  const projectsColRef = collection(db, 'projects');
+  const newProjectData: Omit<AnimationProject, 'id' | 'updatedAt' | 'createdAt'> & { createdBy: string; createdAt: Timestamp; updatedAt: Timestamp; thumbnailURL: null } = {
+    name: projectName,
+    createdBy: userId,
+    fps: fps || 12,
+    createdAt: serverTimestamp() as Timestamp,
+    updatedAt: serverTimestamp() as Timestamp,
+    thumbnailURL: null, // Initialize with no thumbnail
+  };
+
+  try {
+    const projectDocRef = await addDoc(projectsColRef, newProjectData);
+    return projectDocRef.id;
+  } catch (error) {
+    console.error("Error creating animation project in Firestore:", error);
+    throw new Error("Could not create animation project.");
+  }
+}
+
 export async function getUserAnimationProjects(userId: string): Promise<AnimationProject[]> {
   noStore();
   if (!userId) return [];
