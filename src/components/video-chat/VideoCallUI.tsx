@@ -3,7 +3,7 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Mic, MicOff, VideoOff, PhoneOff, Loader2, AlertTriangle, Video as VideoIcon, UserX, PhoneIncoming, Maximize, Minimize, ArrowLeft } from 'lucide-react';
+import { Mic, MicOff, VideoOff, PhoneOff, Loader2, AlertTriangle, Video as VideoIcon, UserX, Maximize, Minimize, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { updateCallStatus as updateAppCallStatus } from '@/actions/videoCallActions';
 import { useRouter } from 'next/navigation';
@@ -11,14 +11,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getInitials } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
-import type { VideoCallSession } from '@/types/data'; // Import VideoCallSession type
+import type { VideoCallSession } from '@/types/data';
 
 interface VideoCallUIProps {
   appCallId: string;
   targetUserName?: string;
   targetUserAvatar?: string | null;
   initialCallStatus: VideoCallSession['status'];
-  isCaller: boolean;
+  isCaller: boolean; // Though less critical for UI now, might be useful for other logic
 }
 
 export function VideoCallUIWrapper(props: VideoCallUIProps) {
@@ -33,7 +33,7 @@ export function VideoCallUIWrapper(props: VideoCallUIProps) {
     setIsLoadingPermissions(true);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      stream.getTracks().forEach(track => track.stop()); // Release the media stream immediately
+      stream.getTracks().forEach(track => track.stop());
       setHasMediaPermission(true);
     } catch (error) {
       console.error("Error getting media permissions:", error);
@@ -86,37 +86,44 @@ function VideoCallRoom({ appCallId, targetUserName, targetUserAvatar, initialCal
 
 
   useEffect(() => {
-    // If the call is already connected or ended, don't show the calling screen
-    if (currentCallStatus !== 'pending' || !isCaller) {
-        const startLocalVideo = async () => {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                localStreamRef.current = stream;
-                if (localVideoRef.current) {
-                localVideoRef.current.srcObject = stream;
-                }
-                // If not already connected, and now starting video, mark as connected (for this user)
-                if (currentCallStatus === 'pending') { // Should only apply to callee here
-                    await updateAppCallStatus(appCallId, 'connected');
-                    setCurrentCallStatus('connected');
-                }
-            } catch (error) {
-                console.error('Error starting local video:', error);
-                toast({ variant: 'destructive', title: 'Media Error', description: 'Could not start camera or microphone.' });
-                // Consider ending the call or showing an error state
-            }
-        };
-        startLocalVideo();
-    }
+    const startLocalVideo = async () => {
+      if (localStreamRef.current || currentCallStatus === 'ended' || currentCallStatus === 'cancelled' || currentCallStatus === 'declined' || currentCallStatus === 'error') {
+        return;
+      }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        localStreamRef.current = stream;
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = stream;
+        }
+        // If the call was pending, and we are now connecting media, update status to connected.
+        // This applies to both caller (first one in) and callee.
+        if (currentCallStatus === 'pending') {
+          await updateAppCallStatus(appCallId, 'connected');
+          setCurrentCallStatus('connected');
+        }
+      } catch (error) {
+        console.error('Error starting local video:', error);
+        toast({ variant: 'destructive', title: 'Media Error', description: 'Could not start camera or microphone. Please check permissions.' });
+        // Optionally end call if media fails criticaly
+        // handleEndCall('error'); 
+      }
+    };
+
+    startLocalVideo();
 
     return () => {
       localStreamRef.current?.getTracks().forEach(track => track.stop());
-      // Avoid updating status if already ended or cancelled to prevent race conditions
-      if (appCallId && currentCallStatus !== 'ended' && currentCallStatus !== 'cancelled') {
-        updateAppCallStatus(appCallId, 'ended').catch(err => console.error("Error updating call status on unmount:", err));
+      // Update status to ended only if the call was active and not already terminated by another action
+      if (appCallId && (currentCallStatus === 'connected' || currentCallStatus === 'pending')) {
+         // Check currentCallStatus again to avoid race condition if it changed
+         // For simplicity, this check might be removed if relying on the component unmounting to signify "ended"
+         if (localStreamRef.current) { // Check if we were actually in a call
+            updateAppCallStatus(appCallId, 'ended').catch(err => console.error("Error updating call status on unmount:", err));
+         }
       }
     };
-  }, [appCallId, toast, currentCallStatus, isCaller]); // currentCallStatus and isCaller are key for conditional execution
+  }, [appCallId, toast, currentCallStatus]); // Removed isCaller from dependencies
 
   const toggleAudio = () => {
     if (localStreamRef.current) {
@@ -143,12 +150,13 @@ function VideoCallRoom({ appCallId, targetUserName, targetUserAvatar, initialCal
     localStreamRef.current?.getTracks().forEach(track => track.stop());
     try {
       await updateAppCallStatus(appCallId, statusToSet);
-      toast({ title: statusToSet === 'cancelled' ? 'Call Cancelled' : 'Call Ended' });
+      toast({ title: statusToSet === 'cancelled' ? 'Call Cancelled' : (statusToSet === 'declined' ? 'Call Declined' : 'Call Ended') });
     } catch (error) {
       console.error('Error updating call status:', error);
       toast({ variant: 'destructive', title: 'Error', description: 'Could not update call status.' });
     } finally {
       setIsEndingCall(false);
+      setCurrentCallStatus(statusToSet); // Update local status to reflect change
       router.push('/messages');
     }
   };
@@ -168,34 +176,29 @@ function VideoCallRoom({ appCallId, targetUserName, targetUserAvatar, initialCal
     }
   };
   
-  // Calling Screen for Caller
-  if (currentCallStatus === 'pending' && isCaller) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen bg-gray-800 text-white p-6">
-        <Avatar className="w-32 h-32 mb-6 border-4 border-primary">
-          <AvatarImage src={targetUserAvatar || undefined} alt={targetUserName || "User"} />
-          <AvatarFallback className="text-5xl bg-gray-700">{getInitials(targetUserName)}</AvatarFallback>
-        </Avatar>
-        <h2 className="text-3xl font-bold mb-2">Calling {targetUserName || 'User'}...</h2>
-        <p className="text-lg text-gray-300 mb-10">Waiting for them to pick up.</p>
-        <Loader2 className="h-10 w-10 animate-spin text-primary mb-10" />
-        <Button
-          onClick={() => handleEndCall('cancelled')}
-          variant="destructive"
-          size="lg"
-          className="w-full max-w-xs"
-          disabled={isEndingCall}
-        >
-          {isEndingCall ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <PhoneOff className="mr-2 h-5 w-5" />}
-          Cancel Call
+  // If call status indicates it has ended or was problematic before UI fully loads.
+  if (currentCallStatus === 'ended' || currentCallStatus === 'cancelled' || currentCallStatus === 'declined' || currentCallStatus === 'error') {
+     return (
+      <div className="flex flex-col items-center justify-center h-screen bg-gray-900 text-white p-4">
+        <PhoneOff size={48} className="text-muted-foreground mb-4" />
+        <h2 className="text-xl font-semibold mb-2">
+          {currentCallStatus === 'cancelled' ? 'Call Cancelled' : 
+           currentCallStatus === 'declined' ? 'Call Declined' :
+           currentCallStatus === 'error' ? 'Call Error' : 'Call Ended'}
+        </h2>
+        <p className="text-muted-foreground mb-6">
+            {currentCallStatus === 'error' ? 'There was an issue with the call.' : 'This video call session has finished.'}
+        </p>
+        <Button onClick={() => router.push('/messages')} variant="outline" className="text-white border-white hover:bg-white/10">
+          Back to Messages
         </Button>
       </div>
     );
   }
 
+
   return (
     <div id="video-call-container" className="flex flex-col h-screen bg-gray-900 text-white relative overflow-hidden">
-       {/* Header for back button on mobile - only if not fullscreen */}
       {!isFullScreen && (
          <div className="absolute top-0 left-0 right-0 z-20 p-2 md:hidden">
             <Button variant="ghost" size="icon" onClick={() => router.back()} className="text-white bg-black/30 hover:bg-black/50">
@@ -205,7 +208,6 @@ function VideoCallRoom({ appCallId, targetUserName, targetUserAvatar, initialCal
       )}
 
       <div className="flex-grow grid grid-cols-1 md:grid-cols-2 gap-1 p-1 relative">
-        {/* Local Video */}
         <div className={`relative aspect-video bg-black rounded-md overflow-hidden shadow-lg border-2 ${!isVideoEnabled ? 'border-gray-700' : 'border-primary'} group`}>
           <video ref={localVideoRef} autoPlay playsInline muted className={`object-cover w-full h-full ${!isVideoEnabled ? 'hidden' : ''}`} />
           {!isVideoEnabled && (
@@ -222,7 +224,6 @@ function VideoCallRoom({ appCallId, targetUserName, targetUserAvatar, initialCal
           </div>
         </div>
 
-        {/* Remote Video Placeholder */}
         <div className="relative aspect-video bg-gray-800 rounded-md overflow-hidden shadow-lg flex items-center justify-center border-2 border-gray-700">
           <div className="text-center text-gray-400 p-4">
              {targetUserAvatar ? (
@@ -234,12 +235,13 @@ function VideoCallRoom({ appCallId, targetUserName, targetUserAvatar, initialCal
                 <UserX size={48} className="mx-auto mb-2 opacity-50 md:size-64" />
              )}
             <p className="font-semibold text-sm md:text-base">{targetUserName || 'Remote User'}</p>
-            <p className="text-xs md:text-sm">(Waiting for user...)</p>
+            <p className="text-xs md:text-sm">
+              {currentCallStatus === 'pending' ? '(Connecting...)' : '(Waiting for user...)'}
+            </p>
           </div>
         </div>
       </div>
 
-      {/* Controls Toolbar */}
       <div className="bg-gray-800/80 backdrop-blur-md p-2 md:p-3 flex justify-center items-center space-x-2 md:space-x-4 absolute bottom-0 left-0 right-0 z-10">
         <Button 
           onClick={toggleAudio} 
@@ -260,7 +262,7 @@ function VideoCallRoom({ appCallId, targetUserName, targetUserAvatar, initialCal
           {isVideoEnabled ? <VideoIcon size={20} /> : <VideoOff size={20} />}
         </Button>
         <Button 
-          onClick={() => handleEndCall()} 
+          onClick={() => handleEndCall('ended')} 
           variant="destructive" 
           size="icon" 
           className="rounded-full h-12 w-12 md:h-16 md:w-16 shadow-lg" 
@@ -282,4 +284,3 @@ function VideoCallRoom({ appCallId, targetUserName, targetUserAvatar, initialCal
     </div>
   );
 }
-
