@@ -49,8 +49,8 @@ interface AnimationContextType {
   canUndoDrawing: boolean;
   canRedoDrawing: boolean;
 
-  saveActiveFrameManually: (currentProjectId: string) => Promise<void>;
-  saveAllFramesManually: (currentProjectId: string) => Promise<void>;
+  saveActiveFrameManually: () => Promise<void>;
+  saveAllFramesManually: () => Promise<void>;
 }
 
 const AnimationContext = createContext<AnimationContextType | undefined>(undefined);
@@ -285,14 +285,14 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
   const canUndoDrawing = drawingHistoryPointer > 0;
   const canRedoDrawing = drawingHistoryPointer < drawingHistory.length - 1;
 
-  const saveActiveFrameManually = useCallback(async (passedProjectId: string) => {
+  const saveActiveFrameManually = useCallback(async () => {
     const currentProjectNameForToast = projectName || "Untitled Project";
 
     if (!user || !user.uid) {
       toast({ title: "Authentication Error", description: "You must be logged in to save.", variant: "destructive" });
       return;
     }
-    if (passedProjectId === null || passedProjectId === undefined || passedProjectId.trim() === "") {
+    if (routeProjectIdFromProp === null || routeProjectIdFromProp === undefined || routeProjectIdFromProp.trim() === "") {
       toast({ title: "Save Frame Error", description: "Project ID is not available. Please ensure you are on a valid project page.", variant: "destructive" });
       return;
     }
@@ -317,7 +317,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
     });
 
     try {
-      await saveFrameToDb(passedProjectId, currentActiveFrameIndex, frameToSave.dataUrl, user.uid, frameToSave.layers);
+      await saveFrameToDb(routeProjectIdFromProp, currentActiveFrameIndex, frameToSave.dataUrl, user.uid, frameToSave.layers);
       toast.dismiss(savingToastId);
       toast({
         title: "Frame Saved!",
@@ -333,10 +333,10 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
         duration: 7000,
       });
     }
-  }, [user, toast, projectName, framesRef, activeFrameIndexRef]); 
+  }, [routeProjectIdFromProp, user, toast, projectName, framesRef, activeFrameIndexRef]); 
 
 
-  const saveAllFramesManually = useCallback(async (passedProjectId: string) => {
+  const saveAllFramesManually = useCallback(async () => {
     const currentProjectNameForToast = projectName || "Untitled Project";
     const currentFpsForSave = fps || 12;
 
@@ -344,7 +344,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
       toast({ title: "Authentication Error", description: "You must be logged in to save all frames.", variant: "destructive" });
       return;
     }
-     if (passedProjectId === null || passedProjectId === undefined || passedProjectId.trim() === "") {
+     if (routeProjectIdFromProp === null || routeProjectIdFromProp === undefined || routeProjectIdFromProp.trim() === "") {
       toast({ title: "Save All Error", description: "Project ID is not available. Please ensure you are on a valid project page.", variant: "destructive" });
       return;
     }
@@ -362,7 +362,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
     });
 
     try {
-      await saveAllFramesToDb(passedProjectId, currentFrames, user.uid, currentProjectNameForToast, currentFpsForSave);
+      await saveAllFramesToDb(routeProjectIdFromProp, currentFrames, user.uid, currentProjectNameForToast, currentFpsForSave);
       toast.dismiss(savingAllToastId);
       toast({
         title: "All Frames Saved!",
@@ -378,7 +378,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
         duration: 7000,
       });
     }
-  }, [user, toast, projectName, fps, framesRef]); 
+  }, [routeProjectIdFromProp, user, toast, projectName, fps, framesRef]); 
 
 
   const contextValue: AnimationContextType = useMemo(() => ({

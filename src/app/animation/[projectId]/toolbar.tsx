@@ -19,7 +19,8 @@ export default function Toolbar() {
     canUndoDrawing, canRedoDrawing,
     saveActiveFrameManually,
     saveAllFramesManually, 
-    projectId, // This is the reactive projectId from the context
+    // projectId is still available from context if needed for other UI elements,
+    // but save functions will use the projectId from their own scope.
   } = useAnimation();
   const { toast } = useToast();
   const [isSavingFrame, setIsSavingFrame] = useState(false);
@@ -43,32 +44,26 @@ export default function Toolbar() {
   };
   
   const handleSaveFrame = async () => {
-    if (!projectId) {
-        toast({ title: "Save Frame Error", description: "Project ID is missing. Cannot save frame.", variant: "destructive" });
-        return;
-    }
+    // The projectId check is now primarily within saveActiveFrameManually in the context
     setIsSavingFrame(true);
     try {
-      await saveActiveFrameManually(projectId); // Pass projectId
+      await saveActiveFrameManually(); 
     } catch (error) {
       console.error("Toolbar save frame failed:", error); 
-      toast({ title: "Save Frame Error", description: "An unexpected error occurred while saving the frame.", variant: "destructive" });
+      // Context function should handle its own error toasts
     } finally {
       setIsSavingFrame(false);
     }
   };
 
   const handleSaveAllFrames = async () => {
-    if (!projectId) {
-        toast({ title: "Save All Frames Error", description: "Project ID is missing. Cannot save all frames.", variant: "destructive" });
-        return;
-    }
+     // The projectId check is now primarily within saveAllFramesManually in the context
     setIsSavingAll(true);
     try {
-      await saveAllFramesManually(projectId); // Pass projectId
+      await saveAllFramesManually();
     } catch (error) {
       console.error("Toolbar save all frames failed:", error);
-      toast({ title: "Save All Frames Error", description: "An unexpected error occurred while saving all frames.", variant: "destructive" });
+      // Context function should handle its own error toasts
     } finally {
       setIsSavingAll(false);
     }
@@ -137,3 +132,4 @@ export default function Toolbar() {
     </div>
   );
 }
+
