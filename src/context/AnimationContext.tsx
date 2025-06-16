@@ -100,6 +100,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectId }: { chi
             layers: f.layers || [{ id: 'default-layer-0', name: 'Layer 1', visible: true, data: [] }] 
           }));
         } else {
+          // Ensure at least one frame exists by default
           initialFrames = [{ id: `frame-0-${Date.now()}`, dataUrl: null, layers: [{ id: 'layer-0', name: 'Layer 1', visible: true, data: [] }] }];
         }
         _setFramesInternal(initialFrames);
@@ -110,11 +111,13 @@ export const AnimationProvider = ({ children, projectId: routeProjectId }: { chi
           setDrawingHistory([initialFrames[0].dataUrl]);
           setDrawingHistoryPointer(0);
         } else {
-          setDrawingHistory([null]); // Default for an empty frame
+          // This case should ideally not be hit if initialFrames is always populated
+          setDrawingHistory([null]); 
           setDrawingHistoryPointer(0);
         }
       }).catch(error => {
         console.error("Failed to load project data:", error);
+        // Fallback: ensure at least one frame exists even on error
         const defaultFrameId = `frame-0-${Date.now()}`;
         _setFramesInternal([{ id: defaultFrameId, dataUrl: null, layers: [{ id: 'layer-0', name: 'Layer 1', visible: true, data: [] }] }]);
         setActiveFrameIndex(0);
@@ -158,7 +161,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectId }: { chi
   const updateActiveFrameDrawing = (newDataUrl: string | null) => {
     _setFramesInternal(prevFrames => {
       const newFrames = [...prevFrames];
-      if (newFrames[activeFrameIndex]) {
+      if (activeFrameIndex >= 0 && activeFrameIndex < newFrames.length && newFrames[activeFrameIndex]) {
         newFrames[activeFrameIndex] = { ...newFrames[activeFrameIndex], dataUrl: newDataUrl };
       }
       return newFrames;
@@ -181,7 +184,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectId }: { chi
       const restoredDataUrl = drawingHistory[newPointer];
       _setFramesInternal(prevFrames => {
         const newFrames = [...prevFrames];
-        if (newFrames[activeFrameIndex]) {
+        if (activeFrameIndex >= 0 && activeFrameIndex < newFrames.length && newFrames[activeFrameIndex]) {
           newFrames[activeFrameIndex] = { ...newFrames[activeFrameIndex], dataUrl: restoredDataUrl };
         }
         return newFrames;
@@ -196,7 +199,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectId }: { chi
       const restoredDataUrl = drawingHistory[newPointer];
        _setFramesInternal(prevFrames => {
         const newFrames = [...prevFrames];
-        if (newFrames[activeFrameIndex]) {
+        if (activeFrameIndex >= 0 && activeFrameIndex < newFrames.length && newFrames[activeFrameIndex]) {
           newFrames[activeFrameIndex] = { ...newFrames[activeFrameIndex], dataUrl: restoredDataUrl };
         }
         return newFrames;
