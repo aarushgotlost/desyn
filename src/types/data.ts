@@ -41,10 +41,22 @@ export interface Comment {
 // UserProfile is defined in AuthContext.tsx
 
 export interface AnimationProject {
-  id: string;
+  id: string; // Firestore document ID
   name: string;
-  createdBy: string;
+  createdBy: string; // User ID of the creator
   createdAt: string; // ISO string
   updatedAt: string; // ISO string
   thumbnailURL?: string | null;
+  fps?: number; // Frames per second
+  // frameCount?: number; // Could be useful metadata
+  // Other project-specific settings can be added here
+}
+
+// Individual frame data structure (if stored separately or as part of AnimationProject)
+// This is conceptual; actual storage might be subcollection `frames` within `projects/{projectId}`
+export interface AnimationFrameData {
+  id: string; // e.g., frame-0, frame-1
+  dataUrl: string | null; // base64 encoded image data
+  layers?: any[]; // If layers are per-frame and complex
+  order: number;
 }
