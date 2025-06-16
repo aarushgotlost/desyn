@@ -7,30 +7,27 @@ import { useParams, useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Video, Users, ScreenShare, Mic, MicOff, VideoOff, Settings2, ArrowLeft, Loader2, UserPlus, Copy, Check, PhoneOff, Maximize } from "lucide-react";
-import { Input } from "@/components/ui/input"; // Added missing import
+import { Video, Users, ScreenShare, Mic, MicOff, VideoOff, Settings2, ArrowLeft, Loader2, UserPlus, Copy, Check, PhoneOff, Maximize, AlertTriangle } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { getMeetingDetails } from '@/services/firestoreService';
 import { joinMeeting } from '@/actions/meetingActions';
 import type { Meeting, MeetingParticipant } from '@/types/data';
 import { formatDistanceToNowStrict } from 'date-fns';
-import { getInitials } from '@/lib/utils';
-import { cn } from '@/lib/utils';
+import { getInitials, cn } from '@/lib/utils';
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
-// Placeholder for participant video streams
 const ParticipantVideoPlaceholder = ({ participant, isLocal = false }: { participant?: MeetingParticipant; isLocal?: boolean }) => {
   return (
     <div className={cn(
       "bg-muted/70 rounded-lg flex flex-col items-center justify-center aspect-video border border-muted-foreground/20 shadow-inner relative overflow-hidden",
-      isLocal && "border-2 border-primary"
+      isLocal && "border-2 border-primary" // This style might be less relevant if local video is live
     )}>
       <Video className="h-12 w-12 text-muted-foreground opacity-30" />
       <p className="mt-2 text-xs text-muted-foreground text-center px-2 truncate w-full absolute bottom-2 bg-black/30 text-white py-1">
-        {participant ? participant.displayName : (isLocal ? "Your Video" : "Participant Video")}
+        {participant ? participant.displayName : (isLocal ? "Your Video (Preview)" : "Participant Video")}
       </p>
-      {/* Mute icon placeholder */}
-      {/* {participant && Math.random() > 0.5 && <MicOff className="absolute top-2 right-2 h-4 w-4 text-white bg-black/50 rounded-full p-0.5" />} */}
     </div>
   );
 };
@@ -48,13 +45,14 @@ export default function MeetingDetailPage() {
   const [isJoining, startJoiningTransition] = useTransition();
   const [hasCopied, setHasCopied] = useState(false);
 
-  // Mock state for call controls
   const [isMicMuted, setIsMicMuted] = useState(false);
-  const [isCameraOff, setIsCameraOff] = useState(false);
+  const [isCameraOff, setIsCameraOff] = useState(false); // This will be controlled by the stream now
   const [isScreenSharing, setIsScreenSharing] = useState(false);
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [stream, setStream] = useState<MediaStream | null>(null);
 
 
   useEffect(() => {
@@ -82,31 +80,62 @@ export default function MeetingDetailPage() {
     fetchMeeting();
   }, [meetingId, router, toast]);
 
-  // Basic camera permission check - non-functional for actual streaming
   useEffect(() => {
-    const getCameraPermission = async () => {
+    const currentUserIsParticipant = user && meeting && meeting.participantUids.includes(user.uid);
+
+    const getCameraStream = async () => {
       if (typeof navigator !== "undefined" && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        setCameraError(null);
         try {
-          // Only request permission if not already determined
-          if (hasCameraPermission === null) {
-            // This is a simplified request, doesn't actually stream to the video element here
-            // as it's just a UI prototype.
-            await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            setHasCameraPermission(true);
+          const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+          setStream(mediaStream);
+          setHasCameraPermission(true);
+          setIsCameraOff(false); // Camera is on by default when stream is acquired
+          if (localVideoRef.current) {
+            localVideoRef.current.srcObject = mediaStream;
           }
-        } catch (error) {
+        } catch (error: any) {
           console.warn('Camera/Mic access denied or unavailable:', error);
           setHasCameraPermission(false);
-          // Don't toast here as it could be annoying on every load if always denied
+          setIsCameraOff(true);
+          if (error.name === "NotAllowedError" || error.name === "PermissionDeniedError") {
+            setCameraError("Camera access was denied. Please enable it in your browser settings.");
+            toast({
+              variant: 'destructive',
+              title: 'Camera Access Denied',
+              description: 'Please enable camera permissions in your browser settings to use video.',
+            });
+          } else {
+            setCameraError(`Error accessing camera: ${error.message}`);
+             toast({
+              variant: 'destructive',
+              title: 'Camera Error',
+              description: `Could not access camera: ${error.message}`,
+            });
+          }
         }
       } else {
-        setHasCameraPermission(false); // Browser doesn't support getUserMedia
+        setHasCameraPermission(false);
+        setIsCameraOff(true);
+        setCameraError("Your browser does not support camera access (getUserMedia API).");
       }
     };
-    if (user && meeting && meeting.participantUids.includes(user.uid)) { // Only try if user is a participant
-        getCameraPermission();
+
+    if (currentUserIsParticipant && meeting?.isActive && hasCameraPermission === null) { // Only request if status unknown
+      getCameraStream();
     }
-  }, [user, meeting, hasCameraPermission]);
+
+    // Cleanup function to stop the stream when component unmounts or dependencies change
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        if (localVideoRef.current) {
+            localVideoRef.current.srcObject = null;
+        }
+        setStream(null);
+      }
+    };
+  }, [user, meeting, hasCameraPermission]); // Re-run if user, meeting, or permission status intent changes
 
 
   const handleJoinMeeting = () => {
@@ -120,6 +149,7 @@ export default function MeetingDetailPage() {
         toast({ title: "Joined Meeting!", description: result.message });
         const updatedMeeting = await getMeetingDetails(meeting.id);
         if (updatedMeeting) setMeeting(updatedMeeting);
+        setHasCameraPermission(null); // Re-trigger camera check on join
       } else {
         toast({ title: "Error Joining Meeting", description: result.message, variant: "destructive" });
       }
@@ -136,6 +166,40 @@ export default function MeetingDetailPage() {
       toast({ title: "Failed to copy link", variant: "destructive"});
     });
   };
+
+  const toggleCamera = () => {
+    if (stream) {
+      stream.getVideoTracks().forEach(track => {
+        track.enabled = !track.enabled;
+        setIsCameraOff(!track.enabled);
+      });
+    } else if (!isCameraOff && hasCameraPermission !== false) { // Try to get stream if camera is "on" but no stream
+        setHasCameraPermission(null); // This will re-trigger the useEffect to get stream
+    }
+  };
+
+  const toggleMic = () => {
+    if (stream) {
+        stream.getAudioTracks().forEach(track => {
+            track.enabled = !track.enabled;
+            setIsMicMuted(!track.enabled);
+        });
+    }
+  };
+  
+  const handleLeaveMeeting = () => {
+    // In a real app, this would also involve signaling to other participants and server-side cleanup
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+    }
+    setStream(null);
+    setIsCameraOff(true); 
+    // router.push('/meetings'); // Or update state to show a "left meeting" screen
+    toast({title: "You left the meeting."});
+    // For now, we'll just simulate leaving by stopping camera and disabling controls
+    // A more robust solution would update participant status in Firestore.
+  };
+
 
   if (isLoading || authLoading) {
     return (
@@ -191,17 +255,34 @@ export default function MeetingDetailPage() {
         </CardHeader>
         <CardContent className="pt-6 space-y-6">
           <div className="grid md:grid-cols-12 gap-4">
-            {/* Main video grid area */}
             <div className="md:col-span-9 space-y-4">
-              {/* Local Video Placeholder */}
               {currentUserIsParticipant && (
                 <div className="mb-4">
                   <h3 className="text-sm font-medium text-muted-foreground mb-1">Your Camera</h3>
-                  <ParticipantVideoPlaceholder participant={userProfile ? { uid: userProfile.uid, displayName: userProfile.displayName, photoURL: userProfile.photoURL } : undefined} isLocal={true} />
+                  <div className="aspect-video bg-black rounded-lg shadow-md relative">
+                    <video ref={localVideoRef} className="w-full h-full object-cover rounded-md" autoPlay muted playsInline />
+                    {(hasCameraPermission === false || isCameraOff) && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 rounded-md">
+                            <VideoOff className="h-12 w-12 text-muted-foreground mb-2" />
+                            <p className="text-muted-foreground text-sm">
+                                {cameraError ? "Camera Error" : (hasCameraPermission === false ? "Camera permission denied" : "Camera is off")}
+                            </p>
+                            {cameraError && <p className="text-xs text-destructive px-2 text-center max-w-xs">{cameraError}</p>}
+                        </div>
+                    )}
+                    {hasCameraPermission === null && !cameraError && (
+                         <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 rounded-md">
+                            <Loader2 className="h-12 w-12 text-primary animate-spin mb-2" />
+                            <p className="text-muted-foreground text-sm">Accessing camera...</p>
+                        </div>
+                    )}
+                    <p className="absolute bottom-2 left-2 text-xs bg-black/50 text-white px-2 py-1 rounded">
+                      {userProfile?.displayName || "You"}
+                    </p>
+                  </div>
                 </div>
               )}
 
-              {/* Remote Participants Grid */}
               {remoteParticipants.length > 0 && (
                 <div>
                   <h3 className="text-sm font-medium text-muted-foreground mb-2">Participants</h3>
@@ -210,9 +291,9 @@ export default function MeetingDetailPage() {
                     remoteParticipants.length === 1 ? "grid-cols-1" :
                     remoteParticipants.length === 2 ? "grid-cols-1 sm:grid-cols-2" :
                     remoteParticipants.length === 3 ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-3" :
-                    "grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3" // Max 3 for better view on typical screens
+                    "grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3"
                   )}>
-                    {remoteParticipants.slice(0,6).map(p => ( // Show up to 6 remote participants
+                    {remoteParticipants.slice(0,6).map(p => (
                       <ParticipantVideoPlaceholder key={p.uid} participant={p} />
                     ))}
                   </div>
@@ -233,10 +314,8 @@ export default function MeetingDetailPage() {
                     <p className="mt-4 text-muted-foreground text-base sm:text-lg text-center">Join the meeting to see participants.</p>
                   </div>
               )}
-
             </div>
 
-            {/* Sidebar: Participants List & Chat */}
             <div className="md:col-span-3 space-y-4">
               <Card>
                 <CardHeader className="p-3">
@@ -263,7 +342,6 @@ export default function MeetingDetailPage() {
                   <div className="h-32 border rounded-md p-2 bg-muted/50 flex items-center justify-center">
                     <p className="text-muted-foreground italic text-xs">Chat (placeholder).</p>
                   </div>
-                  {/* Placeholder for chat input */}
                    <Input type="text" placeholder="Send a message..." className="mt-2 text-xs" disabled />
                 </CardContent>
               </Card>
@@ -271,7 +349,6 @@ export default function MeetingDetailPage() {
           </div>
         </CardContent>
 
-        {/* Call Controls Footer */}
         {meeting.isActive && currentUserIsParticipant && (
           <CardFooter className="border-t p-3 sm:p-4 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3">
              <Button 
@@ -279,7 +356,8 @@ export default function MeetingDetailPage() {
                 size="icon" 
                 className="h-10 w-10 sm:h-12 sm:w-12" 
                 title={isMicMuted ? "Unmute Microphone" : "Mute Microphone"} 
-                onClick={() => setIsMicMuted(!isMicMuted)}
+                onClick={toggleMic}
+                disabled={!stream}
              >
                 {isMicMuted ? <MicOff className="h-5 w-5 sm:h-6 sm:w-6" /> : <Mic className="h-5 w-5 sm:h-6 sm:w-6" />}
              </Button>
@@ -288,7 +366,8 @@ export default function MeetingDetailPage() {
                 size="icon" 
                 className="h-10 w-10 sm:h-12 sm:w-12" 
                 title={isCameraOff ? "Turn Camera On" : "Turn Camera Off"}
-                onClick={() => setIsCameraOff(!isCameraOff)}
+                onClick={toggleCamera}
+                disabled={hasCameraPermission === false}
              >
                 {isCameraOff ? <VideoOff className="h-5 w-5 sm:h-6 sm:w-6" /> : <Video className="h-5 w-5 sm:h-6 sm:w-6" />}
              </Button>
@@ -297,11 +376,15 @@ export default function MeetingDetailPage() {
                 size="icon" 
                 className="h-10 w-10 sm:h-12 sm:w-12" 
                 title={isScreenSharing ? "Stop Sharing Screen" : "Share Screen"}
-                onClick={() => setIsScreenSharing(!isScreenSharing)}
+                onClick={() => {
+                    setIsScreenSharing(!isScreenSharing);
+                    toast({title: "Screen Sharing (Placeholder)", description: isScreenSharing ? "Screen sharing stopped." : "Screen sharing started."});
+                }}
+                disabled // Screen sharing is a complex feature not implemented
             >
                 <ScreenShare className="h-5 w-5 sm:h-6 sm:w-6" />
             </Button>
-            <Button variant="destructive" size="lg" className="h-10 px-4 sm:h-12 sm:px-6" title="Leave Meeting">
+            <Button variant="destructive" size="lg" className="h-10 px-4 sm:h-12 sm:px-6" title="Leave Meeting" onClick={handleLeaveMeeting}>
                 <PhoneOff className="h-5 w-5 sm:h-6 sm:w-6 mr-0 sm:mr-2" />
                 <span className="hidden sm:inline">Leave</span>
             </Button>
@@ -322,3 +405,6 @@ export default function MeetingDetailPage() {
     </div>
   );
 }
+
+
+    
