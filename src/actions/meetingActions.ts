@@ -20,17 +20,19 @@ export async function createMeetingAction(
 
   const meetingsColRef = collection(db, 'meetings');
   try {
-    // Construct the initial participant directly for clarity
+    // Construct the initial participant with a client-side timestamp for 'joinedAt'
     const initialParticipantForFirestore = {
       uid: hostProfile.uid,
-      displayName: hostProfile.displayName, // This can be null if user's profile displayName is null
-      photoURL: hostProfile.photoURL,       // This can be null
-      joinedAt: serverTimestamp(), // Use serverTimestamp() directly
+      displayName: hostProfile.displayName,
+      photoURL: hostProfile.photoURL,
+      joinedAt: new Date(), // Use client's current time for the host's initial join
     };
 
-    const newMeetingData: Omit<Meeting, 'id' | 'createdAt' | 'participants'> & { 
-      createdAt: Timestamp; 
-      participants: Array<Omit<MeetingParticipant, 'joinedAt'> & { joinedAt: any }>; // Allow 'any' for serverTimestamp on write
+    const newMeetingData: Omit<Meeting, 'id' | 'createdAt' | 'participants'> & {
+      createdAt: Timestamp;
+      // For the initial data, joinedAt will be a Date object, which Firestore converts to Timestamp.
+      // Our MeetingParticipant type expects a string (ISO) on read, handled by processDoc.
+      participants: Array<Omit<MeetingParticipant, 'joinedAt'> & { joinedAt: Date }>;
     } = {
       title: title.trim(),
       createdBy: hostProfile.uid,
@@ -75,16 +77,16 @@ export async function joinMeetingAction(
     const isAlreadyParticipant = meetingData.participants.some(p => p.uid === userProfile.uid);
 
     if (isAlreadyParticipant) {
-      // If they are already a participant (e.g. host, or joined before), just confirm success.
-      // The UI on the meeting page should then allow them to connect to Jitsi.
       return { success: true, message: 'Already a participant. You can join the video call.' };
     }
 
+    // For arrayUnion, serverTimestamp() should be fine as it's an update operation.
+    // If this also causes issues, we'd change it to new Date().toISOString() or new Date().
     const newParticipantForFirestore = {
       uid: userProfile.uid,
       displayName: userProfile.displayName,
       photoURL: userProfile.photoURL,
-      joinedAt: serverTimestamp(), // Use serverTimestamp() directly
+      joinedAt: serverTimestamp(), 
     };
 
     await updateDoc(meetingRef, {
@@ -132,5 +134,3 @@ export async function endMeetingAction(
     return { success: false, message: error.message || 'Could not end meeting.' };
   }
 }
-
-    
