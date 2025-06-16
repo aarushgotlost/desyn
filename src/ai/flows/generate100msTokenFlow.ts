@@ -1,24 +1,25 @@
+
 'use server';
 /**
  * @fileOverview A Genkit flow to (conceptually) generate a 100ms auth token.
  * IMPORTANT: This is a placeholder for a secure backend token generation process.
  *
  * - generate100msToken - Calls the internal flow.
- * - GenerateTokenInput - Input schema for the token generation.
- * - GenerateTokenOutput - Output schema for the token generation.
+ * - GenerateTokenInput - Input type for the token generation.
+ * - GenerateTokenOutput - Output type for the token generation.
  */
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
-export const GenerateTokenInputSchema = z.object({
+const GenerateTokenInputSchema = z.object({
   userId: z.string().describe("The unique identifier for the user joining the meeting."),
   roomId: z.string().describe("The 100ms Room ID for the meeting."),
   role: z.string().describe("The role of the user in the 100ms room (e.g., 'speaker', 'listener')."),
 });
 export type GenerateTokenInput = z.infer<typeof GenerateTokenInputSchema>;
 
-export const GenerateTokenOutputSchema = z.object({
+const GenerateTokenOutputSchema = z.object({
   token: z.string().optional().describe("The 100ms auth token. Will be empty if generation is simulated."),
   error: z.string().optional().describe("Error message if token generation failed or is simulated."),
   message: z.string().optional().describe("A message to the developer regarding token generation strategy.")
@@ -58,3 +59,4 @@ const internalGenerate100msTokenFlow = ai.defineFlow(
     };
   }
 );
+
