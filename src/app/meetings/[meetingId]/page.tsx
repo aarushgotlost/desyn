@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState, useTransition, useRef, useCallback, FormEvent } from 'react';
@@ -24,7 +23,7 @@ import AgoraRTC, { type IAgoraRTCClient, type ILocalAudioTrack, type ILocalVideo
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const AGORA_APP_ID = process.env.NEXT_PUBLIC_AGORA_APP_ID || "";
-const AGORA_PLACEHOLDER_APP_ID = "YOUR_AGORA_APP_ID"; // Should match your .env placeholder if different
+const AGORA_PLACEHOLDER_APP_ID = "YOUR_AGORA_APP_ID"; 
 
 interface RemoteUserWithTracks extends IAgoraRTCRemoteUser {
   displayName?: string;
@@ -64,24 +63,8 @@ export default function MeetingDetailPage() {
   const chatScrollAreaRef = useRef<HTMLDivElement>(null);
 
 
-  const isAgoraConfigValid = AGORA_APP_ID && AGORA_APP_ID !== AGORA_PLACEHOLDER_APP_ID;
+  const isAgoraConfigValid = AGORA_APP_ID && AGORA_APP_ID !== AGORA_PLACEHOLDER_APP_ID && AGORA_APP_ID !== "YOUR_ACTUAL_AGORA_APP_ID_REPLACE_ME";
 
-  const initializeAgoraClient = useCallback(() => {
-    if (!isAgoraConfigValid) {
-      console.warn("Agora App ID is not configured or is a placeholder. Video call functionality will be disabled.");
-      return;
-    }
-    if (!agoraClientRef.current) {
-      try {
-        agoraClientRef.current = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
-        setIsAgoraClientInitialized(true);
-        console.log("Agora client initialized successfully.");
-      } catch (error) {
-        console.error("Failed to create Agora client:", error);
-        toast({ title: "Agora Error", description: "Could not initialize video call client.", variant: "destructive" });
-      }
-    }
-  }, [isAgoraConfigValid, toast]);
 
   const cleanupAgora = useCallback(async () => {
     console.log("Starting Agora cleanup...");
@@ -104,6 +87,7 @@ export default function MeetingDetailPage() {
 
     if (agoraClientRef.current && isAgoraJoined) {
       try {
+        console.log("Attempting to leave Agora channel...");
         await agoraClientRef.current.leave();
         console.log("Left Agora channel successfully.");
       } catch (error) {
@@ -118,6 +102,23 @@ export default function MeetingDetailPage() {
     setIsMicMuted(false); 
     console.log("Agora cleanup finished.");
   }, [isAgoraJoined, toast]);
+  
+  const initializeAgoraClient = useCallback(() => {
+    if (!isAgoraConfigValid) {
+      console.warn("Agora App ID is not configured or is a placeholder. Video call functionality will be disabled.");
+      return;
+    }
+    if (!agoraClientRef.current) {
+      try {
+        agoraClientRef.current = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
+        setIsAgoraClientInitialized(true);
+        console.log("Agora client initialized successfully.");
+      } catch (error) {
+        console.error("Failed to create Agora client:", error);
+        toast({ title: "Agora Error", description: "Could not initialize video call client.", variant: "destructive" });
+      }
+    }
+  }, [isAgoraConfigValid, toast]);
 
 
   useEffect(() => {
@@ -146,9 +147,14 @@ export default function MeetingDetailPage() {
     }
     fetchMeeting();
     
+    // ComponentWillUnmount equivalent
     return () => {
       console.log("MeetingDetailPage unmounting, performing cleanupAgora.");
       cleanupAgora();
+      if (agoraClientRef.current) {
+        // agoraClientRef.current.removeAllListeners(); // Consider if this is needed, usually handled by SDK's leave
+        // agoraClientRef.current = null; // Helps GC, but be careful if other async ops are pending
+      }
     };
   }, [meetingId, router, toast, cleanupAgora, initializeAgoraClient]);
 
@@ -171,7 +177,6 @@ export default function MeetingDetailPage() {
   }, [meetingId, user, toast]);
 
   useEffect(() => {
-    // Scroll chat to bottom
     if (chatScrollAreaRef.current) {
       const viewport = chatScrollAreaRef.current.querySelector('div[data-radix-scroll-area-viewport]');
       if (viewport) {
@@ -214,13 +219,24 @@ export default function MeetingDetailPage() {
     setIsPublishing(true);
     console.log("Attempting to join Agora channel:", meetingId, "as user:", user.uid, "with App ID:", AGORA_APP_ID);
     try {
+      // The token is null for App ID based authentication (testing/development mode)
       await agoraClientRef.current.join(AGORA_APP_ID, meetingId, null, user.uid);
-      setIsAgoraJoined(true);
+      setIsAgoraJoined(true); // Set this only after join is successful
       toast({ title: "Joined video call" });
-      console.log("Successfully joined Agora channel");
+      console.log("Successfully joined Agora channel. Client connection state:", agoraClientRef.current.connectionState);
 
       console.log("Attempting to create and publish local tracks...");
       try {
+        // Check for camera/mic permissions before creating tracks
+        const mediaPermissions = await navigator.permissions.query({ name: 'camera' as PermissionName });
+        if (mediaPermissions.state === 'denied') {
+            throw new Error("Camera permission denied.");
+        }
+        const micPermissions = await navigator.permissions.query({ name: 'microphone' as PermissionName });
+         if (micPermissions.state === 'denied') {
+            throw new Error("Microphone permission denied.");
+        }
+
         const tracks = await AgoraRTC.createMicrophoneAndCameraTracks();
         localAudioTrackRef.current = tracks[0];
         localVideoTrackRef.current = tracks[1];
@@ -230,7 +246,7 @@ export default function MeetingDetailPage() {
         toast({ title: "Media Error", description: `Could not access camera/microphone: ${mediaError.message}. Please check permissions.`, variant: "destructive", duration: 7000 });
         await cleanupAgora(); 
         setIsPublishing(false);
-        return;
+        return; 
       }
       
       if (localVideoTrackRef.current && localVideoContainerRef.current) {
@@ -245,14 +261,32 @@ export default function MeetingDetailPage() {
         console.log("Local audio track initialized (default unmuted).");
       }
       
-      await agoraClientRef.current.publish([localAudioTrackRef.current!, localVideoTrackRef.current!]);
-      console.log("Published local tracks successfully.");
+      // Ensure client is in 'CONNECTED' state before publishing
+      if (agoraClientRef.current && localAudioTrackRef.current && localVideoTrackRef.current && agoraClientRef.current.connectionState === "CONNECTED") {
+        await agoraClientRef.current.publish([localAudioTrackRef.current, localVideoTrackRef.current]);
+        console.log("Published local tracks successfully.");
+      } else {
+        console.warn("Skipping publish: Client not connected or tracks not available.", {
+          connectionState: agoraClientRef.current?.connectionState,
+          hasAudioTrack: !!localAudioTrackRef.current,
+          hasVideoTrack: !!localVideoTrackRef.current,
+        });
+        if (isAgoraJoined && agoraClientRef.current?.connectionState !== "CONNECTED") {
+            toast({
+                title: "Publish Error",
+                description: `Could not publish tracks. Connection state: ${agoraClientRef.current?.connectionState}. Try rejoining.`,
+                variant: "destructive",
+                duration: 7000,
+            });
+            await cleanupAgora(); // Reset state
+        }
+      }
 
     } catch (error: any) {
       console.error("Failed to join Agora channel or publish tracks:", error);
       let description = `Could not join or publish: ${error.message || 'Unknown error'}`;
       if (error.code === 'CAN_NOT_GET_GATEWAY_SERVER' || (error.message && error.message.toLowerCase().includes('dynamic use static key'))) {
-        description = "Failed to join: Your Agora project may require a security token, but the app is trying to join without one. For testing, ensure your Agora project is set to 'APP ID' authentication mode. For production, implement token authentication.";
+        description = "Failed to join: Your Agora project may require a security token (App Certificate mode), but the app is trying to join without one (App ID mode). For testing, ensure your Agora project is set to 'APP ID' authentication. For production, implement token authentication.";
         console.error("Specific Agora Error: ", description);
       } else if (error.code === 'UID_CONFLICT') {
         description = "Failed to join: User ID conflict. Another user might be logged in with the same ID or there's a stale connection. Try again shortly.";
@@ -260,6 +294,9 @@ export default function MeetingDetailPage() {
       } else if (error.message && error.message.includes("INVALID_APP_ID")) {
         description = "Failed to join: The Agora App ID is invalid. Please check your configuration.";
         console.error("Specific Agora Error: INVALID_APP_ID");
+      } else if (error.message && error.message.includes("INVALID_OPERATION") && error.message.toLowerCase().includes("haven't joined yet")) {
+        description = "Failed to publish tracks: The connection to the channel was not fully established. Please try rejoining the video call.";
+        console.error("Specific Agora Error: Publish before fully joined");
       }
       toast({ title: "Video Call Error", description, variant: "destructive", duration: 10000 });
       await cleanupAgora(); 
@@ -272,10 +309,11 @@ export default function MeetingDetailPage() {
   useEffect(() => {
     const client = agoraClientRef.current;
     if (!client || !isAgoraJoined || !isAgoraClientInitialized) {
+        // console.log("Agora event listeners not set up: client not ready, not joined, or not initialized.");
         return;
     }
 
-    console.log("Setting up Agora event listeners.");
+    console.log("Setting up Agora event listeners as client is joined and initialized.");
 
     const handleUserPublished = async (remoteUser: IAgoraRTCRemoteUser, mediaType: 'audio' | 'video') => {
       console.log(`Remote user ${remoteUser.uid} published ${mediaType}`);
@@ -312,24 +350,38 @@ export default function MeetingDetailPage() {
       if (mediaType === 'video') {
          setRemoteUsers(prev => prev.map(u => u.uid === remoteUser.uid ? { ...u, videoTrack: undefined } : u));
       }
+       if (mediaType === 'audio' && remoteUser.audioTrack) {
+          // Optional: update UI to show user is muted if needed
+      }
     };
     
     const handleUserLeft = (remoteUser: IAgoraRTCRemoteUser) => {
         console.log(`Remote user ${remoteUser.uid} left.`);
         setRemoteUsers(prev => prev.filter(u => u.uid !== remoteUser.uid));
     };
+    
+    const handleConnectionStateChange = (curState: string, prevState: string, reason?: string) => {
+      console.log(`Agora connection state changed from ${prevState} to ${curState}. Reason: ${reason || 'N/A'}`);
+      if (curState === "DISCONNECTED" && prevState !== "DISCONNECTED" && isAgoraJoined) {
+        // Handle unexpected disconnects
+        toast({ title: "Disconnected", description: `Lost connection to the meeting. Reason: ${reason || 'Unknown'}. Please try rejoining.`, variant: "destructive", duration: 7000 });
+        cleanupAgora(); // Clean up state
+      }
+    };
 
     client.on("user-published", handleUserPublished);
     client.on("user-unpublished", handleUserUnpublished);
     client.on("user-left", handleUserLeft);
+    client.on("connection-state-change", handleConnectionStateChange);
 
     return () => {
       console.log("Cleaning up Agora event listeners.");
       client.off("user-published", handleUserPublished);
       client.off("user-unpublished", handleUserUnpublished);
       client.off("user-left", handleUserLeft);
+      client.off("connection-state-change", handleConnectionStateChange);
     };
-  }, [isAgoraJoined, meeting?.participants, isAgoraClientInitialized]);
+  }, [isAgoraJoined, meeting?.participants, isAgoraClientInitialized, cleanupAgora, toast]); // Added cleanupAgora and toast to dependencies
 
   useEffect(() => {
     remoteUsers.forEach(user => {
@@ -337,6 +389,10 @@ export default function MeetingDetailPage() {
         const container = remoteVideoContainerRefs.current.get(user.uid);
         if (container && !container.hasChildNodes()) { 
           console.log(`Playing video for remote user ${user.uid} in its container.`);
+          user.videoTrack.play(container);
+        } else if (container && container.firstChild && (container.firstChild as HTMLElement).id !== `video-${user.uid}` ) {
+          // If container has children but not the correct video element, clear and play
+          while(container.firstChild) container.removeChild(container.firstChild);
           user.videoTrack.play(container);
         }
       }
@@ -359,6 +415,9 @@ export default function MeetingDetailPage() {
             joinAgoraChannel();
         } else {
           console.warn("Not joining Agora channel: config invalid or client not initialized.");
+          if (!isAgoraConfigValid) {
+            toast({ title: "Video Call Disabled", description: "Agora App ID is not configured correctly. Please set it in environment variables.", variant: "destructive" });
+          }
         }
       } else {
         toast({ title: "Error Joining Meeting", description: result.message, variant: "destructive" });
@@ -378,42 +437,48 @@ export default function MeetingDetailPage() {
   };
 
   const toggleCamera = async () => {
-    if (!localVideoTrackRef.current) {
-      if (!isAgoraJoined || !isAgoraConfigValid) {
-        toast({ title: "Not in call", description: "Join the call to use your camera.", variant: "destructive"});
-        return;
-      }
-      console.log("Attempting to create and publish camera track on demand...");
-      setIsPublishing(true);
-      try {
-        localVideoTrackRef.current = await AgoraRTC.createCameraVideoTrack();
-        if (localVideoContainerRef.current) {
-            localVideoTrackRef.current.play(localVideoContainerRef.current);
+    if (!isAgoraJoined || !isAgoraConfigValid || !localVideoTrackRef.current) {
+      // If trying to toggle camera before joining or if track doesn't exist yet
+      if (isAgoraJoined && isAgoraConfigValid && !localVideoTrackRef.current && !isPublishing) {
+        // Attempt to create and publish camera track if it was not created initially (e.g., permissions denied then granted)
+        console.log("Attempting to create and publish camera track on demand...");
+        setIsPublishing(true);
+        try {
+          const videoTrack = await AgoraRTC.createCameraVideoTrack();
+          localVideoTrackRef.current = videoTrack;
+          if (localVideoContainerRef.current) {
+              localVideoTrackRef.current.play(localVideoContainerRef.current);
+          }
+          await agoraClientRef.current?.publish([localVideoTrackRef.current]);
+          setIsCameraOff(false);
+          console.log("Camera track created and published on demand.");
+        } catch (error: any) {
+          console.error("Failed to start camera on demand:", error);
+          toast({ title: "Camera Error", description: `Could not start camera: ${error.message}. Check permissions.`, variant: "destructive"});
+          localVideoTrackRef.current = null; // Ensure it's null if creation failed
+        } finally {
+          setIsPublishing(false);
         }
-        await agoraClientRef.current?.publish([localVideoTrackRef.current]);
-        setIsCameraOff(false);
-        console.log("Camera track created and published on demand.");
-      } catch (error: any) {
-        console.error("Failed to start camera on demand:", error);
-        toast({ title: "Camera Error", description: `Could not start camera: ${error.message}`, variant: "destructive"});
-      } finally {
-        setIsPublishing(false);
+      } else if (!isAgoraJoined) {
+        toast({ title: "Not in call", description: "Join the video call to use your camera.", variant: "destructive"});
       }
-    } else {
-      try {
-        await localVideoTrackRef.current.setEnabled(!localVideoTrackRef.current.enabled);
-        setIsCameraOff(!localVideoTrackRef.current.enabled);
-        console.log(`Camera toggled. Enabled: ${localVideoTrackRef.current.enabled}`);
-      } catch (error) {
-        console.error("Error toggling camera:", error);
-        toast({ title: "Camera Error", description: "Could not toggle camera state.", variant: "destructive"});
-      }
+      return;
+    }
+
+    // If track exists, toggle its enabled state
+    try {
+      await localVideoTrackRef.current.setEnabled(!localVideoTrackRef.current.enabled);
+      setIsCameraOff(!localVideoTrackRef.current.enabled);
+      console.log(`Camera toggled. Enabled: ${localVideoTrackRef.current.enabled}`);
+    } catch (error) {
+      console.error("Error toggling camera:", error);
+      toast({ title: "Camera Error", description: "Could not toggle camera state.", variant: "destructive"});
     }
   };
 
   const toggleMic = async () => {
     if (!localAudioTrackRef.current) {
-         toast({ title: "Not in call", description: "Join the call to use your microphone.", variant: "destructive"});
+         toast({ title: "Not in call", description: "Join the video call to use your microphone.", variant: "destructive"});
          return;
     }
     try {
@@ -430,6 +495,7 @@ export default function MeetingDetailPage() {
     console.log("User clicked Leave Meeting button.");
     await cleanupAgora();
     toast({title: "You left the video call."});
+    // UI will update based on isAgoraJoined state
   };
 
   if (isLoading || authLoading) {
@@ -457,7 +523,7 @@ export default function MeetingDetailPage() {
 
   return (
     <div className="container mx-auto py-6 sm:py-8 space-y-6 sm:space-y-8">
-      {!isAgoraConfigValid && AGORA_APP_ID === AGORA_PLACEHOLDER_APP_ID && (
+      {!isAgoraConfigValid && (AGORA_APP_ID === AGORA_PLACEHOLDER_APP_ID || AGORA_APP_ID === "YOUR_ACTUAL_AGORA_APP_ID_REPLACE_ME") && (
          <Alert variant="destructive" className="mb-4">
             <AlertTriangle className="h-5 w-5" />
             <AlertTitle>Agora App ID Missing</AlertTitle>
@@ -500,7 +566,7 @@ export default function MeetingDetailPage() {
         </CardHeader>
         <CardContent className="pt-6 space-y-6">
           <div className="grid md:grid-cols-12 gap-4">
-            <div className="md:col-span-8 space-y-4"> {/* Changed span from 9 to 8 */}
+            <div className="md:col-span-8 space-y-4"> 
               {currentUserIsParticipant && isAgoraJoined && (
                 <div className="mb-4">
                   <h3 className="text-sm font-medium text-muted-foreground mb-1">Your Camera</h3>
@@ -573,7 +639,7 @@ export default function MeetingDetailPage() {
               )}
             </div>
 
-            <div className="md:col-span-4 space-y-4"> {/* Changed span from 3 to 4 */}
+            <div className="md:col-span-4 space-y-4"> 
               <Card>
                 <CardHeader className="p-3">
                   <CardTitle className="flex items-center text-base"><Users className="mr-2 h-4 w-4 text-primary"/> Participants ({meeting.participants.length})</CardTitle>
@@ -591,7 +657,7 @@ export default function MeetingDetailPage() {
                 </CardContent>
               </Card>
 
-              <Card className="flex flex-col h-[calc(100%-10rem)] sm:h-[calc(100%-12rem)]"> {/* Chat card takes remaining height */}
+              <Card className="flex flex-col h-[calc(100%-10rem)] sm:h-[calc(100%-12rem)]">
                 <CardHeader className="p-3 border-b">
                   <CardTitle className="text-base">Meeting Chat</CardTitle>
                 </CardHeader>
@@ -613,9 +679,9 @@ export default function MeetingDetailPage() {
                       value={newMeetingMessageText}
                       onChange={(e) => setNewMeetingMessageText(e.target.value)}
                       className="flex-1 text-xs"
-                      disabled={!currentUserIsParticipant || isSendingMeetingMessage}
+                      disabled={!currentUserIsParticipant || isSendingMeetingMessage || !isAgoraJoined} // Disable chat if not in video call
                     />
-                    <Button type="submit" size="icon" className="h-8 w-8" disabled={!currentUserIsParticipant || !newMeetingMessageText.trim() || isSendingMeetingMessage}>
+                    <Button type="submit" size="icon" className="h-8 w-8" disabled={!currentUserIsParticipant || !newMeetingMessageText.trim() || isSendingMeetingMessage || !isAgoraJoined}>
                       {isSendingMeetingMessage ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                     </Button>
                   </form>
@@ -643,7 +709,7 @@ export default function MeetingDetailPage() {
                 className="h-10 w-10 sm:h-12 sm:w-12" 
                 title={isCameraOff ? "Turn Camera On" : "Turn Camera Off"}
                 onClick={toggleCamera}
-                disabled={isPublishing && !localVideoTrackRef.current} 
+                disabled={isPublishing && !localVideoTrackRef.current && !isCameraOff /* Allow enabling if track exists but is off */}
              >
                 {isCameraOff ? <VideoOff className="h-5 w-5 sm:h-6 sm:w-6" /> : <Video className="h-5 w-5 sm:h-6 sm:w-6" />}
              </Button>
