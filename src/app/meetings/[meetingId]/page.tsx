@@ -1,26 +1,30 @@
 
 "use client";
 
-import { useEffect, useState, useTransition, useRef, useCallback } from 'react';
+import { useEffect, useState, useTransition, useRef, useCallback, FormEvent } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Video, Users, ScreenShare, Mic, MicOff, VideoOff, Settings2, ArrowLeft, Loader2, UserPlus, Copy, Check, PhoneOff, AlertTriangle } from "lucide-react";
+import { Video, Users, ScreenShare, Mic, MicOff, VideoOff, Settings2, ArrowLeft, Loader2, UserPlus, Copy, Check, PhoneOff, AlertTriangle, Send } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { getMeetingDetails } from '@/services/firestoreService';
-import { joinMeeting as joinMeetingAction } from '@/actions/meetingActions';
+import { joinMeeting as joinMeetingAction, sendMeetingChatMessage } from '@/actions/meetingActions';
 import type { Meeting, MeetingParticipant } from '@/types/data';
+import type { MeetingChatMessage } from '@/types/messaging';
+import { getMeetingChatMessages } from '@/services/chatSubscriptionService';
+import { MessageBubble } from '@/components/messaging/MessageBubble';
 import { formatDistanceToNowStrict } from 'date-fns';
 import { getInitials, cn } from "@/lib/utils";
 import AgoraRTC, { type IAgoraRTCClient, type ILocalAudioTrack, type ILocalVideoTrack, type IRemoteAudioTrack, type IRemoteVideoTrack, type IAgoraRTCRemoteUser, type UID } from 'agora-rtc-sdk-ng';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const AGORA_APP_ID = process.env.NEXT_PUBLIC_AGORA_APP_ID || "";
-const AGORA_PLACEHOLDER_APP_ID = "YOUR_AGORA_APP_ID";
+const AGORA_PLACEHOLDER_APP_ID = "YOUR_AGORA_APP_ID"; // Should match your .env placeholder if different
 
 interface RemoteUserWithTracks extends IAgoraRTCRemoteUser {
   displayName?: string;
@@ -53,6 +57,12 @@ export default function MeetingDetailPage() {
 
   const localVideoContainerRef = useRef<HTMLDivElement>(null);
   const remoteVideoContainerRefs = useRef<Map<UID, HTMLDivElement | null>>(new Map());
+
+  const [meetingChatMessages, setMeetingChatMessages] = useState<MeetingChatMessage[]>([]);
+  const [newMeetingMessageText, setNewMeetingMessageText] = useState('');
+  const [isSendingMeetingMessage, setIsSendingMeetingMessage] = useState(false);
+  const chatScrollAreaRef = useRef<HTMLDivElement>(null);
+
 
   const isAgoraConfigValid = AGORA_APP_ID && AGORA_APP_ID !== AGORA_PLACEHOLDER_APP_ID;
 
@@ -136,12 +146,58 @@ export default function MeetingDetailPage() {
     }
     fetchMeeting();
     
-    // Cleanup on component unmount
     return () => {
       console.log("MeetingDetailPage unmounting, performing cleanupAgora.");
       cleanupAgora();
     };
   }, [meetingId, router, toast, cleanupAgora, initializeAgoraClient]);
+
+
+  // Meeting Chat useEffect
+  useEffect(() => {
+    if (!meetingId || !user) return;
+
+    const unsubscribe = getMeetingChatMessages(
+      meetingId,
+      (messages) => {
+        setMeetingChatMessages(messages);
+      },
+      (error) => {
+        console.error("Error fetching meeting chat messages:", error);
+        toast({ title: "Chat Error", description: "Could not load meeting chat.", variant: "destructive" });
+      }
+    );
+    return () => unsubscribe();
+  }, [meetingId, user, toast]);
+
+  useEffect(() => {
+    // Scroll chat to bottom
+    if (chatScrollAreaRef.current) {
+      const viewport = chatScrollAreaRef.current.querySelector('div[data-radix-scroll-area-viewport]');
+      if (viewport) {
+        viewport.scrollTop = viewport.scrollHeight;
+      }
+    }
+  }, [meetingChatMessages]);
+
+  const handleSendMeetingMessage = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!newMeetingMessageText.trim() || !user || !userProfile || !meetingId || isSendingMeetingMessage) return;
+
+    setIsSendingMeetingMessage(true);
+    try {
+      const result = await sendMeetingChatMessage(meetingId, userProfile, newMeetingMessageText);
+      if (result.success) {
+        setNewMeetingMessageText('');
+      } else {
+        toast({ title: "Chat Error", description: result.message || "Could not send message.", variant: "destructive" });
+      }
+    } catch (error: any) {
+      toast({ title: "Chat Error", description: error.message || "Failed to send message.", variant: "destructive" });
+    } finally {
+      setIsSendingMeetingMessage(false);
+    }
+  };
 
 
   const joinAgoraChannel = useCallback(async () => {
@@ -151,15 +207,13 @@ export default function MeetingDetailPage() {
     }
     if (!agoraClientRef.current || !user || !meetingId || isAgoraJoined || !isAgoraClientInitialized) {
         console.warn("Cannot join Agora channel: Client not ready, user not logged in, meetingId missing, or already joined.");
+        if (!isAgoraClientInitialized) console.error("Agora client was not initialized prior to join attempt.");
         return;
     }
     
     setIsPublishing(true);
-    console.log("Attempting to join Agora channel:", meetingId, "as user:", user.uid);
+    console.log("Attempting to join Agora channel:", meetingId, "as user:", user.uid, "with App ID:", AGORA_APP_ID);
     try {
-      // For production, ensure your Agora project uses token authentication.
-      // For testing without a token server, your Agora project must be set to "APP ID" (testing mode).
-      // If it's set to "APP ID + Certificate", this join will fail without a valid token.
       await agoraClientRef.current.join(AGORA_APP_ID, meetingId, null, user.uid);
       setIsAgoraJoined(true);
       toast({ title: "Joined video call" });
@@ -197,19 +251,24 @@ export default function MeetingDetailPage() {
     } catch (error: any) {
       console.error("Failed to join Agora channel or publish tracks:", error);
       let description = `Could not join or publish: ${error.message || 'Unknown error'}`;
-      // Check for the specific "dynamic use static key" error
       if (error.code === 'CAN_NOT_GET_GATEWAY_SERVER' || (error.message && error.message.toLowerCase().includes('dynamic use static key'))) {
-        description = "Failed to join: The Agora project might be configured to require a security token, but the app is trying to join without one. Please check your Agora project settings (consider using 'APP ID' only for testing, or implement token authentication for production).";
+        description = "Failed to join: Your Agora project may require a security token, but the app is trying to join without one. For testing, ensure your Agora project is set to 'APP ID' authentication mode. For production, implement token authentication.";
         console.error("Specific Agora Error: ", description);
+      } else if (error.code === 'UID_CONFLICT') {
+        description = "Failed to join: User ID conflict. Another user might be logged in with the same ID or there's a stale connection. Try again shortly.";
+         console.error("Specific Agora Error: UID_CONFLICT");
+      } else if (error.message && error.message.includes("INVALID_APP_ID")) {
+        description = "Failed to join: The Agora App ID is invalid. Please check your configuration.";
+        console.error("Specific Agora Error: INVALID_APP_ID");
       }
       toast({ title: "Video Call Error", description, variant: "destructive", duration: 10000 });
       await cleanupAgora(); 
     } finally {
       setIsPublishing(false);
     }
-  }, [user, meetingId, isAgoraJoined, cleanupAgora, toast, isAgoraConfigValid, isAgoraClientInitialized]);
+  }, [user, meetingId, isAgoraJoined, cleanupAgora, toast, isAgoraConfigValid, isAgoraClientInitialized, AGORA_APP_ID]);
 
-  // Handle Agora events
+
   useEffect(() => {
     const client = agoraClientRef.current;
     if (!client || !isAgoraJoined || !isAgoraClientInitialized) {
@@ -272,7 +331,6 @@ export default function MeetingDetailPage() {
     };
   }, [isAgoraJoined, meeting?.participants, isAgoraClientInitialized]);
 
-  // Effect for playing remote video tracks
   useEffect(() => {
     remoteUsers.forEach(user => {
       if (user.videoTrack && user.hasVideo) {
@@ -297,8 +355,10 @@ export default function MeetingDetailPage() {
         toast({ title: "Joined Meeting!", description: result.message });
         const updatedMeeting = await getMeetingDetails(meeting.id);
         if (updatedMeeting) setMeeting(updatedMeeting);
-        if (isAgoraConfigValid) {
+        if (isAgoraConfigValid && isAgoraClientInitialized) {
             joinAgoraChannel();
+        } else {
+          console.warn("Not joining Agora channel: config invalid or client not initialized.");
         }
       } else {
         toast({ title: "Error Joining Meeting", description: result.message, variant: "destructive" });
@@ -397,12 +457,12 @@ export default function MeetingDetailPage() {
 
   return (
     <div className="container mx-auto py-6 sm:py-8 space-y-6 sm:space-y-8">
-      {!isAgoraConfigValid && (
+      {!isAgoraConfigValid && AGORA_APP_ID === AGORA_PLACEHOLDER_APP_ID && (
          <Alert variant="destructive" className="mb-4">
             <AlertTriangle className="h-5 w-5" />
-            <AlertTitle>Agora App ID Missing or Invalid</AlertTitle>
+            <AlertTitle>Agora App ID Missing</AlertTitle>
             <AlertDescription>
-              Video call functionality is disabled. Please ensure <code className="font-mono bg-muted px-1 py-0.5 rounded">NEXT_PUBLIC_AGORA_APP_ID</code> is correctly set in your environment and is not the placeholder value. Restart your development server after changes.
+              Video call functionality is disabled. Please set <code className="font-mono bg-muted px-1 py-0.5 rounded">NEXT_PUBLIC_AGORA_APP_ID</code> in your <code className="font-mono bg-muted px-1 py-0.5 rounded">.env</code> or <code className="font-mono bg-muted px-1 py-0.5 rounded">.env.local</code> file with your actual Agora App ID and restart your development server.
             </AlertDescription>
           </Alert>
       )}
@@ -440,7 +500,7 @@ export default function MeetingDetailPage() {
         </CardHeader>
         <CardContent className="pt-6 space-y-6">
           <div className="grid md:grid-cols-12 gap-4">
-            <div className="md:col-span-9 space-y-4">
+            <div className="md:col-span-8 space-y-4"> {/* Changed span from 9 to 8 */}
               {currentUserIsParticipant && isAgoraJoined && (
                 <div className="mb-4">
                   <h3 className="text-sm font-medium text-muted-foreground mb-1">Your Camera</h3>
@@ -513,12 +573,12 @@ export default function MeetingDetailPage() {
               )}
             </div>
 
-            <div className="md:col-span-3 space-y-4">
+            <div className="md:col-span-4 space-y-4"> {/* Changed span from 3 to 4 */}
               <Card>
                 <CardHeader className="p-3">
                   <CardTitle className="flex items-center text-base"><Users className="mr-2 h-4 w-4 text-primary"/> Participants ({meeting.participants.length})</CardTitle>
                 </CardHeader>
-                <CardContent className="p-3 space-y-2 max-h-60 overflow-y-auto">
+                <CardContent className="p-3 space-y-2 max-h-40 overflow-y-auto">
                   {meeting.participants.map(p => (
                     <div key={p.uid} className="flex items-center space-x-2 p-1.5 hover:bg-muted/50 rounded-md">
                       <Avatar className="h-7 w-7">
@@ -531,16 +591,35 @@ export default function MeetingDetailPage() {
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader className="p-3">
+              <Card className="flex flex-col h-[calc(100%-10rem)] sm:h-[calc(100%-12rem)]"> {/* Chat card takes remaining height */}
+                <CardHeader className="p-3 border-b">
                   <CardTitle className="text-base">Meeting Chat</CardTitle>
                 </CardHeader>
-                <CardContent className="p-3">
-                  <div className="h-32 border rounded-md p-2 bg-muted/50 flex items-center justify-center">
-                    <p className="text-muted-foreground italic text-xs">Chat (placeholder).</p>
-                  </div>
-                   <Input type="text" placeholder="Send a message..." className="mt-2 text-xs" disabled />
+                <CardContent className="flex-1 p-0 overflow-hidden">
+                  <ScrollArea className="h-full p-2" ref={chatScrollAreaRef}>
+                    {meetingChatMessages.length === 0 && (
+                      <p className="text-xs text-muted-foreground text-center py-4">No messages yet.</p>
+                    )}
+                    {meetingChatMessages.map(msg => (
+                      <MessageBubble key={msg.id} message={msg} currentUserId={user?.uid || ''} isMeetingChat={true} />
+                    ))}
+                  </ScrollArea>
                 </CardContent>
+                <CardFooter className="p-2 border-t">
+                  <form onSubmit={handleSendMeetingMessage} className="flex w-full items-center space-x-2">
+                    <Input
+                      type="text"
+                      placeholder="Send a message..."
+                      value={newMeetingMessageText}
+                      onChange={(e) => setNewMeetingMessageText(e.target.value)}
+                      className="flex-1 text-xs"
+                      disabled={!currentUserIsParticipant || isSendingMeetingMessage}
+                    />
+                    <Button type="submit" size="icon" className="h-8 w-8" disabled={!currentUserIsParticipant || !newMeetingMessageText.trim() || isSendingMeetingMessage}>
+                      {isSendingMeetingMessage ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    </Button>
+                  </form>
+                </CardFooter>
               </Card>
             </div>
           </div>
@@ -602,6 +681,3 @@ export default function MeetingDetailPage() {
     </div>
   );
 }
-    
-
-    

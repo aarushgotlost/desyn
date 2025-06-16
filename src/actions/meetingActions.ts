@@ -2,7 +2,7 @@
 'use server';
 
 import { db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp, arrayUnion, doc, updateDoc, increment, getDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, arrayUnion, doc, updateDoc, increment, getDoc, Timestamp } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
 import type { UserProfile } from '@/contexts/AuthContext';
 import type { Meeting } from '@/types/data';
@@ -22,7 +22,7 @@ export async function startNewMeeting(
   const creatorParticipant = {
     uid: creatorId,
     displayName: creatorName,
-    photoURL: null, // Basic info, can be expanded if full profile is passed
+    photoURL: null, 
   };
 
   try {
@@ -32,7 +32,7 @@ export async function startNewMeeting(
       createdByName: creatorName,
       participants: [creatorParticipant],
       participantUids: [creatorId],
-      isActive: true, // Default to active when created
+      isActive: true, 
       createdAt: serverTimestamp(),
     };
 
@@ -66,7 +66,7 @@ export async function joinMeeting(
     const meetingData = meetingSnap.data() as Meeting;
 
     if (meetingData.participantUids?.includes(user.uid)) {
-      return { success: true, message: 'Already in meeting.' }; // Or a different message
+      return { success: true, message: 'Already in meeting.' }; 
     }
 
     const participantToAdd = {
@@ -85,5 +85,44 @@ export async function joinMeeting(
   } catch (error: any) {
     console.error('Error joining meeting:', error);
     return { success: false, message: error.message || 'Could not join meeting.' };
+  }
+}
+
+export async function sendMeetingChatMessage(
+  meetingId: string,
+  senderProfile: Pick<UserProfile, 'uid' | 'displayName' | 'photoURL'>,
+  text: string
+): Promise<{ success: boolean; message: string; messageId?: string }> {
+  if (!senderProfile.uid) {
+    return { success: false, message: 'User not authenticated.' };
+  }
+  if (!meetingId) {
+    return { success: false, message: 'Meeting ID is missing.' };
+  }
+  if (!text.trim()) {
+    return { success: false, message: 'Message text cannot be empty.' };
+  }
+
+  const messagesColRef = collection(db, 'meetings', meetingId, 'chatMessages');
+
+  try {
+    const newMessageData = {
+      meetingId,
+      senderId: senderProfile.uid,
+      senderName: senderProfile.displayName || 'Anonymous',
+      senderAvatar: senderProfile.photoURL || null,
+      text: text.trim(),
+      createdAt: serverTimestamp() as Timestamp,
+    };
+
+    const messageDocRef = await addDoc(messagesColRef, newMessageData);
+    
+    // No revalidation path needed here as chat is real-time
+    // No need to update meeting's lastMessageAt for now, can be added later if needed for meeting previews
+
+    return { success: true, message: 'Message sent!', messageId: messageDocRef.id };
+  } catch (error: any) {
+    console.error('Error sending meeting chat message:', error);
+    return { success: false, message: error.message || 'Could not send message.' };
   }
 }

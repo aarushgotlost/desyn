@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { ChatMessage, CommunityChatMessage } from '@/types/messaging';
+import type { ChatMessage, CommunityChatMessage, MeetingChatMessage } from '@/types/messaging';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
@@ -19,24 +19,25 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useState, useTransition } from 'react';
-import { deleteChatMessage } from '@/actions/chatActions'; // We will create this
+import { deleteChatMessage } from '@/actions/chatActions'; 
 import { useToast } from '@/hooks/use-toast';
 
+interface BaseMessage {
+  id: string;
+  senderId: string;
+  senderName: string | null;
+  senderAvatar?: string | null;
+  text: string;
+  createdAt: string; // ISO string
+}
 interface MessageBubbleProps {
-  message: { 
-    id: string;
-    chatId?: string; // Add chatId, make it optional for CommunityChatMessage if not directly available
-    senderId: string;
-    senderName: string | null;
-    senderAvatar?: string | null;
-    text: string;
-    createdAt: string; // ISO string
-  };
+  message: BaseMessage & { chatId?: string; communityId?: string; meetingId?: string }; // Union of possible message types
   currentUserId: string;
   isCommunityChat?: boolean; 
+  isMeetingChat?: boolean;
 }
 
-export function MessageBubble({ message, currentUserId, isCommunityChat = false }: MessageBubbleProps) {
+export function MessageBubble({ message, currentUserId, isCommunityChat = false, isMeetingChat = false }: MessageBubbleProps) {
   const isCurrentUser = message.senderId === currentUserId;
   const { toast } = useToast();
   const [isDeleting, setIsDeleting] = useState(false);
@@ -54,16 +55,16 @@ export function MessageBubble({ message, currentUserId, isCommunityChat = false 
     }
   }
 
+  const canDelete = isCurrentUser && !isCommunityChat && !isMeetingChat && message.chatId;
+
   const handleDelete = async () => {
-    // Community chat message deletion is not implemented in this scope
-    if (isCommunityChat || !message.chatId || isDeleting || isPending) return; 
+    if (!canDelete || !message.chatId || isDeleting || isPending) return; 
 
     setIsDeleting(true);
     startTransition(async () => {
       const result = await deleteChatMessage(message.chatId as string, message.id, currentUserId);
       if (result.success) {
         // UI update will be handled by real-time subscription
-        // toast({ title: "Message Deleted" }); // Can be too noisy
       } else {
         toast({ title: "Error", description: result.message, variant: "destructive" });
       }
@@ -86,14 +87,14 @@ export function MessageBubble({ message, currentUserId, isCommunityChat = false 
             : 'bg-card text-card-foreground border rounded-bl-none'
         }`}
       >
-        {!isCurrentUser && isCommunityChat && (
+        {!isCurrentUser && (isCommunityChat || isMeetingChat) && (
            <p className="text-xs font-medium mb-0.5 text-muted-foreground">{message.senderName || "User"}</p>
         )}
         <p className="text-sm whitespace-pre-wrap">{message.text}</p>
         <p className={`text-xs mt-1 ${isCurrentUser ? 'text-primary-foreground/70 text-right' : 'text-muted-foreground/70 text-left'}`}>
           {messageTimestamp}
         </p>
-        {isCurrentUser && !isCommunityChat && message.chatId && (
+        {canDelete && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button
