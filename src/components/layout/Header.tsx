@@ -14,7 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, User, Settings, PlusCircle, HomeIcon, Bell, MessageSquare, Bot, Compass } from 'lucide-react';
+import { LogOut, User, Settings, PlusCircle, HomeIcon, Bell, MessageSquare, Bot, Compass, Video } from 'lucide-react'; // Added Video
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { NotificationIcon } from '@/components/notifications/NotificationIcon'; 
@@ -27,12 +27,18 @@ export default function Header() {
   const navLinks = [
     { href: "/", label: "Home", icon: HomeIcon, authRequired: false },
     { href: "/communities", label: "Discover", icon: Compass, authRequired: false },
+    { href: "/meetings", label: "Meetings", icon: Video, authRequired: true }, // Added Meetings link
     { href: "/posts/create", label: "Create Post", icon: PlusCircle, authRequired: true },
     { href: "/messages", label: "Messages", icon: MessageSquare, authRequired: true },
   ];
 
   const authRestrictedPages = ['/login', '/signup', '/forgot-password', '/onboarding', '/onboarding/profile-setup'];
-  // Removed meeting-room specific check as it's being removed
+  
+  // Hide header on active Jitsi meeting page
+  if (pathname.startsWith('/meetings/') && pathname.split('/').length > 2) {
+    return null;
+  }
+
 
   if (authRestrictedPages.includes(pathname)) {
     return null;
@@ -50,7 +56,10 @@ export default function Header() {
           {navLinks.map(link => {
             if (link.authRequired && !user) return null;
             const isActive = (link.href === "/" && pathname === link.href) || 
-                             (link.href !== "/" && pathname.startsWith(link.href) && !(link.href === "/messages" && pathname.includes("/messages/")) );
+                             (link.href !== "/" && pathname.startsWith(link.href) && 
+                              !(link.href === "/messages" && pathname.includes("/messages/")) &&
+                              !(link.href === "/meetings" && pathname.includes("/meetings/")) 
+                             );
 
             return (
               <Link

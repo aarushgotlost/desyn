@@ -39,21 +39,21 @@ export interface Comment {
   createdAt: string; // ISO string
 }
 
-// UserProfile is defined in AuthContext.tsx to avoid circular dependencies
-// but it's good to have a reference here for what it generally contains.
-// export interface UserProfile {
-//   uid: string;
-//   email: string | null;
-//   displayName: string | null;
-//   photoURL?: string | null;
-//   bannerURL?: string | null;
-//   bio?: string;
-//   skills?: string[]; 
-//   interests?: string[];
-//   onboardingCompleted: boolean;
-//   createdAt?: string; // ISO string
-//   lastLogin?: string; // ISO string
-//   updatedAt?: string; // ISO string
-//   followersCount?: number;
-//   followingCount?: number;
-// }
+// UserProfile is defined in AuthContext.tsx
+
+export interface MeetingParticipant {
+  uid: string;
+  displayName: string | null;
+  photoURL?: string | null;
+  joinedAt: string; // ISO string
+}
+
+export interface Meeting {
+  id: string;
+  title: string;
+  createdBy: string; // UID of the host
+  hostProfile: Pick<MeetingParticipant, 'uid' | 'displayName' | 'photoURL'>;
+  createdAt: string; // ISO string
+  isActive: boolean;
+  participants: MeetingParticipant[];
+}

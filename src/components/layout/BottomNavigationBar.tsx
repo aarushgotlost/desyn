@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { HomeIcon, PlusCircle, MessageSquare, User as UserIcon, Compass } from 'lucide-react';
+import { HomeIcon, PlusCircle, MessageSquare, User as UserIcon, Compass, Video } from 'lucide-react'; // Added Video
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -12,6 +12,7 @@ import { getInitials } from '@/lib/utils';
 const navItems = [
   { href: "/", label: "Home", icon: HomeIcon, authRequired: false },
   { href: "/communities", label: "Discover", icon: Compass, authRequired: false },
+  { href: "/meetings", label: "Meetings", icon: Video, authRequired: true }, // Added Meetings
   { href: "/posts/create", label: "Create", icon: PlusCircle, authRequired: true },
   { href: "/messages", label: "Messages", icon: MessageSquare, authRequired: true },
   { href: "/profile", label: "Profile", icon: UserIcon, authRequired: true, isProfile: true }, 
@@ -28,23 +29,24 @@ export function BottomNavigationBar() {
   const authPages = ['/login', '/signup', '/forgot-password', '/onboarding', '/onboarding/profile-setup'];
   const isChatDetailPage = pathname.startsWith('/messages/') && pathname.split('/').length > 2 && pathname.split('/')[2] !== 'new';
   const isChatBotPage = pathname === '/chatbot';
-  // Removed meeting-specific checks
+  const isMeetingDetailPage = pathname.startsWith('/meetings/') && pathname.split('/').length > 2; // For Jitsi page
 
-  if (authPages.includes(pathname) || isChatDetailPage || isChatBotPage) { 
+  if (authPages.includes(pathname) || isChatDetailPage || isChatBotPage || isMeetingDetailPage) { 
     return null;
   }
 
   const itemsToRender = navItems.filter(item => !(item.authRequired && !user));
   const numCols = itemsToRender.length;
 
+  // Dynamically set grid columns based on the number of items to render
   const gridColClass = {
     1: 'grid-cols-1',
     2: 'grid-cols-2',
     3: 'grid-cols-3',
     4: 'grid-cols-4',
     5: 'grid-cols-5',
-    6: 'grid-cols-6',
-  }[numCols] || `grid-cols-${numCols}`;
+    6: 'grid-cols-6', // Added for when all 6 items are shown
+  }[numCols] || `grid-cols-${numCols}`; // Fallback, though 6 should cover it
 
 
   return (
@@ -53,14 +55,11 @@ export function BottomNavigationBar() {
         "container mx-auto grid items-center h-16 px-0 sm:px-1",
         gridColClass
       )}>
-        {navItems.map(item => {
-          if (item.authRequired && !user) {
-            return null; 
-          }
-
+        {itemsToRender.map(item => { // Use itemsToRender here
           const isActive = (item.href === "/" && pathname === item.href) || 
                            (item.href !== "/" && pathname.startsWith(item.href) && 
-                            !(item.href === "/messages" && isChatDetailPage)
+                            !(item.href === "/messages" && isChatDetailPage) &&
+                            !(item.href === "/meetings" && isMeetingDetailPage)
                            );
           
           return (
@@ -83,7 +82,7 @@ export function BottomNavigationBar() {
               <span className="text-[10px] sm:text-xs">{item.label}</span>
             </Link>
           );
-        }).filter(Boolean)}
+        })}
       </div>
     </nav>
   );
