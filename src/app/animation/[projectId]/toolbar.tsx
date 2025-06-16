@@ -18,9 +18,9 @@ export default function Toolbar() {
     undoDrawing, redoDrawing,
     canUndoDrawing, canRedoDrawing,
     saveActiveFrameManually,
-    saveAllFramesManually, // New context function
-    projectId,
-    isLoadingProject // Get isLoadingProject from context
+    saveAllFramesManually, 
+    projectId, // projectId is still used for initial check if available for context functions
+    isLoadingProject // isLoadingProject is no longer used to disable buttons here
   } = useAnimation();
   const { toast } = useToast();
   const [isSavingFrame, setIsSavingFrame] = useState(false);
@@ -44,10 +44,7 @@ export default function Toolbar() {
   };
   
   const handleSaveFrame = async () => {
-    if (!projectId) {
-        toast({ title: "Error", description: "Project ID not found. Cannot save.", variant: "destructive"});
-        return;
-    }
+    // The context function saveActiveFrameManually will check for projectId and user
     setIsSavingFrame(true);
     try {
       await saveActiveFrameManually();
@@ -62,10 +59,7 @@ export default function Toolbar() {
   };
 
   const handleSaveAllFrames = async () => {
-    if (!projectId) {
-        toast({ title: "Error", description: "Project ID not found. Cannot save all frames.", variant: "destructive"});
-        return;
-    }
+    // The context function saveAllFramesManually will check for projectId and user
     setIsSavingAll(true);
     try {
       await saveAllFramesManually();
@@ -121,7 +115,7 @@ export default function Toolbar() {
             title="Save Current Frame" 
             aria-label="Save Current Frame" 
             onClick={handleSaveFrame} 
-            disabled={isLoadingProject || isSavingFrame || isSavingAll || !projectId}
+            disabled={isSavingFrame || isSavingAll} // Removed isLoadingProject and !projectId
           >
           {isSavingFrame ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
            {isSavingFrame ? "Saving..." : "Save Frame"}
@@ -132,7 +126,7 @@ export default function Toolbar() {
             title="Save All Frames" 
             aria-label="Save All Frames" 
             onClick={handleSaveAllFrames} 
-            disabled={isLoadingProject || isSavingFrame || isSavingAll || !projectId}
+            disabled={isSavingAll || isSavingFrame} // Removed isLoadingProject and !projectId
           >
           {isSavingAll ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Disc3 className="mr-2 h-4 w-4" />}
            {isSavingAll ? "Saving All..." : "Save All"}
@@ -141,4 +135,3 @@ export default function Toolbar() {
     </div>
   );
 }
-
