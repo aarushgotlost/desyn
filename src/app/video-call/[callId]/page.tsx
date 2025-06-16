@@ -2,28 +2,29 @@
 "use client";
 
 import { useParams, useRouter } from 'next/navigation';
-import { VideoCallUIWrapper } from '@/components/video-chat/VideoCallUI'; // Corrected import path
+import { VideoCallUIWrapper } from '@/components/video-chat/VideoCallUI';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { getCallDetails } from '@/services/firestoreService';
+import { getCallDetails, getUserProfile } from '@/services/firestoreService';
 import type { VideoCallSession } from '@/types/data';
+import type { UserProfile } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
 export default function VideoCallPage() {
   const params = useParams();
   const router = useRouter();
   const appCallId = params.callId as string;
-  const { user, userProfile, loading: authLoading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
 
   const [appCallSession, setAppCallSession] = useState<VideoCallSession | null>(null);
   const [isLoadingSession, setIsLoadingSession] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [authToken, setAuthToken] = useState<string | null>(null); // To store the 100ms token if needed, or other auth mechanism
-  const [userRole, setUserRole] = useState<string>('guest'); // Default to guest
+  const [targetUserDetails, setTargetUserDetails] = useState<Pick<UserProfile, 'displayName' | 'photoURL'> | null>(null);
+
 
   useEffect(() => {
     if (authLoading || !appCallId) {
@@ -31,7 +32,7 @@ export default function VideoCallPage() {
       return;
     }
 
-    async function fetchCallDataAndToken() {
+    async function fetchCallData() {
       setIsLoadingSession(true);
       setError(null);
       try {
@@ -53,27 +54,21 @@ export default function VideoCallPage() {
               setIsLoadingSession(false);
               return;
           }
-          // Determine user role based on our app's session
-          const determinedRole = user.uid === sessionDetails.callerId ? 'host' : 'guest';
-          setUserRole(determinedRole);
-          
-          // For a custom WebRTC solution, the authToken might not be from 100ms,
-          // but this structure is kept if future integrations need a token.
-          // For pure WebRTC with Firestore signaling, token might be our app's session token if needed for API calls.
-          // For now, let's assume a placeholder or a mechanism if VideoCallUIWrapper needs it.
-          // If VideoCallUIWrapper directly handles all auth within itself (e.g., just uses `user` from `useAuth`),
-          // `authToken` prop might become vestigial for that component.
-          setAuthToken("placeholder-auth-token-if-needed-by-custom-webrtc-ui"); 
+          // Determine target user for display purposes
+          const targetId = sessionDetails.callerId === user.uid ? sessionDetails.calleeId : sessionDetails.callerId;
+          const targetProfile = await getUserProfile(targetId);
+          if (targetProfile) {
+            setTargetUserDetails({displayName: targetProfile.displayName, photoURL: targetProfile.photoURL});
+          }
 
         } else {
-          // User not logged in, can't determine role or get specific tokens
           setError("User not authenticated.");
-           setIsLoadingSession(false);
+          setIsLoadingSession(false);
           return;
         }
 
       } catch (err: any) {
-        console.error("Error fetching call data or token:", err);
+        console.error("Error fetching call data:", err);
         setError(err.message || "An error occurred while preparing the call.");
         toast({ variant: 'destructive', title: 'Error', description: "Could not load call details."});
       } finally {
@@ -81,7 +76,7 @@ export default function VideoCallPage() {
       }
     }
 
-    fetchCallDataAndToken();
+    fetchCallData();
 
   }, [appCallId, user, authLoading, toast, router]);
 
@@ -122,11 +117,11 @@ export default function VideoCallPage() {
     );
   }
 
-  if (!appCallSession || !authToken) {
+  if (!appCallSession) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-background text-foreground">
          <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
-        <p className="text-lg text-destructive">Could not initialize call. Session or token information is missing.</p>
+        <p className="text-lg text-destructive">Could not initialize call. Session information is missing.</p>
          <Button asChild variant="link" className="mt-4">
             <Link href="/">Go Home</Link>
         </Button>
@@ -136,10 +131,9 @@ export default function VideoCallPage() {
 
   return (
     <VideoCallUIWrapper
-      authToken={authToken} // This token might be our app's session or specific to the WebRTC setup
-      userName={userProfile?.displayName || user.email || 'User'}
-      initialRole={userRole} 
       appCallId={appCallId}
+      targetUserName={targetUserDetails?.displayName || appCallSession.calleeName || appCallSession.callerName || "Participant"}
+      targetUserAvatar={targetUserDetails?.photoURL}
     />
   );
 }

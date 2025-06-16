@@ -2,227 +2,24 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from 'react';
-import {
-  HMSRoomProvider,
-  useHMSActions,
-  useHMSStore,
-  selectIsConnectedToRoom,
-  selectPeers,
-  selectLocalPeer,
-  selectRoomState,
-  HMSRoomState,
-  selectIsLocalAudioEnabled,
-  selectIsLocalVideoEnabled,
-} from '@100mslive/react-sdk';
-import { Video as HMSVideoTile } from '@100mslive/react-ui'; // Assuming 'Video' is the correct component
 import { Button } from '@/components/ui/button';
-import { Mic, MicOff, VideoOff, PhoneOff, Loader2, AlertTriangle, Video as VideoIcon } from 'lucide-react';
+import { Mic, MicOff, VideoOff, PhoneOff, Loader2, AlertTriangle, Video as VideoIcon, Maximize, Minimize, User } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { updateCallStatus as updateAppCallStatus } from '@/actions/videoCallActions'; // Action to update our Firestore session
-import { USER_ROLES_100MS } from '@/lib/constants';
+import { updateCallStatus as updateAppCallStatus } from '@/actions/videoCallActions';
+import { useRouter } from 'next/navigation';
+import { Card, CardContent } from '@/components/ui/card';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getInitials } from '@/lib/utils';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-
+import { useAuth } from '@/contexts/AuthContext';
 
 interface VideoCallUIProps {
-  authToken: string;
-  userName: string;
-  initialRole: string; // e.g., 'host' or 'guest' from USER_ROLES_100MS
-  appCallId: string; // Our application's Firestore call ID
-  onPermissionsError?: () => void;
+  appCallId: string;
+  targetUserName?: string; // Name of the person being called
+  targetUserAvatar?: string | null; // Avatar of the person being called
 }
-
-function RoomContent({ authToken, userName, initialRole, appCallId, onPermissionsError }: VideoCallUIProps & {isLoading: boolean, setIsLoading: React.Dispatch<React.SetStateAction<boolean>>}) {
-  const hmsActions = useHMSActions();
-  const isConnected = useHMSStore(selectIsConnectedToRoom);
-  const peers = useHMSStore(selectPeers);
-  const localPeer = useHMSStore(selectLocalPeer);
-  const roomState = useHMSStore(selectRoomState);
-  const isLocalAudioEnabled = useHMSStore(selectIsLocalAudioEnabled);
-  const isLocalVideoEnabled = useHMSStore(selectIsLocalVideoEnabled);
-
-  const { toast } = useToast();
-  const [hasAttemptedJoin, setHasAttemptedJoin] = useState(false);
-  const {isLoading, setIsLoading} = arguments[0]; // Get from props
-
-
-  // Effect to join the 100ms room
-  useEffect(() => {
-    if (!authToken || !hmsActions || hasAttemptedJoin || roomState !== HMSRoomState.Disconnected) {
-      return;
-    }
-    
-    console.log(`Attempting to join 100ms room. Role: ${initialRole}, Token: ${authToken ? 'present' : 'absent'}`);
-    setHasAttemptedJoin(true);
-    setIsLoading(true);
-
-    const joinRoom = async () => {
-      try {
-        await hmsActions.join({
-          userName: userName,
-          authToken: authToken,
-          role: initialRole,
-        });
-        // Connection state will be managed by isConnected and roomState selectors
-        await updateAppCallStatus(appCallId, 'connected'); // Update our Firestore session
-      } catch (error: any) {
-        console.error('Error joining 100ms room:', error);
-        toast({
-          variant: 'destructive',
-          title: 'Connection Error',
-          description: error.message || 'Could not join the video call.',
-        });
-        await updateAppCallStatus(appCallId, 'error');
-         if (onPermissionsError && (error.code === 2001 || error.message?.includes('permission'))) { // Example error codes for permission issues
-            onPermissionsError();
-        }
-      } finally {
-         setIsLoading(false);
-      }
-    };
-    joinRoom();
-
-  }, [hmsActions, authToken, userName, initialRole, hasAttemptedJoin, roomState, appCallId, toast, setIsLoading, onPermissionsError]);
-
-  // Effect to leave the 100ms room on component unmount or when isConnected changes
-  useEffect(() => {
-    return () => {
-      if (roomState !== HMSRoomState.Disconnected) {
-        console.log("Leaving 100ms room due to component unmount or disconnect state.");
-        hmsActions.leave()
-          .then(() => updateAppCallStatus(appCallId, 'ended'))
-          .catch(err => console.error("Error leaving 100ms room on unmount:", err));
-      }
-    };
-  }, [hmsActions, appCallId, roomState]); // roomState added to deps
-
-  const handleLeaveCall = async () => {
-    setIsLoading(true);
-    try {
-      await hmsActions.leave();
-      await updateAppCallStatus(appCallId, 'ended'); // Update our Firestore call session
-    } catch (error) {
-      console.error('Error leaving call:', error);
-      toast({ variant: 'destructive', title: 'Error', description: 'Could not leave the call properly.' });
-    } finally {
-        setIsLoading(false);
-    }
-  };
-
-  const toggleAudio = async () => {
-    await hmsActions.setLocalAudioEnabled(!isLocalAudioEnabled);
-  };
-
-  const toggleVideo = async () => {
-    await hmsActions.setLocalVideoEnabled(!isLocalVideoEnabled);
-  };
-
-
-  if (isLoading && !isConnected && roomState === HMSRoomState.Connecting) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full">
-        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <p>Joining call...</p>
-      </div>
-    );
-  }
-
-  if (roomState === HMSRoomState.Error || roomState === HMSRoomState.Failed) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full text-destructive">
-        <AlertTriangle className="h-12 w-12 mb-4" />
-        <p>Failed to connect to the call.</p>
-         <Button onClick={() => window.location.reload()} variant="outline" className="mt-4">Try Again</Button>
-      </div>
-    );
-  }
-  
-  if (!isConnected && (roomState === HMSRoomState.Disconnected && hasAttemptedJoin && !isLoading)) {
-     return (
-      <div className="flex flex-col items-center justify-center h-full text-destructive">
-        <AlertTriangle className="h-12 w-12 mb-4" />
-        <p>Disconnected. The call may have ended or there was a connection issue.</p>
-         <Button onClick={() => window.location.reload()} variant="outline" className="mt-4">Reconnect</Button>
-      </div>
-    );
-  }
-
-
-  if (!isConnected && !hasAttemptedJoin && !isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full">
-        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <p>Initializing...</p>
-      </div>
-    );
-  }
-  
-  // Display for remote peers
-  const remotePeers = peers.filter(peer => !peer.isLocal);
-
-  return (
-    <div className="flex flex-col h-full bg-gray-900 text-white relative">
-      {/* Video Grid */}
-      <div className="flex-grow grid grid-cols-1 md:grid-cols-2 gap-2 p-2 overflow-auto">
-        {localPeer && (
-            <div className="relative aspect-video bg-black rounded-md overflow-hidden shadow-lg border-2 border-primary">
-                <HMSVideoTile 
-                    peer={localPeer} 
-                    isLocal={true} 
-                    className="object-cover w-full h-full"
-                />
-                <div className="absolute bottom-2 left-2 bg-black/50 text-white px-2 py-1 rounded text-sm">
-                    {localPeer.name} (You)
-                </div>
-            </div>
-        )}
-        {remotePeers.map(peer => (
-          <div key={peer.id} className="relative aspect-video bg-black rounded-md overflow-hidden shadow-lg">
-            {peer.videoTrack ? (
-              <HMSVideoTile 
-                trackId={peer.videoTrack} 
-                className="object-cover w-full h-full" 
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center bg-gray-800">
-                <Avatar className="w-24 h-24 text-3xl">
-                  <AvatarFallback>{getInitials(peer.name)}</AvatarFallback>
-                </Avatar>
-              </div>
-            )}
-            <div className="absolute bottom-2 left-2 bg-black/50 text-white px-2 py-1 rounded text-sm">
-              {peer.name}
-            </div>
-          </div>
-        ))}
-        {remotePeers.length === 0 && isConnected && (
-            <div className="md:col-span-1 flex items-center justify-center text-muted-foreground text-center p-4">
-                <p>Waiting for others to join...</p>
-            </div>
-        )}
-      </div>
-
-      {/* Controls */}
-      {isConnected && (
-        <div className="bg-gray-800/80 backdrop-blur-sm p-3 md:p-4 flex justify-center items-center space-x-3 md:space-x-4 absolute bottom-0 left-0 right-0">
-          <Button onClick={toggleAudio} variant="outline" size="icon" className={`rounded-full h-12 w-12 md:h-14 md:w-14 ${!isLocalAudioEnabled ? 'bg-destructive hover:bg-destructive/90' : 'bg-gray-700 hover:bg-gray-600'} text-white`}>
-            {!isLocalAudioEnabled ? <MicOff /> : <Mic />}
-          </Button>
-          <Button onClick={toggleVideo} variant="outline" size="icon" className={`rounded-full h-12 w-12 md:h-14 md:w-14 ${!isLocalVideoEnabled ? 'bg-destructive hover:bg-destructive/90' : 'bg-gray-700 hover:bg-gray-600'} text-white`}>
-            {!isLocalVideoEnabled ? <VideoOff /> : <VideoIcon />}
-          </Button>
-          <Button onClick={handleLeaveCall} variant="destructive" size="icon" className="rounded-full h-14 w-14 md:h-16 md:w-16">
-            <PhoneOff />
-          </Button>
-        </div>
-      )}
-    </div>
-  );
-}
-
 
 export function VideoCallUIWrapper(props: VideoCallUIProps) {
-  const [isLoading, setIsLoading] = useState(true); // Moved loading state here
+  const [isLoading, setIsLoading] = useState(true);
   const [hasMediaPermission, setHasMediaPermission] = useState<boolean | null>(null);
   const mediaCheckedRef = useRef(false);
   const { toast } = useToast();
@@ -232,25 +29,22 @@ export function VideoCallUIWrapper(props: VideoCallUIProps) {
     mediaCheckedRef.current = true;
     setIsLoading(true);
     try {
-      // Just request to check, stream not stored here
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      stream.getTracks().forEach(track => track.stop()); // Stop tracks immediately after permission check
+      stream.getTracks().forEach(track => track.stop());
       setHasMediaPermission(true);
-      props.onPermissionsError?.(); // Call if defined, though it's success here
     } catch (error) {
       console.error("Error getting media permissions:", error);
-      toast({ variant: "destructive", title: "Permissions Denied", description: "Camera and microphone access are required for video calls."});
+      toast({ variant: "destructive", title: "Permissions Denied", description: "Camera and microphone access are required for video calls." });
       setHasMediaPermission(false);
-      if (props.onPermissionsError) props.onPermissionsError();
     } finally {
       setIsLoading(false);
     }
-  }, [props, toast]);
+  }, [toast]);
 
   useEffect(() => {
     checkMediaPermissions();
   }, [checkMediaPermissions]);
-  
+
   if (isLoading || hasMediaPermission === null) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-background text-foreground">
@@ -271,9 +65,141 @@ export function VideoCallUIWrapper(props: VideoCallUIProps) {
     );
   }
 
+  return <VideoCallRoom {...props} />;
+}
+
+
+function VideoCallRoom({ appCallId, targetUserName, targetUserAvatar }: VideoCallUIProps) {
+  const { user, userProfile } = useAuth();
+  const router = useRouter();
+  const { toast } = useToast();
+  const [isAudioEnabled, setIsAudioEnabled] = useState(true);
+  const [isVideoEnabled, setIsVideoEnabled] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const localStreamRef = useRef<MediaStream | null>(null);
+  const [isFullScreen, setIsFullScreen] = useState(false);
+
+  useEffect(() => {
+    const startLocalVideo = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        localStreamRef.current = stream;
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = stream;
+        }
+        // Simulate connecting to our app's call session record
+        await updateAppCallStatus(appCallId, 'connected');
+      } catch (error) {
+        console.error('Error starting local video:', error);
+        toast({ variant: 'destructive', title: 'Media Error', description: 'Could not start camera or microphone.' });
+      }
+    };
+
+    startLocalVideo();
+
+    return () => {
+      localStreamRef.current?.getTracks().forEach(track => track.stop());
+      if (appCallId) { // Ensure appCallId is present before trying to update status
+        updateAppCallStatus(appCallId, 'ended').catch(err => console.error("Error updating call status on unmount:", err));
+      }
+    };
+  }, [appCallId, toast]);
+
+  const toggleAudio = () => {
+    if (localStreamRef.current) {
+      localStreamRef.current.getAudioTracks().forEach(track => track.enabled = !isAudioEnabled);
+      setIsAudioEnabled(!isAudioEnabled);
+    }
+  };
+
+  const toggleVideo = () => {
+    if (localStreamRef.current) {
+      localStreamRef.current.getVideoTracks().forEach(track => track.enabled = !isVideoEnabled);
+      setIsVideoEnabled(!isVideoEnabled);
+    }
+  };
+
+  const handleLeaveCall = async () => {
+    setIsLoading(true);
+    localStreamRef.current?.getTracks().forEach(track => track.stop());
+    try {
+      await updateAppCallStatus(appCallId, 'ended');
+      toast({ title: 'Call Ended' });
+    } catch (error) {
+      console.error('Error updating call status on leave:', error);
+      toast({ variant: 'destructive', title: 'Error', description: 'Could not update call status.' });
+    } finally {
+      setIsLoading(false);
+      router.push('/messages');
+    }
+  };
+  
+  const toggleFullScreen = () => {
+    const videoElement = localVideoRef.current;
+    if (!videoElement) return;
+
+    if (!document.fullscreenElement) {
+      videoElement.requestFullscreen().catch(err => {
+        alert(`Error attempting to enable full-screen mode: ${err.message} (${err.name})`);
+      });
+      setIsFullScreen(true);
+    } else {
+      document.exitFullscreen();
+      setIsFullScreen(false);
+    }
+  };
+
   return (
-    <HMSRoomProvider>
-      <RoomContent {...props} isLoading={isLoading} setIsLoading={setIsLoading} />
-    </HMSRoomProvider>
+    <div className="flex flex-col h-screen bg-gray-900 text-white relative overflow-hidden">
+      <div className="flex-grow grid grid-cols-1 md:grid-cols-2 gap-1 p-1">
+        {/* Local Video */}
+        <div className="relative aspect-video bg-black rounded-md overflow-hidden shadow-lg border-2 border-primary group">
+          <video ref={localVideoRef} autoPlay playsInline muted className="object-cover w-full h-full" />
+          <div className="absolute bottom-2 left-2 bg-black/50 text-white px-2 py-1 rounded text-xs">
+            {userProfile?.displayName || user?.email || 'You'}
+          </div>
+           <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={toggleFullScreen} 
+            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity text-white bg-black/30 hover:bg-black/50"
+            aria-label={isFullScreen ? "Exit full screen" : "Enter full screen"}
+           >
+            {isFullScreen ? <Minimize size={20} /> : <Maximize size={20} />}
+          </Button>
+        </div>
+
+        {/* Remote Video Placeholder */}
+        <div className="relative aspect-video bg-gray-800 rounded-md overflow-hidden shadow-lg flex items-center justify-center">
+          <div className="text-center text-gray-400">
+             {targetUserAvatar ? (
+                 <Avatar className="w-24 h-24 mx-auto mb-2 text-3xl border-2 border-gray-700">
+                    <AvatarImage src={targetUserAvatar} alt={targetUserName || "Remote User"}/>
+                    <AvatarFallback>{getInitials(targetUserName)}</AvatarFallback>
+                </Avatar>
+             ) : (
+                <User size={64} className="mx-auto mb-2 opacity-50" />
+             )}
+            <p className="font-semibold">{targetUserName || 'Remote User'}</p>
+            <p className="text-xs">(Waiting for connection...)</p>
+            {/* In a real WebRTC app, this would display the remote stream */}
+          </div>
+        </div>
+      </div>
+
+      {/* Controls */}
+      <div className="bg-gray-800/90 backdrop-blur-sm p-3 md:p-4 flex justify-center items-center space-x-3 md:space-x-4 absolute bottom-0 left-0 right-0">
+        <Button onClick={toggleAudio} variant="outline" size="icon" className={`rounded-full h-12 w-12 md:h-14 md:w-14 ${!isAudioEnabled ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-700 hover:bg-gray-600'} text-white border-gray-600 hover:border-gray-500`}>
+          {!isAudioEnabled ? <MicOff /> : <Mic />}
+        </Button>
+        <Button onClick={toggleVideo} variant="outline" size="icon" className={`rounded-full h-12 w-12 md:h-14 md:w-14 ${!isVideoEnabled ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-700 hover:bg-gray-600'} text-white border-gray-600 hover:border-gray-500`}>
+          {!isVideoEnabled ? <VideoOff /> : <VideoIcon />}
+        </Button>
+        <Button onClick={handleLeaveCall} variant="destructive" size="icon" className="rounded-full h-14 w-14 md:h-16 md:w-16" disabled={isLoading}>
+          {isLoading ? <Loader2 className="animate-spin" /> : <PhoneOff />}
+        </Button>
+      </div>
+    </div>
   );
 }

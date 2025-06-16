@@ -33,7 +33,7 @@ export async function initiateVideoCall(
     calleeId: calleeId,
     callerName: callerProfile.displayName || 'Caller',
     calleeName: calleeProfile.displayName || 'Callee',
-    status: 'pending', // Our app's status for the call session
+    status: 'pending', 
   };
 
   try {
@@ -47,10 +47,10 @@ export async function initiateVideoCall(
     if (calleeProfile.uid && callerProfile.displayName) {
        await createNotification({
         userId: calleeProfile.uid,
-        type: 'new_message', // Or a new 'incoming_call' type if defined
+        type: 'new_message', // Consider a new 'incoming_call' type
         actor: { id: callerProfile.uid, displayName: callerProfile.displayName, avatarUrl: callerProfile.photoURL },
         message: `${callerProfile.displayName} is starting a video call with you.`,
-        link: `/video-call/${callDocRef.id}`, // Link to our app's call page
+        link: `/video-call/${callDocRef.id}`, 
         relatedEntityId: callDocRef.id,
       });
     }
@@ -70,6 +70,14 @@ export async function updateCallStatus(
     if (!appCallId) return { success: false, message: 'Application Call ID is missing.'};
     const callDocRef = doc(db, 'videoCalls', appCallId);
     try {
+        const callSnap = await getDoc(callDocRef);
+        if (!callSnap.exists()) {
+            // If the call document doesn't exist, we can't update it.
+            // This might happen if a call is initiated and then quickly cancelled/errored before the doc is fully processed,
+            // or if the ID is incorrect.
+            console.warn(`Attempted to update status for non-existent call ID: ${appCallId}`);
+            return { success: false, message: `Call session with ID ${appCallId} not found.`};
+        }
         await updateDoc(callDocRef, { status, updatedAt: serverTimestamp() });
         return { success: true, message: `Call status updated to ${status}`};
     } catch (error: any) {
