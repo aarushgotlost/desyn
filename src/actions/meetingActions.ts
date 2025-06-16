@@ -17,12 +17,12 @@ export async function startNewMeeting(
   }
 
   const meetingsColRef = collection(db, 'meetings');
-  const meetingTitle = title || `New Meeting - ${new Date().toLocaleTimeString()}`;
+  const meetingTitle = title || `New Meeting - ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
 
   const creatorParticipant = {
     uid: creatorId,
     displayName: creatorName,
-    photoURL: null, 
+    photoURL: null, // This could be fetched if userProfile is passed fully
   };
 
   try {
@@ -64,6 +64,10 @@ export async function joinMeeting(
       return { success: false, message: 'Meeting not found.' };
     }
     const meetingData = meetingSnap.data() as Meeting;
+
+    if (!meetingData.isActive) {
+        return { success: false, message: 'This meeting has ended.' };
+    }
 
     if (meetingData.participantUids?.includes(user.uid)) {
       return { success: true, message: 'Already in meeting.' }; 
@@ -117,12 +121,55 @@ export async function sendMeetingChatMessage(
 
     const messageDocRef = await addDoc(messagesColRef, newMessageData);
     
-    // No revalidation path needed here as chat is real-time
-    // No need to update meeting's lastMessageAt for now, can be added later if needed for meeting previews
-
+    // No revalidation needed here as chat is real-time
     return { success: true, message: 'Message sent!', messageId: messageDocRef.id };
   } catch (error: any) {
     console.error('Error sending meeting chat message:', error);
     return { success: false, message: error.message || 'Could not send message.' };
   }
 }
+
+
+export async function endMeeting(
+  meetingId: string,
+  userId: string // ID of the user attempting to end the meeting
+): Promise<{ success: boolean; message: string }> {
+  if (!userId) {
+    return { success: false, message: 'User not authenticated.' };
+  }
+  if (!meetingId) {
+    return { success: false, message: 'Meeting ID is missing.' };
+  }
+
+  const meetingRef = doc(db, 'meetings', meetingId);
+
+  try {
+    const meetingSnap = await getDoc(meetingRef);
+    if (!meetingSnap.exists()) {
+      return { success: false, message: 'Meeting not found.' };
+    }
+
+    const meetingData = meetingSnap.data() as Meeting;
+    if (meetingData.createdBy !== userId) {
+      return { success: false, message: 'Only the host can end the meeting.' };
+    }
+
+    if (!meetingData.isActive) {
+      return { success: true, message: 'Meeting has already ended.' };
+    }
+
+    await updateDoc(meetingRef, {
+      isActive: false,
+      // endedAt: serverTimestamp(), // Optional: if you want to store when it ended
+    });
+
+    revalidatePath(`/meetings`);
+    revalidatePath(`/meetings/${meetingId}`);
+    return { success: true, message: 'Meeting ended successfully.' };
+  } catch (error: any) {
+    console.error('Error ending meeting:', error);
+    return { success: false, message: error.message || 'Could not end meeting.' };
+  }
+}
+
+    
