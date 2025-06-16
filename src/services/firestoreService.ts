@@ -1,6 +1,6 @@
 
 import { db, auth } from '@/lib/firebase';
-import type { Community, Post, Comment, VideoCallSession } from '@/types/data'; // Added VideoCallSession
+import type { Community, Post, Comment, AnimationProject } from '@/types/data';
 import type { UserProfile } from '@/contexts/AuthContext';
 import {
   collection,
@@ -416,19 +416,20 @@ export async function getAllUsersForNewChat(currentUserId: string, count: number
   }
 }
 
-
-// Firestore service to get details of OUR application's video call session
-export async function getCallDetails(appCallId: string): Promise<VideoCallSession | null> {
+export async function getUserAnimationProjects(userId: string): Promise<AnimationProject[]> {
   noStore();
-  const callDocRef = doc(db, 'videoCalls', appCallId);
+  if (!userId) return [];
+  const projectsCol = collection(db, 'projects');
+  const q = query(
+    projectsCol,
+    where('createdBy', '==', userId),
+    orderBy('updatedAt', 'desc')
+  );
   try {
-    const callSnap = await getDoc(callDocRef);
-    if (callSnap.exists()) {
-      return processDoc<VideoCallSession>(callSnap);
-    }
-    return null;
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(docSnap => processDoc<AnimationProject>(docSnap));
   } catch (error) {
-    console.error(`Error fetching call details for ${appCallId}:`, error);
-    return null;
+    console.error(`Error fetching animation projects for user ${userId}:`, error);
+    return [];
   }
 }

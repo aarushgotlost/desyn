@@ -40,4 +40,11 @@ export interface Comment {
 
 // UserProfile is defined in AuthContext.tsx
 
-// VideoCallSession interface removed as video call functionality is removed.
+export interface AnimationProject {
+  id: string;
+  name: string;
+  createdBy: string;
+  createdAt: string; // ISO string
+  updatedAt: string; // ISO string
+  thumbnailURL?: string | null;
+}
