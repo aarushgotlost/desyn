@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { HomeIcon, Users, PlusCircle, MessageSquare, User as UserIcon, Compass } from 'lucide-react'; // Added Compass
+import { HomeIcon, Users, PlusCircle, MessageSquare, User as UserIcon, Compass, Presentation } from 'lucide-react'; // Added Compass, Presentation
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -11,7 +11,8 @@ import { getInitials } from '@/lib/utils';
 
 const navItems = [
   { href: "/", label: "Home", icon: HomeIcon, authRequired: false },
-  { href: "/communities", label: "Discover", icon: Compass, authRequired: false }, // Changed label and icon
+  { href: "/communities", label: "Discover", icon: Compass, authRequired: false },
+  { href: "/meeting-room", label: "Meeting", icon: Presentation, authRequired: true },
   { href: "/posts/create", label: "Create", icon: PlusCircle, authRequired: true },
   { href: "/messages", label: "Messages", icon: MessageSquare, authRequired: true },
   { href: "/profile", label: "Profile", icon: UserIcon, authRequired: true, isProfile: true }, 
@@ -28,9 +29,10 @@ export function BottomNavigationBar() {
   const authPages = ['/login', '/signup', '/forgot-password', '/onboarding', '/onboarding/profile-setup'];
   const isChatDetailPage = pathname.startsWith('/messages/') && pathname.split('/').length > 2 && pathname.split('/')[2] !== 'new';
   const isChatBotPage = pathname === '/chatbot';
+  const isAnimatorPage = pathname === '/meeting-room/animator';
 
 
-  if (authPages.includes(pathname) || isChatDetailPage || isChatBotPage) {
+  if (authPages.includes(pathname) || isChatDetailPage || isChatBotPage || isAnimatorPage) {
     return null;
   }
 
@@ -59,7 +61,7 @@ export function BottomNavigationBar() {
           }
 
           const isActive = (item.href === "/" && pathname === item.href) || 
-                           (item.href !== "/" && pathname.startsWith(item.href) && !(item.href === "/messages" && isChatDetailPage));
+                           (item.href !== "/" && pathname.startsWith(item.href) && !(item.href === "/messages" && isChatDetailPage) && !(item.href === "/meeting-room" && isAnimatorPage));
           
           return (
             <Link
