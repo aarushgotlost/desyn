@@ -151,34 +151,30 @@ export async function get100msTokenAction(
     return { error: "User ID, Room ID, and Role are required.", message: "Ensure all parameters are provided." };
   }
 
-  // --- TEMPORARY PROTOTYPE BYPASS for Genkit API key error ---
   console.warn(
-      `SECURITY WARNING (ACTION BYPASS): Using a hardcoded prototype 100ms token for room ${roomId100ms}, user ${userId}, role ${role}.` +
+      `SECURITY WARNING (ACTION BYPASS): Token generation is simulated for room ${roomId100ms}, user ${userId}, role ${role}.` +
       ` This is NOT for production. A real backend is required for secure token generation.`
   );
-  // This is the token provided by the user.
+  
   const PROTOTYPE_GUEST_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ2ZXJzaW9uIjoyLCJ0eXBlIjoiYXBwIiwiYXBwX2RhdGEiOm51bGwsImFjY2Vzc19rZXkiOiI2ODUwMTAyMGJkMGRhYjVmOWEwMTI4YWQiLCJyb2xlIjoiZ3Vlc3QiLCJyb29tX2lkIjoiNjg1MDEzMDVhNDhjYTYxYzQ2NDc0MGU3IiwidXNlcl9pZCI6ImEyY2FhYjcyLTMxOWEtNDI5YS05MTkwLTM2OWJhYTI0NDhjOCIsImV4cCI6MTc1MDE2NTQ0MCwianRpIjoiYjc5Y2EyMjctNTVjZS00MmNmLTg0NjEtYzRmNTA3N2QwMDFkIiwiaWF0IjoxNzUwMDc5MDQwLCJpc3MiOiI2ODUwMTAyMGJkMGRhYjVmOWEwMTI4YWIiLCJuYmYiOjE3NTAwNzkwNDAsInN1YiI6ImFwaSJ9.0ALU1v2WrZo8phrYvky1vX-yLtyXkOJ0i785LRtK2jk";
 
-  if (role === USER_ROLES_100MS.LISTENER || role === USER_ROLES_100MS.SPEAKER) { // Using constants for roles
+  if (role === USER_ROLES_100MS.LISTENER) { // 'guest'
     return {
       token: PROTOTYPE_GUEST_TOKEN,
-      message: "Using a hardcoded prototype token (from action bypass due to Genkit config). This is insecure and for development testing only. Replace with real backend token generation for production."
+      message: "Using a hardcoded prototype GUEST token (from action bypass). This is insecure and for development testing only. Ensure this token matches the Room ID and has 'guest' role permissions on your 100ms dashboard."
+    };
+  } else if (role === USER_ROLES_100MS.SPEAKER) { // 'host'
+    // We don't have a hardcoded host token. So, we must prompt for it.
+    return {
+      // token: undefined, // Explicitly no token is provided by the action for hosts
+      error: "Host-specific token required.",
+      message: "You are joining as a HOST. The current prototype only has an automatic GUEST token. Please obtain a HOST-specific auth token from your 100ms Dashboard for the configured Room ID and paste it into the UI. This is a prototype limitation for host roles."
     };
   }
+
+  // Fallback for any other roles or issues
   return {
-    error: "Token generation is simulated for this role (from action bypass).",
-    message: "For this prototype, a hardcoded token is used for 'guest'/'host'. A secure backend is required for real token generation for all roles."
+    error: `Token generation is simulated for role: ${role}. This role is not configured for automatic prototype token.`,
+    message: "A secure backend is required for real token generation for all roles. Ensure your requested role is either 'guest' or 'host' as defined in constants."
   };
-  // --- END TEMPORARY PROTOTYPE BYPASS ---
-
-  // Original code to call Genkit flow (will be bypassed by the above for now)
-  // const input: GenerateTokenInput = { userId, roomId: roomId100ms, role };
-  // try {
-  //   const result = await generate100msToken(input); // generate100msToken is the flow wrapper
-  //   return result;
-  // } catch (error: any) {
-  //   console.error("Error calling generate100msToken flow:", error);
-  //   return { error: "Failed to process token request.", message: error.message || "Unknown error in Genkit flow." };
-  // }
 }
-

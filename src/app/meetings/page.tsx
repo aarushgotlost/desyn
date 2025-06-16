@@ -18,6 +18,7 @@ import { useToast } from '@/hooks/use-toast';
 import { createMeetingSession } from '@/actions/meetingActions';
 import { getInitials } from '@/lib/utils';
 import { DEFAULT_100MS_ROOM_ID } from '@/lib/constants';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export default function MeetingsPage() {
   const { user, userProfile, loading: authLoading } = useAuth();
@@ -29,9 +30,14 @@ export default function MeetingsPage() {
   const [newMeetingDescription, setNewMeetingDescription] = useState('');
   const [isCreatingMeeting, startCreateTransition] = useTransition();
 
+  const isRoomIdConfigured = DEFAULT_100MS_ROOM_ID !== "YOUR_100MS_ROOM_ID_HERE";
+
   useEffect(() => {
     async function fetchMeetings() {
-      if (authLoading) return; // Wait for auth to be ready
+      if (authLoading || !isRoomIdConfigured) { // Don't fetch if not configured
+          setIsLoadingMeetings(false);
+          return;
+      }
       setIsLoadingMeetings(true);
       try {
         const activeMeetings = await getActiveMeetings();
@@ -44,7 +50,7 @@ export default function MeetingsPage() {
       }
     }
     fetchMeetings();
-  }, [authLoading, toast]);
+  }, [authLoading, toast, isRoomIdConfigured]);
 
   const handleCreateMeeting = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,6 +60,10 @@ export default function MeetingsPage() {
     }
     if (!newMeetingTitle.trim()) {
       toast({ title: "Validation Error", description: "Meeting title is required.", variant: "destructive" });
+      return;
+    }
+    if (!isRoomIdConfigured) {
+      toast({ title: "Configuration Required", description: "100ms Room ID is not configured. Cannot create meeting.", variant: "destructive" });
       return;
     }
 
@@ -73,13 +83,31 @@ export default function MeetingsPage() {
     });
   };
 
-  if (authLoading || isLoadingMeetings) {
+  if (authLoading) {
     return (
       <div className="flex justify-center items-center h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
       </div>
     );
   }
+  
+  if (!isRoomIdConfigured) {
+    return (
+       <div className="max-w-2xl mx-auto my-8 p-4">
+        <Alert variant="destructive">
+          <AlertTriangle className="h-5 w-5" />
+          <CardTitle className="font-semibold">Configuration Required for Meetings</CardTitle>
+          <AlertDescription className="mt-2">
+            The Video Meeting feature requires a 100ms Room ID to be configured in the application code.
+            Please update the <code className="bg-destructive/20 text-destructive-foreground px-1 py-0.5 rounded text-xs">DEFAULT_100MS_ROOM_ID</code> in <code className="bg-destructive/20 text-destructive-foreground px-1 py-0.5 rounded text-xs">src/lib/constants.ts</code> with a valid Room ID from your 100ms Dashboard.
+            <br /><br />
+            After updating the constant, please restart your development server.
+          </AlertDescription>
+        </Alert>
+      </div>
+    )
+  }
+
 
   if (!user) {
     return (
@@ -92,26 +120,6 @@ export default function MeetingsPage() {
     );
   }
   
-  if (DEFAULT_100MS_ROOM_ID === "YOUR_100MS_ROOM_ID_HERE") {
-    return (
-       <div className="max-w-2xl mx-auto my-8">
-        <Card className="border-destructive bg-destructive/5">
-          <CardHeader>
-            <CardTitle className="flex items-center text-destructive">
-              <AlertTriangle className="mr-2 h-6 w-6" /> Configuration Required
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-destructive/90 space-y-2">
-            <p>The meeting functionality requires a 100ms Room ID to be configured.</p>
-            <p>Please update the <code className="bg-destructive/20 px-1 py-0.5 rounded text-sm">DEFAULT_100MS_ROOM_ID</code> in <code className="bg-destructive/20 px-1 py-0.5 rounded text-sm">src/lib/constants.ts</code> with a valid Room ID from your 100ms Dashboard.</p>
-            <p>After updating, restart your development server.</p>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
-
   return (
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row justify-between items-center gap-4">
@@ -122,7 +130,7 @@ export default function MeetingsPage() {
           </h1>
           <p className="text-muted-foreground">Join ongoing meetings or start a new one.</p>
         </div>
-        <Button onClick={() => setShowCreateForm(!showCreateForm)} size="lg">
+        <Button onClick={() => setShowCreateForm(!showCreateForm)} size="lg" disabled={!isRoomIdConfigured}>
           <PlusCircle className="mr-2 h-5 w-5" /> {showCreateForm ? 'Cancel' : 'Create New Meeting'}
         </Button>
       </div>
@@ -159,7 +167,7 @@ export default function MeetingsPage() {
                   disabled={isCreatingMeeting}
                 />
               </div>
-              <Button type="submit" className="w-full" disabled={isCreatingMeeting}>
+              <Button type="submit" className="w-full" disabled={isCreatingMeeting || !isRoomIdConfigured}>
                 {isCreatingMeeting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Create Meeting Session"}
               </Button>
             </form>
@@ -167,50 +175,56 @@ export default function MeetingsPage() {
         </Card>
       )}
 
-      <div>
-        <h2 className="text-2xl font-semibold font-headline mb-6">Active Meetings</h2>
-        {meetings.length > 0 ? (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {meetings.map((meeting) => (
-              <Card key={meeting.id} className="flex flex-col overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300">
-                <CardHeader className="p-4">
-                  <div className="flex items-start space-x-3 mb-2">
-                    {meeting.hostProfile && (
-                      <Avatar className="h-10 w-10 border">
-                          <AvatarImage src={meeting.hostProfile.photoURL || undefined} alt={meeting.hostProfile.displayName || "Host"} data-ai-hint="user avatar small"/>
-                          <AvatarFallback>{getInitials(meeting.hostProfile.displayName)}</AvatarFallback>
-                      </Avatar>
-                    )}
-                    <div>
-                        <CardTitle className="text-lg font-semibold hover:text-primary transition-colors">
-                           <Link href={`/meetings/${meeting.id}`}>{meeting.title}</Link>
-                        </CardTitle>
-                        {meeting.hostProfile && <p className="text-xs text-muted-foreground">Hosted by {meeting.hostProfile.displayName || 'Unknown'}</p>}
-                    </div>
+      <h2 className="text-2xl font-semibold font-headline mb-6">Active Meetings</h2>
+      {isLoadingMeetings && isRoomIdConfigured && (
+           <div className="flex justify-center items-center py-10">
+             <Loader2 className="h-10 w-10 animate-spin text-primary" />
+           </div>
+      )}
+      {!isLoadingMeetings && meetings.length > 0 ? (
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {meetings.map((meeting) => (
+            <Card key={meeting.id} className="flex flex-col overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300">
+              <CardHeader className="p-4">
+                <div className="flex items-start space-x-3 mb-2">
+                  {meeting.hostProfile && (
+                    <Avatar className="h-10 w-10 border">
+                        <AvatarImage src={meeting.hostProfile.photoURL || undefined} alt={meeting.hostProfile.displayName || "Host"} data-ai-hint="user avatar small"/>
+                        <AvatarFallback>{getInitials(meeting.hostProfile.displayName)}</AvatarFallback>
+                    </Avatar>
+                  )}
+                  <div>
+                      <CardTitle className="text-lg font-semibold hover:text-primary transition-colors">
+                         <Link href={`/meetings/${meeting.id}`}>{meeting.title}</Link>
+                      </CardTitle>
+                      {meeting.hostProfile && <p className="text-xs text-muted-foreground">Hosted by {meeting.hostProfile.displayName || 'Unknown'}</p>}
                   </div>
-                  {meeting.description && <CardDescription className="text-sm line-clamp-2 h-10">{meeting.description}</CardDescription>}
+                </div>
+                {meeting.description && <CardDescription className="text-sm line-clamp-2 h-10">{meeting.description}</CardDescription>}
 
-                </CardHeader>
-                <CardContent className="flex-grow p-4 pt-0 text-xs text-muted-foreground">
-                  <div className="flex items-center space-x-2 mb-1">
-                    <Users size={14} /> <span>{meeting.participantUids.length} participant(s)</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <CalendarDays size={14} /> <span>Created {formatDistanceToNowStrict(new Date(meeting.createdAt), { addSuffix: true })}</span>
-                  </div>
-                </CardContent>
-                <CardFooter className="p-4 pt-0 border-t mt-auto">
-                  <Button asChild className="w-full" variant="default">
-                    <Link href={`/meetings/${meeting.id}`}>Join Meeting</Link>
-                  </Button>
-                </CardFooter>
-              </Card>
-            ))}
-          </div>
-        ) : (
-          <p className="text-muted-foreground text-center py-10">No active meetings right now. Why not start one?</p>
-        )}
-      </div>
+              </CardHeader>
+              <CardContent className="flex-grow p-4 pt-0 text-xs text-muted-foreground">
+                <div className="flex items-center space-x-2 mb-1">
+                  <Users size={14} /> <span>{meeting.participantUids.length} participant(s)</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <CalendarDays size={14} /> <span>Created {formatDistanceToNowStrict(new Date(meeting.createdAt), { addSuffix: true })}</span>
+                </div>
+              </CardContent>
+              <CardFooter className="p-4 pt-0 border-t mt-auto">
+                <Button asChild className="w-full" variant="default">
+                  <Link href={`/meetings/${meeting.id}`}>Join Meeting</Link>
+                </Button>
+              </CardFooter>
+            </Card>
+          ))}
+        </div>
+      ) : !isLoadingMeetings && isRoomIdConfigured && (
+        <p className="text-muted-foreground text-center py-10">No active meetings right now. Why not start one?</p>
+      )}
+       {!isLoadingMeetings && !isRoomIdConfigured && ( // This message appears if config is missing but we bypassed the full page block
+        <p className="text-muted-foreground text-center py-10">Meeting functionality is pending configuration.</p>
+      )}
     </div>
   );
 }
