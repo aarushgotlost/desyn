@@ -1,6 +1,6 @@
 
 import { db, auth } from '@/lib/firebase'; 
-import type { Community, Post, Comment, Meeting } from '@/types/data';
+import type { Community, Post, Comment } from '@/types/data'; // Meeting type removed
 import type { UserProfile } from '@/contexts/AuthContext';
 import {
   collection,
@@ -19,17 +19,10 @@ import { unstable_noStore as noStore } from 'next/cache';
 
 export async function getCurrentUserId(): Promise<string | null> {
   noStore();
-  // This is a placeholder. In a real app, you'd get the current user's ID from an auth session.
-  // For now, we'll assume client-side components handle auth state.
-  // If server-side auth is set up, this would be different.
-  // For the purpose of this prototype, if auth.currentUser is available (during server rendering in some contexts or if cached), use it.
-  // This is generally NOT how you get current user ID reliably in Next.js App Router server components.
-  // Auth state should be managed through context or session providers.
-  // return auth.currentUser ? auth.currentUser.uid : null; 
-  return null; // Let client components use useAuth()
+  return null; 
 }
 
-const processDoc = <T extends { id: string; createdAt?: string | Timestamp | Date; updatedAt?: string | Timestamp | Date; lastLogin?: string | Timestamp | Date; lastMessageAt?: string | Timestamp | Date; members?: string[]; authorAvatar?: string | null; photoURL?: string | null; bannerURL?: string | null; followersCount?: number; followingCount?: number; skills?: string[]; hostProfile?: any; participants?: any[]; }>(docSnap: any): T => {
+const processDoc = <T extends { id: string; createdAt?: string | Timestamp | Date; updatedAt?: string | Timestamp | Date; lastLogin?: string | Timestamp | Date; lastMessageAt?: string | Timestamp | Date; members?: string[]; authorAvatar?: string | null; photoURL?: string | null; bannerURL?: string | null; followersCount?: number; followingCount?: number; skills?: string[]; /* hostProfile?: any; participants?: any[]; Removed meeting fields */ }>(docSnap: any): T => {
   const data = docSnap.data();
   const processedData: any = {
     id: docSnap.id,
@@ -74,7 +67,6 @@ const processDoc = <T extends { id: string; createdAt?: string | Timestamp | Dat
       processedData.authorAvatar = data.authorAvatar || null;
   }
   
-  // Check for user profile specific fields
   if (typeof data.uid !== 'undefined' || docSnap.ref.parent.id === 'users') { 
       processedData.photoURL = data.photoURL || null;
       processedData.bannerURL = data.bannerURL || null;
@@ -86,39 +78,10 @@ const processDoc = <T extends { id: string; createdAt?: string | Timestamp | Dat
       processedData.onboardingCompleted = typeof data.onboardingCompleted === 'boolean' ? data.onboardingCompleted : false;
   }
   
-  // Process meeting specific fields
-  if (docSnap.ref.parent.id === 'meetings' || docSnap.ref.path.includes('meetings')) {
-    if (data.hostProfile) {
-        processedData.hostProfile = data.hostProfile;
-    }
-    if (data.participants && Array.isArray(data.participants)) {
-        processedData.participants = data.participants.map((p: any) => {
-            let joinedAtStr: string;
-            const originalJoinedAt = p.joinedAt;
-
-            if (originalJoinedAt && typeof (originalJoinedAt as Timestamp).toDate === 'function') {
-                joinedAtStr = (originalJoinedAt as Timestamp).toDate().toISOString();
-            } else if (originalJoinedAt instanceof Date) {
-                joinedAtStr = originalJoinedAt.toISOString();
-            } else if (typeof originalJoinedAt === 'string') {
-                const d = new Date(originalJoinedAt);
-                if (!isNaN(d.getTime())) {
-                    joinedAtStr = d.toISOString();
-                } else {
-                    console.warn(`FirestoreService: Participant ${p.uid} in meeting ${docSnap.id} has an invalid joinedAt string: ${originalJoinedAt}. Falling back to Epoch.`);
-                    joinedAtStr = new Date(0).toISOString(); // Fallback to Epoch
-                }
-            } else {
-                console.warn(`FirestoreService: Participant ${p.uid} in meeting ${docSnap.id} has an unexpected or missing joinedAt value:`, originalJoinedAt, `Type: ${typeof originalJoinedAt}. Falling back to Epoch.`);
-                joinedAtStr = new Date(0).toISOString(); // Fallback to Epoch
-            }
-            return { ...p, joinedAt: joinedAtStr };
-        });
-    } else {
-        processedData.participants = [];
-    }
-  }
-
+  // Meeting specific fields removed
+  // if (docSnap.ref.parent.id === 'meetings' || docSnap.ref.path.includes('meetings')) {
+  //   // ... meeting processing logic removed ...
+  // }
 
   return processedData as T;
 };
@@ -246,7 +209,6 @@ export async function getDiscoverableUsers(currentUserId: string | null, count: 
         const snapshot = await getDocs(q);
         let users = snapshot.docs.map(docSnap => processDoc<UserProfile>(docSnap));
         if (currentUserId) {
-            // Sort client-side after filtering to avoid composite index if displayName is primary sort
             users.sort((a, b) => (a.displayName || '').localeCompare(b.displayName || ''));
         }
         return users;
@@ -365,41 +327,20 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
 export async function getAllUsersForNewChat(currentUserId: string, count: number = 50): Promise<UserProfile[]> {
   noStore();
   const usersCol = collection(db, 'users');
-  // Query for users, excluding the current user, ordered by displayName
   const q = query(
     usersCol,
     where('uid', '!=', currentUserId),
-    where('onboardingCompleted', '==', true), // Only users who completed onboarding
-    orderBy('uid'), // Firestore requires an orderBy on a field involved in inequality filter
-    // limit(count) // Apply limit if needed
+    where('onboardingCompleted', '==', true), 
+    orderBy('uid'), 
   );
   
   const snapshot = await getDocs(q);
-  // Manually sort by displayName after fetching, as Firestore might not allow orderBy('displayName') with '!=' on 'uid'
   return snapshot.docs
     .map(docSnap => processDoc<UserProfile>(docSnap))
     .sort((a, b) => (a.displayName || '').localeCompare(b.displayName || ''))
-    .slice(0, count); // Apply limit after sorting
+    .slice(0, count); 
 }
 
-
-// Meeting specific firestore services
-export async function getActiveMeetings(): Promise<Meeting[]> {
-  noStore();
-  const meetingsCol = collection(db, 'meetings');
-  const q = query(meetingsCol, where('isActive', '==', true), orderBy('createdAt', 'desc'));
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map(docSnap => processDoc<Meeting>(docSnap));
-}
-
-export async function getMeetingDetailsFirestore(meetingId: string): Promise<Meeting | null> {
-  noStore();
-  if (!meetingId) return null;
-  const meetingDocRef = doc(db, 'meetings', meetingId);
-  const docSnap = await getDoc(meetingDocRef);
-  if (docSnap.exists()) {
-    return processDoc<Meeting>(docSnap);
-  }
-  return null;
-}
-
+// Meeting specific firestore services removed
+// export async function getActiveMeetings(): Promise<Meeting[]> { /* ... */ }
+// export async function getMeetingDetailsFirestore(meetingId: string): Promise<Meeting | null> { /* ... */ }

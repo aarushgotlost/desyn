@@ -41,19 +41,4 @@ export interface Comment {
 
 // UserProfile is defined in AuthContext.tsx
 
-export interface MeetingParticipant {
-  uid: string;
-  displayName: string | null;
-  photoURL?: string | null;
-  joinedAt: string; // ISO string
-}
-
-export interface Meeting {
-  id: string;
-  title: string;
-  createdBy: string; // UID of the host
-  hostProfile: Pick<MeetingParticipant, 'uid' | 'displayName' | 'photoURL'>;
-  createdAt: string; // ISO string
-  isActive: boolean;
-  participants: MeetingParticipant[];
-}
+// MeetingParticipant and Meeting types removed

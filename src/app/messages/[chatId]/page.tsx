@@ -30,7 +30,6 @@ export default function ChatPage({ params }: { params: { chatId: string } }) {
   const chatContentRef = useRef<HTMLDivElement>(null);
   const initialLoadDoneRef = useRef(false);
 
-  // Unwrap params using React.use()
   const resolvedParams = use(params as unknown as Promise<{ chatId: string }>);
   const chatId = resolvedParams.chatId; 
 
@@ -136,7 +135,6 @@ export default function ChatPage({ params }: { params: { chatId: string } }) {
           <div className="flex-1">
             <CardTitle className="text-lg">{otherParticipant?.displayName || 'Chat'}</CardTitle>
           </div>
-          {/* Removed meeting room button */}
         </div>
       </CardHeader>
       <CardContent ref={chatContentRef} className="flex-1 overflow-y-auto p-4 space-y-0.5">

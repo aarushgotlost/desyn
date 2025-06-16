@@ -5,21 +5,17 @@ import { usePathname } from 'next/navigation';
 export function ConditionalFooter() {
   const pathname = usePathname();
 
-  // Paths where the footer should be hidden
   const hiddenFooterPaths = [
     '/login',
     '/signup',
     '/forgot-password',
-    '/onboarding', // Main onboarding slides
-    // '/onboarding/profile-setup', // Footer can be shown here or not, depending on preference
+    '/onboarding', 
   ];
 
-  // Hide if it's a specific chat detail page (e.g., /messages/xxxx), but not on /messages or /messages/new
   const isChatDetailPage = pathname.startsWith('/messages/') && pathname.split('/').length > 2 && pathname.split('/')[2] !== 'new';
-  const isMeetingDetailPage = pathname.startsWith('/meetings/') && pathname.split('/').length > 2;
+  // const isMeetingDetailPage = pathname.startsWith('/meetings/') && pathname.split('/').length > 2; // No longer needed
 
-
-  if (hiddenFooterPaths.includes(pathname) || isChatDetailPage || isMeetingDetailPage) {
+  if (hiddenFooterPaths.includes(pathname) || isChatDetailPage /*|| isMeetingDetailPage*/) {
     return null;
   }
 
