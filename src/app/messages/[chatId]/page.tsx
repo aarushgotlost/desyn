@@ -10,13 +10,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardFooter, CardTitle }
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Send, Loader2, ArrowLeft, Film } from 'lucide-react'; // Added Film icon
+import { Send, Loader2, ArrowLeft, Film } from 'lucide-react'; // Film icon
 import { useRouter } from 'next/navigation';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { MessageBubble } from '@/components/messaging/MessageBubble';
 import { getInitials } from '@/lib/utils';
-import Link from 'next/link'; // Added Link
+import Link from 'next/link'; // Link component
 
 export default function ChatPage({ params }: { params: { chatId: string } }) {
   const { user, userProfile, loading: authLoading } = useAuth();
