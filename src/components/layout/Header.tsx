@@ -14,7 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, User, Settings, PlusCircle, HomeIcon, Bell, MessageSquare, Bot, Compass, Video } from 'lucide-react'; // Added Video
+import { LogOut, User, Settings, PlusCircle, HomeIcon, Bell, MessageSquare, Bot, Compass } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { NotificationIcon } from '@/components/notifications/NotificationIcon'; 
@@ -27,13 +27,13 @@ export default function Header() {
   const navLinks = [
     { href: "/", label: "Home", icon: HomeIcon, authRequired: false },
     { href: "/communities", label: "Discover", icon: Compass, authRequired: false },
-    { href: "/meetings", label: "Meetings", icon: Video, authRequired: true },
+    // { href: "/meetings", label: "Meetings", icon: Video, authRequired: true }, // Removed Meetings
     { href: "/posts/create", label: "Create Post", icon: PlusCircle, authRequired: true },
     { href: "/messages", label: "Messages", icon: MessageSquare, authRequired: true },
   ];
 
   const authRestrictedPages = ['/login', '/signup', '/forgot-password', '/onboarding', '/onboarding/profile-setup'];
-  const isMeetingRoomPages = pathname.startsWith('/meeting-room'); // Hide header for old animator pages if needed
+  const isMeetingRoomPages = pathname.startsWith('/meeting-room');
 
   if (authRestrictedPages.includes(pathname) || isMeetingRoomPages) {
     return null;
