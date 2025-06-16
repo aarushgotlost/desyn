@@ -14,7 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, User, Settings, PlusCircle, HomeIcon, Bell, MessageSquare, Bot, Compass, Film } from 'lucide-react'; // Added Film
+import { LogOut, User, Settings, PlusCircle, HomeIcon, Bell, MessageSquare, Bot, Compass } from 'lucide-react'; 
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { NotificationIcon } from '@/components/notifications/NotificationIcon'; 
@@ -27,7 +27,6 @@ export default function Header() {
   const navLinks = [
     { href: "/", label: "Home", icon: HomeIcon, authRequired: false },
     { href: "/communities", label: "Discover", icon: Compass, authRequired: false },
-    { href: "/animation", label: "Tearix2D", icon: Film, authRequired: true }, // Added Tearix2D link
     { href: "/posts/create", label: "Create Post", icon: PlusCircle, authRequired: true },
     { href: "/messages", label: "Messages", icon: MessageSquare, authRequired: true },
   ];
@@ -51,24 +50,16 @@ export default function Header() {
             if (link.authRequired && !user) return null;
             const isActive = (link.href === "/" && pathname === link.href) || 
                              (link.href !== "/" && pathname.startsWith(link.href) && 
-                              !(link.href === "/messages" && pathname.includes("/messages/")) &&
-                              !(link.href === "/animation" && pathname.includes("/animation/")) // Avoid highlighting for sub-routes like [projectId] unless it's the base /animation page
+                              !(link.href === "/messages" && pathname.includes("/messages/"))
                              );
             
-            // Specific check for /animation to be active only on /animation, not /animation/[projectId]
-             let actualIsActive = isActive;
-             if (link.href === "/animation") {
-                 actualIsActive = pathname === "/animation";
-             }
-
-
             return (
               <Link
                 key={link.href}
                 href={link.href}
                 className={cn(
                   "transition-colors hover:text-primary flex items-center",
-                  actualIsActive ? "text-primary" : "text-muted-foreground"
+                  isActive ? "text-primary" : "text-muted-foreground"
                 )}
               >
                 <link.icon className="inline-block w-4 h-4 mr-1.5" />

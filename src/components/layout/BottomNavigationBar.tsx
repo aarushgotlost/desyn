@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { HomeIcon, PlusCircle, MessageSquare, User as UserIcon, Compass, Film } from 'lucide-react'; // Added Film
+import { HomeIcon, PlusCircle, MessageSquare, User as UserIcon, Compass } from 'lucide-react'; 
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -12,7 +12,6 @@ import { getInitials } from '@/lib/utils';
 const navItems = [
   { href: "/", label: "Home", icon: HomeIcon, authRequired: false },
   { href: "/communities", label: "Discover", icon: Compass, authRequired: false },
-  { href: "/animation", label: "Tearix2D", icon: Film, authRequired: true }, // Added Tearix2D
   { href: "/posts/create", label: "Create", icon: PlusCircle, authRequired: true },
   { href: "/messages", label: "Messages", icon: MessageSquare, authRequired: true },
   { href: "/profile", label: "Profile", icon: UserIcon, authRequired: true, isProfile: true }, 
@@ -58,14 +57,8 @@ export function BottomNavigationBar() {
         {itemsToRender.map(item => { 
           let isActive = (item.href === "/" && pathname === item.href) || 
                            (item.href !== "/" && pathname.startsWith(item.href) && 
-                            !(item.href === "/messages" && isChatDetailPage) &&
-                            !(item.href === "/animation" && isAnimationWorkspace) 
+                            !(item.href === "/messages" && isChatDetailPage)
                            );
-          
-          // Specific check for /animation to be active only on /animation, not /animation/[projectId]
-          if (item.href === "/animation") {
-            isActive = pathname === "/animation";
-          }
           
           return (
             <Link
