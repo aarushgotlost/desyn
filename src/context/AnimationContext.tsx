@@ -134,7 +134,6 @@ export const AnimationProvider = ({ children, projectId: routeProjectId }: { chi
           _setPanelLayersInternal(createDefaultLayers());
         }
       }).catch(error => {
-        // console.error("Failed to load project data:", error); // No console logs
         toast({title: "Load Error", description: "Failed to load animation project.", variant: "destructive"});
         const fallbackFrames: Frame[] = [{
           id: `frame-fallback-0-${Date.now()}`,
@@ -171,20 +170,17 @@ export const AnimationProvider = ({ children, projectId: routeProjectId }: { chi
     if (frames.length > 0 && activeFrameIndex >= 0 && activeFrameIndex < frames.length) {
       const currentFrame = frames[activeFrameIndex];
       if (currentFrame) {
-        // Only reset drawing history if the frame dataUrl is different from the last known state for this pointer.
-        // This avoids wiping history on minor re-renders if dataUrl hasn't changed.
         if (drawingHistory[drawingHistoryPointer] !== currentFrame.dataUrl) {
             setDrawingHistory([currentFrame.dataUrl]);
             setDrawingHistoryPointer(0);
         }
-        _setPanelLayersInternal(currentFrame.layers); // Sync panel's layer view to the active frame's layers
+        _setPanelLayersInternal(currentFrame.layers); 
       }
     } else if (frames.length === 0 && !isLoadingProject) {
-      // If project is loaded but has no frames (e.g., after an error or if deletion of last frame was somehow possible)
       const defaultFrameForEmpty: Frame = {
           id: `frame-empty-default-0-${Date.now()}`, dataUrl: null, layers: createDefaultLayers()
       };
-      _setFramesInternal([defaultFrameForEmpty]); // This will re-trigger this effect
+      _setFramesInternal([defaultFrameForEmpty]); 
       setActiveFrameIndex(0);
     }
   }, [activeFrameIndex, frames, isLoadingProject, drawingHistory, drawingHistoryPointer]);
@@ -207,7 +203,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectId }: { chi
   }, []);
 
   const setLayersForActiveFrameAndPanel = useCallback((newLayersOrFn: SetStateAction<Layer[]>) => {
-    _setPanelLayersInternal(newLayersOrFn); // Update the panel's layer state immediately
+    _setPanelLayersInternal(newLayersOrFn); 
 
     _setFramesInternal(prevFrames => {
         const updatedFrames = [...prevFrames];
@@ -249,7 +245,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectId }: { chi
         }
         return newFrames;
       });
-      setDrawingHistoryPointer(newPointer); // Update pointer after setting frame
+      setDrawingHistoryPointer(newPointer); 
     }
   }, [drawingHistory, drawingHistoryPointer, activeFrameIndex]);
 
@@ -264,7 +260,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectId }: { chi
         }
         return newFrames;
       });
-       setDrawingHistoryPointer(newPointer); // Update pointer after setting frame
+       setDrawingHistoryPointer(newPointer); 
     }
   }, [drawingHistory, drawingHistoryPointer, activeFrameIndex]);
 
@@ -273,31 +269,59 @@ export const AnimationProvider = ({ children, projectId: routeProjectId }: { chi
 
   const saveActiveFrameManually = async () => {
     if (!routeProjectId) {
-      toast({ title: "Error", description: "Project ID not available. Cannot save.", variant: "destructive" });
+      toast({ title: "Save Error", description: "Project ID is not available.", variant: "destructive" });
+      return;
+    }
+    if (!user || !user.uid) {
+      toast({ title: "Authentication Error", description: "You must be logged in to save.", variant: "destructive" });
       return;
     }
     if (activeFrameIndex < 0 || activeFrameIndex >= frames.length) {
-      toast({ title: "Error", description: "No active frame selected or frame index is out of bounds.", variant: "destructive" });
+      toast({ title: "Save Error", description: "Invalid active frame selected or frame index is out of bounds.", variant: "destructive" });
       return;
     }
     const frameToSave = frames[activeFrameIndex];
     if (!frameToSave) {
-        toast({ title: "Error", description: "Active frame data is missing.", variant: "destructive" });
+        toast({ title: "Save Error", description: "Active frame data is missing.", variant: "destructive" });
         return;
     }
 
-    if (!user?.uid) {
-        toast({ title: "Authentication Error", description: "You must be logged in to save.", variant: "destructive" });
-        return;
-    }
+    const { id: savingToastId } = toast({
+      title: "Saving Frame...",
+      description: `Frame ${activeFrameIndex + 1} of "${projectName || 'Untitled Project'}" is being saved.`,
+      duration: 100000, 
+    });
 
-    toast({ title: "Saving Frame...", description: `Frame ${activeFrameIndex + 1} of "${projectName}" is being saved.`, duration: 2000 });
     try {
       await saveFrameToDb(routeProjectId, activeFrameIndex, frameToSave.dataUrl, user.uid, frameToSave.layers);
-      toast({ title: "Frame Saved!", description: `Frame ${activeFrameIndex + 1} for "${projectName}" has been successfully saved.`, duration: 3000 });
+      
+      toast({ 
+        id: savingToastId,
+        title: "Frame Saved!",
+        description: `Frame ${activeFrameIndex + 1} for "${projectName || 'Untitled Project'}" has been successfully saved.`,
+        variant: "default",
+        open: false, 
+      });
+      toast({
+        title: "Frame Saved!",
+        description: `Frame ${activeFrameIndex + 1} for "${projectName || 'Untitled Project'}" has been successfully saved.`,
+        duration: 3000,
+      });
+
     } catch (error: any) {
-      // console.error("Manual save failed:", error); // No console logs
-      toast({ title: "Save Failed", description: error.message || "Could not save the frame. Please try again.", variant: "destructive", duration: 5000 });
+      toast({ 
+        id: savingToastId,
+        title: "Save Failed",
+        description: error.message || "Could not save the frame. Please try again.",
+        variant: "destructive",
+        open: false, 
+      });
+      toast({
+        title: "Save Failed",
+        description: error.message || "Could not save the frame. Please try again.",
+        variant: "destructive",
+        duration: 7000,
+      });
     }
   };
 
@@ -342,12 +366,7 @@ export const useAnimation = (): AnimationContextType & { _updateActiveFrameDrawi
     throw new Error('useAnimation must be used within an AnimationProvider');
   }
   
-  // This is a way to expose an "internal" update function to the Canvas,
-  // which directly manipulates frame data and history.
   const _updateActiveFrameDrawing = (context as any).updateActiveFrameDrawing || ((newDataUrl: string | null) => {
-    // This fallback simulates the logic if `updateActiveFrameDrawing` isn't directly on context obj
-    // It uses the exposed setters, which is safer if the internal structure changes.
-    // However, the direct `updateActiveFrameDrawing` in the provider is more efficient for this specific task.
     const { setFrames: _setFrames, activeFrameIndex: _activeIndex, drawingHistory: _hist, drawingHistoryPointer: _histPtr, setDrawingHistory: _setHist, setDrawingHistoryPointer: _setHistPtr } = context as any;
 
     _setFrames((prevFrames: Frame[]) => {
@@ -358,7 +377,7 @@ export const useAnimation = (): AnimationContextType & { _updateActiveFrameDrawi
       return newFrames;
     });
 
-    if (_setHist && _setHistPtr) { // Check if history setters are available (they should be from useState)
+    if (_setHist && _setHistPtr) { 
         _setHist((prevHistory: (string | null)[]) => {
             const newHistorySlice = prevHistory.slice(0, _histPtr + 1);
             newHistorySlice.push(newDataUrl);
@@ -375,3 +394,4 @@ export const useAnimation = (): AnimationContextType & { _updateActiveFrameDrawi
     _updateActiveFrameDrawing,
   };
 };
+
