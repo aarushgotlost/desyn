@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Image from "next/image";
 import Link from "next/link";
-import { Edit3, Mail, Users, FileText, CalendarDays, Loader2, ThumbsUp, MessageCircle as MessageIcon } from "lucide-react"; 
+import { Edit3, Mail, Users, FileText, CalendarDays, Loader2, ThumbsUp, MessageCircle as MessageIcon, Palette } from "lucide-react"; // Added Palette
 import { useAuth, type UserProfile as UserProfileType } from "@/contexts/AuthContext"; 
 import { useRouter } from "next/navigation"; 
 import { useState, useEffect } from "react"; 
@@ -20,7 +20,6 @@ import { Badge } from "@/components/ui/badge";
 import { getInitials } from "@/lib/utils";
 import { LikeButton } from "@/components/posts/LikeButton";
 import { PostCardOptionsMenu } from "@/components/posts/PostCardOptionsMenu";
-// FollowButtonClient is not used on one's own profile page.
 
 export default function ProfilePage() {
   noStore(); 
@@ -29,28 +28,27 @@ export default function ProfilePage() {
   const { toast } = useToast();
 
   const [displayedProfile, setDisplayedProfile] = useState<UserProfileType | null>(null);
-  const [isLoadingProfile, setIsLoadingProfile] = useState(true); // For fetching this specific user's profile
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true); 
   const [userPosts, setUserPosts] = useState<Post[]>([]);
   const [joinedCommunities, setJoinedCommunities] = useState<Community[]>([]);
   const [isLoadingActivity, setIsLoadingActivity] = useState(true);
 
   useEffect(() => {
     async function fetchProfileData() {
-      if (authLoadingFromContext) return; // Wait for auth context to settle
+      if (authLoadingFromContext) return; 
 
       if (!currentUser?.uid) {
         setIsLoadingProfile(false);
-        router.replace('/login'); // Redirect if not logged in
+        router.replace('/login'); 
         return;
       }
 
       setIsLoadingProfile(true);
       try {
-        const profile = await getUserProfile(currentUser.uid); // Fetch own profile
+        const profile = await getUserProfile(currentUser.uid); 
         if (profile) {
           setDisplayedProfile(profile);
         } else {
-          // This case should ideally not happen if user is authenticated and profile creation is robust
           toast({ title: "Error", description: "Could not load your profile. Please try logging in again.", variant: "destructive"});
           router.replace('/login');
         }
@@ -100,7 +98,6 @@ export default function ProfilePage() {
   }
   
   if (!currentUser && !authLoadingFromContext) { 
-    // Already handled by useEffect redirecting, but as a fallback:
     return <div className="flex justify-center items-center h-[calc(100vh-10rem)]"><p>Redirecting to login...</p><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
   }
   
@@ -113,7 +110,7 @@ export default function ProfilePage() {
     );
   }
   
-  const { displayName, email, photoURL, bannerURL, bio, techStack, createdAt, followersCount, followingCount } = displayedProfile;
+  const { displayName, email, photoURL, bannerURL, bio, skills, createdAt, followersCount, followingCount } = displayedProfile; // Changed techStack to skills
   const joinedDate = createdAt ? new Date(createdAt) : null; 
 
   return (
@@ -171,18 +168,18 @@ export default function ProfilePage() {
                 </>
             )}
 
-            {techStack && techStack.length > 0 && (
+            {skills && skills.length > 0 && (
                 <>
-                    <h2 className="text-lg font-semibold mb-2">Tech Stack</h2>
+                    <h2 className="text-lg font-semibold mb-2 flex items-center"><Palette size={20} className="mr-2 text-primary"/>Skills / Tools</h2>
                     <div className="flex flex-wrap gap-2">
-                    {techStack.map(tech => (
-                        <Badge key={tech} variant="default" className="text-sm font-medium">{tech}</Badge>
+                    {skills.map(skill => (
+                        <Badge key={skill} variant="default" className="text-sm font-medium">{skill}</Badge>
                     ))}
                     </div>
                 </>
             )}
-             {!bio && (!techStack || techStack.length === 0) && (
-                <p className="text-muted-foreground text-center py-4">No bio or tech stack added yet. <Link href="/onboarding/profile-setup" className="text-primary hover:underline">Complete your profile!</Link></p>
+             {!bio && (!skills || skills.length === 0) && (
+                <p className="text-muted-foreground text-center py-4">No bio or skills added yet. <Link href="/onboarding/profile-setup" className="text-primary hover:underline">Complete your profile!</Link></p>
             )}
           </div>
         </CardContent>

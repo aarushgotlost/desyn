@@ -9,9 +9,8 @@
  */
 
 import { ai } from '@/ai/genkit';
-import { z } from 'genkit'; // Changed from 'zod'
+import { z } from 'genkit'; 
 
-// Define the structure for a single message in the history
 const MessageSchema = z.object({
   role: z.enum(['user', 'model']),
   parts: z.array(z.object({ text: z.string() })).min(1),
@@ -30,14 +29,13 @@ const ChatBotOutputSchema = z.object({
 });
 export type ChatBotOutput = z.infer<typeof ChatBotOutputSchema>;
 
-// This is the main function Next.js components will call.
 export async function chatBotFlow(input: ChatBotInput): Promise<ChatBotOutput> {
   return internalDesynChatBotFlow(input);
 }
 
 const chatBotPrompt = ai.definePrompt({
   name: 'desynChatBotPrompt',
-  system: "You are DevBot.", // Simplified system prompt for diagnostics
+  system: "You are DevBot, a friendly and helpful AI assistant for Desyn. Desyn is a platform for developers, artists, animators, and other creators to connect, collaborate, and share their work. Be prepared to answer questions about the Desyn platform, coding, art, animation, creative tools, and general technology topics.",
   input: { schema: ChatBotInputSchema },
   output: { schema: ChatBotOutputSchema },
   prompt: `{{#if history}}
@@ -66,9 +64,7 @@ const internalDesynChatBotFlow = ai.defineFlow(
       return output;
     } catch (flowError: any) {
       console.error("Error within internalDesynChatBotFlow:", flowError);
-      // This error will be returned to the client if the flow itself fails at runtime
       return { aiResponse: `I encountered an issue processing your request: ${flowError.message || 'Unknown error'}. Please try again.` };
     }
   }
 );
-

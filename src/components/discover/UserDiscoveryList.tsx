@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { getDiscoverableUsers } from "@/services/firestoreService";
-import type { UserProfile } from "@/contexts/AuthContext"; // Assuming UserProfile is exported from AuthContext
+import type { UserProfile } from "@/contexts/AuthContext"; 
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,7 @@ import { getInitials } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 
 interface UserDiscoveryListProps {
-  currentUserId: string | null; // To exclude self from list and for FollowButton
+  currentUserId: string | null; 
 }
 
 export function UserDiscoveryList({ currentUserId }: UserDiscoveryListProps) {
@@ -29,12 +29,11 @@ export function UserDiscoveryList({ currentUserId }: UserDiscoveryListProps) {
     async function fetchUsers() {
       setIsLoading(true);
       try {
-        const fetchedUsers = await getDiscoverableUsers(currentUserId, 50); // Fetch up to 50 users
+        const fetchedUsers = await getDiscoverableUsers(currentUserId, 50); 
         setUsers(fetchedUsers);
         setFilteredUsers(fetchedUsers);
       } catch (error) {
         console.error("Error fetching discoverable users:", error);
-        // Optionally show a toast message
       } finally {
         setIsLoading(false);
       }
@@ -50,7 +49,7 @@ export function UserDiscoveryList({ currentUserId }: UserDiscoveryListProps) {
           user.displayName?.toLowerCase().includes(lowerCaseSearchTerm) ||
           user.email?.toLowerCase().includes(lowerCaseSearchTerm) ||
           user.bio?.toLowerCase().includes(lowerCaseSearchTerm) ||
-          user.techStack?.some(tech => tech.toLowerCase().includes(lowerCaseSearchTerm))
+          user.skills?.some(skill => skill.toLowerCase().includes(lowerCaseSearchTerm)) // Changed from techStack
       )
     );
   }, [searchTerm, users]);
@@ -68,7 +67,7 @@ export function UserDiscoveryList({ currentUserId }: UserDiscoveryListProps) {
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
         <Input
-          placeholder="Search users by name, email, bio, or tech stack..."
+          placeholder="Search users by name, email, bio, or skills..." // Updated placeholder
           className="pl-10 pr-4 py-2 text-base"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
@@ -99,28 +98,26 @@ export function UserDiscoveryList({ currentUserId }: UserDiscoveryListProps) {
                         {user.bio}
                     </p>
                 )}
-                {user.techStack && user.techStack.length > 0 && (
+                {user.skills && user.skills.length > 0 && ( // Changed from techStack
                     <div className="flex flex-wrap gap-1 justify-center mb-3">
-                        {user.techStack.slice(0,3).map(tech => (
-                            <Badge key={tech} variant="secondary" className="text-xs">{tech}</Badge>
+                        {user.skills.slice(0,3).map(skill => (
+                            <Badge key={skill} variant="secondary" className="text-xs">{skill}</Badge>
                         ))}
-                        {user.techStack.length > 3 && <Badge variant="outline" className="text-xs">+{user.techStack.length - 3}</Badge>}
+                        {user.skills.length > 3 && <Badge variant="outline" className="text-xs">+{user.skills.length - 3}</Badge>}
                     </div>
                 )}
-                {!user.bio && (!user.techStack || user.techStack.length === 0) && (
-                    <p className="text-xs text-muted-foreground text-center italic py-2">No bio or tech stack provided.</p>
+                {!user.bio && (!user.skills || user.skills.length === 0) && ( // Changed from techStack
+                    <p className="text-xs text-muted-foreground text-center italic py-2">No bio or skills provided.</p>
                 )}
               </CardContent>
               <CardFooter className="p-4 pt-0 border-t mt-auto flex flex-col sm:flex-row gap-2">
                 <Button asChild className="w-full sm:flex-1" variant="outline">
                   <Link href={`/profile/${user.uid}`}>View Profile</Link>
                 </Button>
-                {currentUserId !== user.uid && ( // Show follow button if not the current user
+                {currentUserId !== user.uid && ( 
                     <FollowButtonClient 
                         targetUserId={user.uid}
                         targetUserProfile={{ displayName: user.displayName || '' }}
-                        // initialIsFollowing is optional, will be fetched by client
-                        // Pass currentUserId to avoid FollowButtonClient fetching it again unnecessarily
                     />
                 )}
               </CardFooter>

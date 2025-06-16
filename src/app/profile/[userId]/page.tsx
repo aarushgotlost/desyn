@@ -5,7 +5,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Image from "next/image";
 import Link from "next/link";
-import { Mail, Users, FileText, CalendarDays, MessageSquare, Loader2, ThumbsUp, MessageCircle as MessageIcon, ArrowLeft } from "lucide-react";
+import { Mail, Users, FileText, CalendarDays, MessageSquare, Loader2, ThumbsUp, MessageCircle as MessageIcon, ArrowLeft, Palette } from "lucide-react"; // Added Palette
 import { getUserProfile, getUserPosts, getUserJoinedCommunities, getCurrentUserId } from "@/services/firestoreService";
 import type { UserProfile as UserProfileType, Post, Community } from "@/types/data";
 import { format, formatDistanceToNowStrict } from 'date-fns';
@@ -43,7 +43,7 @@ export default async function UserProfilePage({ params }: { params: { userId: st
     getUserJoinedCommunities(targetUserId),
   ]);
   
-  const { displayName, email, photoURL, bannerURL, bio, techStack, createdAt, followersCount = 0, followingCount = 0 } = profileToDisplay;
+  const { displayName, email, photoURL, bannerURL, bio, skills, createdAt, followersCount = 0, followingCount = 0 } = profileToDisplay; // Changed techStack to skills
   const joinedDate = createdAt ? new Date(createdAt) : null;
 
   return (
@@ -85,7 +85,6 @@ export default async function UserProfilePage({ params }: { params: { userId: st
               </div>
             </div>
             <div className="flex flex-col sm:flex-row gap-2 self-center md:self-end">
-              {/* FollowButtonClient only renders if currentUserId is present and not equal to targetUserId */}
               <FollowButtonClient
                 targetUserId={targetUserId}
                 targetUserProfile={{ displayName: profileToDisplay.displayName || '' }}
@@ -107,18 +106,18 @@ export default async function UserProfilePage({ params }: { params: { userId: st
                 <p className="text-foreground/80 mb-6 whitespace-pre-line">{bio}</p>
               </>
             )}
-            {techStack && techStack.length > 0 && (
+            {skills && skills.length > 0 && (
               <>
-                <h2 className="text-lg font-semibold mb-2">Tech Stack</h2>
+                <h2 className="text-lg font-semibold mb-2 flex items-center"><Palette size={20} className="mr-2 text-primary" />Skills / Tools</h2>
                 <div className="flex flex-wrap gap-2">
-                  {techStack.map(tech => (
-                    <Badge key={tech} variant="default" className="text-sm font-medium">{tech}</Badge>
+                  {skills.map(skill => (
+                    <Badge key={skill} variant="default" className="text-sm font-medium">{skill}</Badge>
                   ))}
                 </div>
               </>
             )}
-            {!bio && (!techStack || techStack.length === 0) && (
-              <p className="text-muted-foreground text-center py-4">This user hasn't added a bio or tech stack yet.</p>
+            {!bio && (!skills || skills.length === 0) && (
+              <p className="text-muted-foreground text-center py-4">This user hasn't added a bio or skills yet.</p>
             )}
           </div>
         </CardContent>
@@ -140,7 +139,7 @@ export default async function UserProfilePage({ params }: { params: { userId: st
                       <Link href={`/profile/${post.authorId}`} className="flex-shrink-0">
                         <Avatar className="h-10 w-10 border group-hover:border-primary/30 transition-colors">
                           <AvatarImage
-                            src={post.authorAvatar || undefined} // Use post.authorAvatar
+                            src={post.authorAvatar || undefined} 
                             alt={post.authorName ? `${post.authorName}'s avatar` : 'User avatar'}
                             data-ai-hint="user avatar small"
                           />
@@ -154,7 +153,6 @@ export default async function UserProfilePage({ params }: { params: { userId: st
                               {post.authorName}
                             </Link>
                           </p>
-                          {/* Follow button for the post author (profile owner in this context) */}
                            <FollowButtonClient
                               targetUserId={post.authorId} 
                               targetUserProfile={{ displayName: post.authorName || '' }}
@@ -168,7 +166,6 @@ export default async function UserProfilePage({ params }: { params: { userId: st
                         </p>
                       </div>
                     </div>
-                    {/* Options menu for the post itself, visible if current user is the post author */}
                     {currentUserId === post.authorId && ( 
                       <div>
                         <PostCardOptionsMenu post={post} />

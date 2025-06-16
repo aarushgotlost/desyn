@@ -8,10 +8,10 @@ import { PlusCircle, Search, Users, Compass } from "lucide-react";
 import { getCommunities, getCurrentUserId } from "@/services/firestoreService";
 import type { Community } from "@/types/data";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { UserDiscoveryList } from "@/components/discover/UserDiscoveryList"; // New component
+import { UserDiscoveryList } from "@/components/discover/UserDiscoveryList"; 
 import { unstable_noStore as noStore } from 'next/cache';
 
-export default async function DiscoverPage() { // Renamed component
+export default async function DiscoverPage() { 
   noStore();
   const [communities, currentUserId] = await Promise.all([
     getCommunities(),
@@ -23,12 +23,11 @@ export default async function DiscoverPage() { // Renamed component
       <div className="flex flex-col md:flex-row justify-between items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold font-headline flex items-center">
-            <Compass className="mr-3 w-8 h-8 text-primary" /> {/* Changed icon */}
+            <Compass className="mr-3 w-8 h-8 text-primary" /> 
             Discover
           </h1>
-          <p className="text-muted-foreground">Explore communities and connect with other developers.</p>
+          <p className="text-muted-foreground">Explore communities and connect with other creators.</p>
         </div>
-        {/* "Create Community" button might be better placed only on the Communities tab or contextually */}
       </div>
 
       <Tabs defaultValue="communities" className="w-full">

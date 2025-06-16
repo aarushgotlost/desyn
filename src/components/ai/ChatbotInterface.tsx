@@ -105,7 +105,7 @@ export function ChatbotInterface() {
             <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
               <Sparkles className="w-12 h-12 mb-4 opacity-50" />
               <p className="text-lg font-medium">Welcome to DevBot!</p>
-              <p className="text-sm">Ask me anything about Desyn, coding, or tech.</p>
+              <p className="text-sm">Ask me anything about Desyn, creative projects, coding, art, animation, or tech.</p>
             </div>
           )}
           {messages.map((msg) => (

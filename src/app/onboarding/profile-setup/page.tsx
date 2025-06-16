@@ -16,7 +16,7 @@ import { useRouter } from 'next/navigation';
 import { Loader2, UserCircle, UploadCloud, Trash2, Image as ImageIcon, BellRing, CheckCircle, XCircle } from 'lucide-react';
 import Image from 'next/image';
 import { Separator } from '@/components/ui/separator';
-import { messaging, VAPID_KEY } from '@/lib/firebase'; // Import VAPID_KEY from firebase.ts
+import { messaging, VAPID_KEY } from '@/lib/firebase'; 
 import { getToken } from 'firebase/messaging';
 
 const MAX_AVATAR_SIZE_MB = 1; 
@@ -40,7 +40,7 @@ const profileSetupSchema = z.object({
       `Banner image size is too large (max ${MAX_BANNER_SIZE_MB}MB).`
     ),
   bio: z.string().max(200, { message: "Bio cannot exceed 200 characters." }).optional(),
-  techStack: z.string().optional(), 
+  skills: z.string().optional(), 
 });
 
 type ProfileSetupFormInputs = z.infer<typeof profileSetupSchema>;
@@ -67,7 +67,7 @@ export default function ProfileSetupPage() {
       photoDataUrl: null,
       bannerDataUrl: null,
       bio: '',
-      techStack: '',
+      skills: '', // Changed from techStack
     },
   });
 
@@ -78,7 +78,7 @@ export default function ProfileSetupPage() {
         photoDataUrl: userProfile?.photoURL || null, 
         bannerDataUrl: userProfile?.bannerURL || null,
         bio: userProfile?.bio || '',
-        techStack: userProfile?.techStack?.join(', ') || '',
+        skills: userProfile?.skills?.join(', ') || '', // Changed from techStack
       });
       setAvatarPreviewUrl(userProfile?.photoURL || null); 
       setBannerPreviewUrl(userProfile?.bannerURL || null);
@@ -217,8 +217,7 @@ export default function ProfileSetupPage() {
     setIsSubmitting(true);
     let acquiredFcmToken: string | null = null;
 
-    // If permission is 'default', attempt to request it before saving.
-    if (notificationStatus === 'default' && messaging && user) {
+    if (notificationStatus === 'default' && messaging && user && VAPID_KEY !== "YOUR_PUBLIC_VAPID_KEY_HERE" && VAPID_KEY !== "BIhYhqAuf9hWPjsk5sDSk5kBZZK-6btzuXdPjvtDVcEGz81Mk6pPKayslVX394sGLPUshvM_IkXsTFsrffwqjL0_PLACEHOLDER") {
       acquiredFcmToken = await handleRequestNotificationPermission();
     }
 
@@ -228,9 +227,9 @@ export default function ProfileSetupPage() {
         photoDataUrl: data.photoDataUrl, 
         bannerDataUrl: data.bannerDataUrl,
         bio: data.bio,
-        techStack: data.techStack ? data.techStack.split(',').map(s => s.trim()).filter(s => s) : [],
+        skills: data.skills ? data.skills.split(',').map(s => s.trim()).filter(s => s) : [], // Changed from techStack
         onboardingCompleted: true,
-        newFcmToken: acquiredFcmToken || undefined, // Pass token if acquired
+        newFcmToken: acquiredFcmToken || undefined, 
       };
       await updateCurrentProfile(profileUpdateData);
       toast({ title: "Profile Updated!", description: "Your profile has been successfully saved." });
@@ -264,7 +263,7 @@ export default function ProfileSetupPage() {
             {userProfile?.onboardingCompleted ? "Update Your Profile" : "Complete Your Profile"}
           </CardTitle>
           <CardDescription>
-            {userProfile?.onboardingCompleted ? "Keep your information current." : "Let's get your Desyn profile set up."}
+            {userProfile?.onboardingCompleted ? "Keep your information current." : "Let's get your Desyn profile set up to connect with other creators."}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -277,7 +276,7 @@ export default function ProfileSetupPage() {
                   <FormItem>
                     <FormLabel>Display Name</FormLabel>
                     <FormControl>
-                      <Input placeholder="Your Name" {...field} />
+                      <Input placeholder="Your Name or Alias" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -361,9 +360,9 @@ export default function ProfileSetupPage() {
                 name="bio"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Bio (Optional)</FormLabel>
+                    <FormLabel>Bio</FormLabel>
                     <FormControl>
-                      <Textarea placeholder="Tell us a bit about yourself (e.g., your role, interests)." rows={3} {...field} />
+                      <Textarea placeholder="Tell us a bit about yourself (e.g., your role, creative pursuits, interests)." rows={3} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -372,14 +371,14 @@ export default function ProfileSetupPage() {
 
               <FormField
                 control={form.control}
-                name="techStack"
+                name="skills" 
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Tech Stack (Optional, comma-separated)</FormLabel>
+                    <FormLabel>Skills / Tools (comma-separated)</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g., React, Next.js, Firebase" {...field} />
+                      <Input placeholder="e.g., Animation, 3D Modeling, JavaScript, Figma" {...field} />
                     </FormControl>
-                    <FormDescription>List some technologies you work with.</FormDescription>
+                    <FormDescription>List your skills, software, or tools you work with.</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -401,8 +400,7 @@ export default function ProfileSetupPage() {
                       <XCircle className="mr-2 h-5 w-5" /> Notifications Denied/Blocked
                     </div>
                   )}
-                  {/* Show button if not granted and not explicitly denied yet */}
-                  {(notificationStatus === 'default' || notificationStatus === 'not_requested') && messaging && (
+                  {(notificationStatus === 'default' || notificationStatus === 'not_requested') && messaging && VAPID_KEY !== "YOUR_PUBLIC_VAPID_KEY_HERE" && VAPID_KEY !== "BIhYhqAuf9hWPjsk5sDSk5kBZZK-6btzuXdPjvtDVcEGz81Mk6pPKayslVX394sGLPUshvM_IkXsTFsrffwqjL0_PLACEHOLDER" && (
                     <Button type="button" variant="outline" onClick={handleRequestNotificationPermission} disabled={isRequestingNotificationPerm}>
                       {isRequestingNotificationPerm ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BellRing className="mr-2 h-4 w-4" />}
                       Enable Notifications
@@ -411,8 +409,8 @@ export default function ProfileSetupPage() {
                   {notificationStatus === 'loading' && (
                     <div className="flex items-center text-muted-foreground"><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Checking permission...</div>
                   )}
-                  {!messaging && notificationStatus !== 'granted' && (
-                     <p className="text-xs text-destructive">Notifications are not supported or available in your browser/environment.</p>
+                  {(!messaging || VAPID_KEY === "YOUR_PUBLIC_VAPID_KEY_HERE" || VAPID_KEY === "BIhYhqAuf9hWPjsk5sDSk5kBZZK-6btzuXdPjvtDVcEGz81Mk6pPKayslVX394sGLPUshvM_IkXsTFsrffwqjL0_PLACEHOLDER") && notificationStatus !== 'granted' && (
+                     <p className="text-xs text-destructive">Notifications are not supported, available, or configured correctly in your browser/environment.</p>
                   )}
                   {notificationStatus === 'denied' && (
                     <p className="text-xs text-muted-foreground">If you previously denied permission, you might need to change it in your browser's site settings for Desyn.</p>
@@ -430,5 +428,3 @@ export default function ProfileSetupPage() {
     </div>
   );
 }
-
-    

@@ -26,7 +26,7 @@ export interface UserProfile {
   photoURL?: string | null;
   bannerURL?: string | null;
   bio?: string;
-  techStack?: string[];
+  skills?: string[]; // Renamed from techStack
   interests?: string[];
   onboardingCompleted: boolean;
   createdAt?: string; 
@@ -34,7 +34,7 @@ export interface UserProfile {
   updatedAt?: string; 
   followersCount?: number;
   followingCount?: number;
-  fcmTokens?: string[]; // For storing FCM tokens
+  fcmTokens?: string[]; 
 }
 
 interface UpdateProfileData {
@@ -42,9 +42,9 @@ interface UpdateProfileData {
   photoDataUrl?: string | null; 
   bannerDataUrl?: string | null; 
   bio?: string;
-  techStack?: string[];
+  skills?: string[]; // Renamed from techStack
   onboardingCompleted?: boolean;
-  newFcmToken?: string; // To add a new FCM token
+  newFcmToken?: string; 
 }
 
 interface CreateCommunityData {
@@ -104,7 +104,7 @@ const processUserProfileFromFirestore = (docSnapData: any, uid: string): UserPro
       photoURL: profileData.photoURL || null,
       bannerURL: profileData.bannerURL || null,
       bio: profileData.bio || '',
-      techStack: profileData.techStack || [],
+      skills: profileData.skills || [], // Updated from techStack
       interests: profileData.interests || [],
       onboardingCompleted: typeof profileData.onboardingCompleted === 'boolean' ? profileData.onboardingCompleted : false,
       createdAt: profileData.createdAt, 
@@ -112,7 +112,7 @@ const processUserProfileFromFirestore = (docSnapData: any, uid: string): UserPro
       updatedAt: profileData.updatedAt, 
       followersCount: profileData.followersCount || 0,
       followingCount: profileData.followingCount || 0,
-      fcmTokens: profileData.fcmTokens || [], // Initialize fcmTokens
+      fcmTokens: profileData.fcmTokens || [], 
     };
 };
 
@@ -148,9 +148,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             followersCount: 0,
             followingCount: 0,
             bio: '',
-            techStack: [],
+            skills: [], // Updated from techStack
             interests: [],
-            fcmTokens: [], // Initialize fcmTokens
+            fcmTokens: [], 
           };
           await setDoc(userDocRef, {
             ...newProfileData,
@@ -185,14 +185,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         photoURL: additionalData.photoURL !== undefined ? additionalData.photoURL : firebaseUser.photoURL,
         bannerURL: additionalData.bannerURL || null,
         bio: additionalData.bio || '',
-        techStack: additionalData.techStack || [],
+        skills: additionalData.skills || [], // Updated from techStack
         interests: additionalData.interests || [],
         onboardingCompleted: additionalData.onboardingCompleted || false,
         followersCount: 0,
         followingCount: 0,
         createdAt: new Date().toISOString(), 
         lastLogin: new Date().toISOString(), 
-        fcmTokens: additionalData.fcmTokens || [], // Initialize fcmTokens
+        fcmTokens: additionalData.fcmTokens || [], 
       };
       await setDoc(userDocRef, {
         ...newProfile,
@@ -289,13 +289,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     try {
       const userDocRef = doc(db, 'users', user.uid);
-      const updateForFirestore: Partial<UserProfile & {updatedAt: Timestamp; fcmTokens?: any}> = { // Allow 'any' for arrayUnion
+      const updateForFirestore: Partial<UserProfile & {updatedAt: Timestamp; fcmTokens?: any}> = { 
         updatedAt: serverTimestamp() as Timestamp,
       };
 
       if (data.displayName !== undefined) updateForFirestore.displayName = data.displayName;
       if (data.bio !== undefined) updateForFirestore.bio = data.bio;
-      if (data.techStack !== undefined) updateForFirestore.techStack = data.techStack;
+      if (data.skills !== undefined) updateForFirestore.skills = data.skills; // Updated from techStack
       if (data.onboardingCompleted !== undefined) updateForFirestore.onboardingCompleted = data.onboardingCompleted;
       if (data.photoDataUrl !== undefined) updateForFirestore.photoURL = data.photoDataUrl;
       if (data.bannerDataUrl !== undefined) updateForFirestore.bannerURL = data.bannerDataUrl;

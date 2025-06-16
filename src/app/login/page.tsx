@@ -12,7 +12,7 @@ export default function LoginPage() {
         <CardHeader className="text-center">
           <Image src="/logo.svg" alt="Desyn App Logo" width={60} height={60} className="mx-auto mb-4" data-ai-hint="application logo D C" />
           <CardTitle className="text-2xl font-headline">Welcome Back!</CardTitle>
-          <CardDescription>Log in to your Desyn account.</CardDescription>
+          <CardDescription>Log in to your Desyn account to connect with creators.</CardDescription>
         </CardHeader>
         <CardContent>
           <LoginForm />
