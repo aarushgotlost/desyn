@@ -5,7 +5,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Image from "next/image";
 import Link from "next/link";
-import { Mail, Users, FileText, CalendarDays, MessageSquare, Loader2, ThumbsUp, MessageCircle as MessageIcon, ArrowLeft, Palette, Video as VideoIcon } from "lucide-react"; // Added Palette, VideoIcon
+import { Mail, Users, FileText, CalendarDays, MessageSquare, Loader2, ThumbsUp, MessageCircle as MessageIcon, ArrowLeft, Palette } from "lucide-react"; // Removed VideoIcon
 import { getUserProfile, getUserPosts, getUserJoinedCommunities, getCurrentUserId } from "@/services/firestoreService";
 import type { UserProfile as UserProfileType, Post, Community } from "@/types/data";
 import { format, formatDistanceToNowStrict } from 'date-fns';
@@ -15,7 +15,7 @@ import { getInitials } from "@/lib/utils";
 import { LikeButton } from "@/components/posts/LikeButton";
 import { FollowButtonClient } from "@/components/profile/FollowButtonClient";
 import { PostCardOptionsMenu } from "@/components/posts/PostCardOptionsMenu";
-import { StartVideoCallButton } from "@/components/video-chat/StartVideoCallButton"; // New import
+// import { StartVideoCallButton } from "@/components/video-chat/StartVideoCallButton"; // Removed import
 
 export default async function UserProfilePage({ params }: { params: { userId: string } }) {
   noStore();
@@ -23,9 +23,9 @@ export default async function UserProfilePage({ params }: { params: { userId: st
 
   const [profileToDisplay, currentUserId] = await Promise.all([
     getUserProfile(targetUserId),
-    getCurrentUserId() // This will be null server-side unless auth is passed differently
+    getCurrentUserId()
   ]);
-  
+
   if (!profileToDisplay) {
     return (
       <div className="text-center py-20">
@@ -43,8 +43,8 @@ export default async function UserProfilePage({ params }: { params: { userId: st
     getUserPosts(targetUserId),
     getUserJoinedCommunities(targetUserId),
   ]);
-  
-  const { displayName, email, photoURL, bannerURL, bio, skills, createdAt, followersCount = 0, followingCount = 0, fcmTokens } = profileToDisplay; 
+
+  const { displayName, email, photoURL, bannerURL, bio, skills, createdAt, followersCount = 0, followingCount = 0, fcmTokens } = profileToDisplay;
   const joinedDate = createdAt ? new Date(createdAt) : null;
 
   // Construct minimal profiles for actions
@@ -98,8 +98,7 @@ export default async function UserProfilePage({ params }: { params: { userId: st
                 targetUserId={targetUserId}
                 targetUserProfile={{ displayName: profileToDisplay.displayName || '' }}
               />
-              {/* StartVideoCallButton is a client component, needs current user from context */}
-              <StartVideoCallButton targetUser={minimalTargetProfile} />
+              {/* <StartVideoCallButton targetUser={minimalTargetProfile} /> */} {/* Removed video call button */}
               {currentUserId && currentUserId !== targetUserId && (
                 <Button variant="outline" asChild>
                   <Link href={`/messages/new?userId=${targetUserId}`}>
@@ -150,7 +149,7 @@ export default async function UserProfilePage({ params }: { params: { userId: st
                       <Link href={`/profile/${post.authorId}`} className="flex-shrink-0">
                         <Avatar className="h-10 w-10 border group-hover:border-primary/30 transition-colors">
                           <AvatarImage
-                            src={post.authorAvatar || undefined} 
+                            src={post.authorAvatar || undefined}
                             alt={post.authorName ? `${post.authorName}'s avatar` : 'User avatar'}
                             data-ai-hint="user avatar small"
                           />
@@ -165,7 +164,7 @@ export default async function UserProfilePage({ params }: { params: { userId: st
                             </Link>
                           </p>
                            <FollowButtonClient
-                              targetUserId={post.authorId} 
+                              targetUserId={post.authorId}
                               targetUserProfile={{ displayName: post.authorName || '' }}
                             />
                         </div>
@@ -177,7 +176,7 @@ export default async function UserProfilePage({ params }: { params: { userId: st
                         </p>
                       </div>
                     </div>
-                    {currentUserId === post.authorId && ( 
+                    {currentUserId === post.authorId && (
                       <div>
                         <PostCardOptionsMenu post={post} />
                       </div>
