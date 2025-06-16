@@ -6,7 +6,7 @@ import { useAnimation } from '@/context/AnimationContext';
 
 export default function Canvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { tool, activeFrame, frames, setFrames } = useAnimation(); // Added frames, setFrames for potential updates
+  const { currentTool, activeFrameIndex, frames, setFrames } = useAnimation(); // Corrected destructuring
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -22,10 +22,10 @@ export default function Canvas() {
 
     // Drawing logic for the active frame
     // This is a placeholder. Actual drawing would happen based on user input and frame data.
-    // console.log(`Drawing on canvas for tool: ${tool}, activeFrame: ${activeFrame}`);
+    // console.log(`Drawing on canvas for tool: ${currentTool}, activeFrame: ${activeFrameIndex}`);
     
     // Example: Load image if dataUrl exists for current frame
-    const currentFrameData = frames[activeFrame]?.dataUrl;
+    const currentFrameData = frames[activeFrameIndex]?.dataUrl; // Use activeFrameIndex
     if (currentFrameData) {
       const image = new Image();
       image.onload = () => {
@@ -37,23 +37,23 @@ export default function Canvas() {
 
     // Placeholder drawing
     ctx.fillStyle = 'red';
-    ctx.fillRect(10 + activeFrame * 10, 10, 50, 50);
+    ctx.fillRect(10 + activeFrameIndex * 10, 10, 50, 50); // Use activeFrameIndex
     ctx.font = '16px Arial';
     ctx.fillStyle = 'black';
-    ctx.fillText(`Frame: ${activeFrame}, Tool: ${tool}`, 10, 80);
+    ctx.fillText(`Frame: ${activeFrameIndex}, Tool: ${currentTool}`, 10, 80); // Use activeFrameIndex and currentTool
 
 
   // Simulate saving canvas state to dataURL after drawing (example)
   // This should ideally be triggered by drawing actions
   // const dataUrl = canvas.toDataURL();
-  // if (frames[activeFrame] && frames[activeFrame].dataUrl !== dataUrl) {
+  // if (frames[activeFrameIndex] && frames[activeFrameIndex].dataUrl !== dataUrl) { // Use activeFrameIndex
   //   const updatedFrames = [...frames];
-  //   updatedFrames[activeFrame] = { ...updatedFrames[activeFrame], dataUrl };
+  //   updatedFrames[activeFrameIndex] = { ...updatedFrames[activeFrameIndex], dataUrl }; // Use activeFrameIndex
   //   setFrames(updatedFrames);
   // }
 
 
-  }, [activeFrame, tool, frames, setFrames]); // Add frames, setFrames to dependency if canvas updates frame data
+  }, [activeFrameIndex, currentTool, frames, setFrames]); // Corrected dependencies
 
   // Ensure canvas has a defined size, either via CSS or attributes
   return (
