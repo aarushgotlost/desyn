@@ -48,10 +48,11 @@ export default function Toolbar() {
     setIsSaving(true);
     try {
       await saveActiveFrameManually();
-      // Toast for success is handled within saveActiveFrameManually in context
+      // Toast for success/error is handled within saveActiveFrameManually in context
     } catch (error) {
-      // Toast for error is handled within saveActiveFrameManually in context
-      console.error("Toolbar save failed:", error); // Log for debugging
+      // This catch might be redundant if saveActiveFrameManually handles its own errors with toasts
+      console.error("Toolbar save failed:", error); 
+      toast({ title: "Save Error", description: "An unexpected error occurred while saving.", variant: "destructive" });
     } finally {
       setIsSaving(false);
     }

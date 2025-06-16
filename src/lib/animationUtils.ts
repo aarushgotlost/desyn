@@ -15,7 +15,11 @@ interface FrameStorageData {
 export const saveFrame = async (projectId: string, frameIndex: number, dataUrl: string | null, userId?: string | null) => {
   if (!projectId || typeof frameIndex !== 'number') {
     console.error("Invalid parameters for saveFrame: projectId or frameIndex missing.");
-    return;
+    throw new Error("Project ID and frame index are required.");
+  }
+  if (!userId) {
+    console.error("User ID is missing for saveFrame operation.");
+    throw new Error("User authentication is required to save.");
   }
   
   const projectDocRef = doc(db, 'projects', projectId);
@@ -24,66 +28,62 @@ export const saveFrame = async (projectId: string, frameIndex: number, dataUrl: 
 
   const batch = writeBatch(db);
 
+  // Project document data to be set or updated
+  const projectUpdateData: { [key: string]: any } = {
+    updatedAt: serverTimestamp() as Timestamp,
+    // Potentially other metadata to update on any save, e.g., lastFrameSaved: frameIndex
+  };
+
+  // Check if project document exists, create if not
+  const projectSnap = await getDoc(projectDocRef);
+  if (!projectSnap.exists()) {
+    projectUpdateData.name = `Untitled Project ${projectId.slice(-6)}`; // Default name
+    projectUpdateData.createdBy = userId;
+    projectUpdateData.fps = 12; // Default FPS
+    projectUpdateData.createdAt = serverTimestamp() as Timestamp;
+    if (frameIndex === 0 && dataUrl !== null) {
+      projectUpdateData.thumbnailURL = dataUrl;
+    } else {
+      projectUpdateData.thumbnailURL = null;
+    }
+    batch.set(projectDocRef, projectUpdateData); // Set initial project data
+  } else {
+    // If project exists, only update specific fields if necessary
+    if (frameIndex === 0 && dataUrl !== null) {
+      projectUpdateData.thumbnailURL = dataUrl;
+    }
+    batch.update(projectDocRef, projectUpdateData); // Update existing project
+  }
+
+
   if (dataUrl !== null) { // Only save frame if dataUrl is not null
     const framePayload: FrameStorageData = {
       dataUrl,
       updatedAt: serverTimestamp() as Timestamp,
       order: frameIndex,
+      // layers: [] // TODO: Add current layers of the frame here if they are managed
     };
     batch.set(frameDocRef, framePayload, { merge: true });
+  } else {
+    // If dataUrl is null, it means the frame is blank.
+    // We might still want to save a "blank" frame document to preserve its order/existence,
+    // or delete it if it was previously saved and now cleared.
+    // For now, let's just save a minimal entry if it's new, or update timestamp.
+    // This behavior might need refinement based on desired UX for blank frames.
+    const blankFramePayload = {
+        dataUrl: null,
+        updatedAt: serverTimestamp() as Timestamp,
+        order: frameIndex,
+    };
+    batch.set(frameDocRef, blankFramePayload, { merge: true });
   }
-
-  // Project document should already exist from the create flow.
-  // We only update its 'updatedAt' timestamp and potentially the thumbnail.
-  const projectUpdateData: Partial<AnimationProject & {updatedAt: Timestamp, thumbnailURL?: string | null}> = {
-    updatedAt: serverTimestamp() as Timestamp,
-  };
-  
-  // Update thumbnail only if this is the first frame being saved and it has data
-  // Or if a specific logic for thumbnail update is implemented (e.g. user chooses thumbnail frame)
-  if (frameIndex === 0 && dataUrl !== null) {
-    const projectSnap = await getDoc(projectDocRef);
-    if (projectSnap.exists()) {
-        const currentProjectData = projectSnap.data() as AnimationProject;
-        // Only update thumbnail if it's not already set or if a new one is explicitly provided
-        // For simplicity, if frame 0 is saved and has data, we set/update its thumbnail.
-        if (dataUrl) { // Check ensures dataUrl is not null before setting as thumbnail
-             projectUpdateData.thumbnailURL = dataUrl;
-        }
-    }
-  }
-  
-  batch.update(projectDocRef, projectUpdateData); // Use update instead of set with merge if we're sure it exists
   
   try {
     await batch.commit();
-    console.log(`Frame ${frameIndex} and project ${projectId} metadata updated.`);
+    // console.log(`Batch committed for project ${projectId}, frame ${frameIndex}.`);
   } catch (error) {
      console.error(`Error committing batch for saveFrame (project ${projectId}, frame ${frameIndex}):`, error);
-     // Check if projectDocRef actually exists if batch.update fails
-     const checkProjectSnap = await getDoc(projectDocRef);
-     if (!checkProjectSnap.exists()) {
-         console.error(`Project document ${projectId} does not exist. This should have been created by the /animation/create flow.`);
-         // As a fallback, attempt to create it, though this indicates a flow issue
-         const fallbackProjectData: Partial<AnimationProject & {createdAt: Timestamp, updatedAt: Timestamp, createdBy?: string}> = {
-             name: `Untitled Project ${projectId.slice(-4)}`,
-             fps: 12,
-             createdAt: serverTimestamp() as Timestamp,
-             updatedAt: serverTimestamp() as Timestamp,
-             thumbnailURL: frameIndex === 0 && dataUrl ? dataUrl : null
-         };
-         if (userId) fallbackProjectData.createdBy = userId;
-         await setDoc(projectDocRef, fallbackProjectData, { merge: true });
-         console.warn(`Fallback: Created missing project document ${projectId}.`);
-         // Retry saving the frame data (optional, or just log)
-         if (dataUrl !== null) {
-             const framePayloadRetry: FrameStorageData = { dataUrl, updatedAt: serverTimestamp() as Timestamp, order: frameIndex };
-             await setDoc(frameDocRef, framePayloadRetry, { merge: true });
-         }
-     } else {
-        // If project exists but update failed, it's another issue.
-        throw error; // Re-throw original error if project exists.
-     }
+     throw error; // Re-throw to be caught by calling function for user feedback
   }
 };
 
@@ -128,7 +128,6 @@ export const loadAllFrames = async (projectId: string): Promise<AnimationFrameDa
         dataUrl: data.dataUrl,
         layers: data.layers || [],
         order: data.order,
-        // Note: Timestamps are not converted to ISO string here, keep as Firestore Timestamps if needed or convert in context
       } as AnimationFrameData);
     });
     return frames;
@@ -162,7 +161,7 @@ export const getProjectMetadata = async (projectId: string): Promise<AnimationPr
   }
 };
 
-// Save project metadata (like name, fps, etc.)
+// Save project metadata (like name, fps, etc.) - typically from a settings page, not frame save
 export const saveProjectMetadata = async (projectId: string, metadata: Partial<AnimationProject>) => {
   if (!projectId) {
     console.error("Project ID is required to save metadata.");
