@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Pencil, Eraser, Hand, Palette, Undo, Redo, Play, Save } from 'lucide-react'; // Example icons
 
 export default function Toolbar() {
-  const { tool, setTool } = useAnimation(); // Assuming activeFrame is not needed directly in toolbar for tool selection
+  const { currentTool, setCurrentTool } = useAnimation(); // Changed from tool, setTool
 
   const tools = [
     { name: 'brush', icon: Pencil, label: 'Brush' },
@@ -21,9 +21,9 @@ export default function Toolbar() {
         {tools.map((toolItem) => (
           <Button
             key={toolItem.name}
-            variant={tool === toolItem.name ? 'default' : 'ghost'}
+            variant={currentTool === toolItem.name ? 'default' : 'ghost'} // Changed from tool
             size="icon"
-            onClick={() => setTool(toolItem.name)}
+            onClick={() => setCurrentTool(toolItem.name)} // Changed from setTool
             title={toolItem.label}
             aria-label={toolItem.label}
           >
