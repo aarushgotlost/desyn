@@ -7,7 +7,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Video, Users, ScreenShare, Mic, MicOff, VideoOff, Settings2, ArrowLeft, Loader2, UserPlus, Copy, Check, PhoneOff, AlertTriangle, Send } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Video, Users, ScreenShare, Mic, MicOff, VideoOff, Settings2, ArrowLeft, Loader2, UserPlus, Copy, Check, PhoneOff, AlertTriangle, Send, MessageSquareText } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from '@/contexts/AuthContext';
@@ -24,7 +25,7 @@ import AgoraRTC, { type IAgoraRTCClient, type ILocalAudioTrack, type ILocalVideo
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const AGORA_APP_ID = process.env.NEXT_PUBLIC_AGORA_APP_ID || "";
-const AGORA_PLACEHOLDER_APP_ID = "YOUR_AGORA_APP_ID"; // A common placeholder
+const AGORA_PLACEHOLDER_APP_ID = "YOUR_AGORA_APP_ID"; 
 
 interface RemoteUserWithTracks extends IAgoraRTCRemoteUser {
   displayName?: string;
@@ -44,7 +45,7 @@ export default function MeetingDetailPage() {
   const [hasCopied, setHasCopied] = useState(false);
 
   const [isMicMuted, setIsMicMuted] = useState(false);
-  const [isCameraOff, setIsCameraOff] = useState(true); 
+  const [isCameraOff, setIsCameraOff] = useState(true);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
 
   const agoraClientRef = useRef<IAgoraRTCClient | null>(null);
@@ -64,6 +65,7 @@ export default function MeetingDetailPage() {
   const chatScrollAreaRef = useRef<HTMLDivElement>(null);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [isEndingMeeting, startEndingMeetingTransition] = useTransition();
+  const [showSidebar, setShowSidebar] = useState(true);
 
 
   const isAgoraConfigValid = AGORA_APP_ID && AGORA_APP_ID !== AGORA_PLACEHOLDER_APP_ID && AGORA_APP_ID !== "YOUR_ACTUAL_AGORA_APP_ID_REPLACE_ME";
@@ -102,9 +104,9 @@ export default function MeetingDetailPage() {
     
     setIsAgoraJoined(false);
     setRemoteUsers([]);
-    setIsCameraOff(true); 
-    setIsMicMuted(false); // Default to unmuted after leaving
-    setHasCameraPermission(null); 
+    setIsCameraOff(true);
+    setIsMicMuted(false); 
+    setHasCameraPermission(null);
     console.log("Agora cleanup finished.");
   }, [isAgoraJoined, toast]);
   
@@ -215,32 +217,30 @@ export default function MeetingDetailPage() {
 
       console.log("Attempting to create local media tracks...");
       try {
-        // Create tracks first
         const tracks = await AgoraRTC.createMicrophoneAndCameraTracks(
-          {}, // Default microphone config
-          { encoderConfig: "480p_1" } // Example: Lower resolution for testing
+          {}, 
+          { encoderConfig: "480p_1" } 
         );
         localAudioTrackRef.current = tracks[0];
         localVideoTrackRef.current = tracks[1];
-        setHasCameraPermission(true); // Assume permission granted if tracks created
+        setHasCameraPermission(true); 
         console.log("Local audio and video tracks created successfully.");
+        console.log("Local video track:", localVideoTrackRef.current);
+        console.log("Local video container:", localVideoContainerRef.current);
 
-        // Play local video
         if (localVideoTrackRef.current && localVideoContainerRef.current) {
           console.log("Local video track found, attempting to play in container:", localVideoContainerRef.current);
-          // Ensure container is empty before playing
           while (localVideoContainerRef.current.firstChild) {
             localVideoContainerRef.current.removeChild(localVideoContainerRef.current.firstChild);
           }
           localVideoTrackRef.current.play(localVideoContainerRef.current);
-          setIsCameraOff(false); // Camera is now on and playing
+          setIsCameraOff(false); 
           console.log("Local video track play initiated. IsPlaying:", localVideoTrackRef.current.isPlaying);
         } else {
           console.warn("Local video track or container not available for playback. Will not play local video.");
           setIsCameraOff(true);
         }
 
-        // Initialize mic state
         if (localAudioTrackRef.current) {
           setIsMicMuted(false); 
           console.log("Local audio track initialized (default unmuted).");
@@ -259,7 +259,6 @@ export default function MeetingDetailPage() {
         }
         toast({ title: "Media Error", description: errorDesc, variant: "destructive", duration: 7000 });
         
-        // Cleanup only local tracks if media failed, don't leave channel yet
         if (localAudioTrackRef.current) { localAudioTrackRef.current.close(); localAudioTrackRef.current = null; }
         if (localVideoTrackRef.current) { localVideoTrackRef.current.close(); localVideoTrackRef.current = null; }
         setIsPublishing(false);
@@ -268,8 +267,7 @@ export default function MeetingDetailPage() {
         return; 
       }
       
-      // Publish tracks only if both are available and client is connected
-      if (agoraClientRef.current && localAudioTrackRef.current && localVideoTrackRef.current && agoraClientRef.current.connectionState === "CONNECTED") {
+      if (agoraClientRef.current && agoraClientRef.current.connectionState === "CONNECTED" && localAudioTrackRef.current && localVideoTrackRef.current) {
         console.log("Publishing local tracks...");
         await agoraClientRef.current.publish([localAudioTrackRef.current, localVideoTrackRef.current]);
         console.log("Published local tracks successfully.");
@@ -286,7 +284,7 @@ export default function MeetingDetailPage() {
                 variant: "destructive",
                 duration: 7000,
             });
-            await cleanupAgora(); // Full cleanup if publish fails due to connection state after join
+            await cleanupAgora(); 
         }
       }
     } catch (error: any) {
@@ -372,11 +370,10 @@ export default function MeetingDetailPage() {
           console.log(`Playing video for remote user ${user.uid}.`);
           user.videoTrack.play(container);
         } else if (container && container.firstChild && (container.firstChild as HTMLElement).id !== `video-track-${user.uid}` ) {
-          // If container has children but not the one we expect, clear and play
           console.log(`Re-playing video for remote user ${user.uid} after clearing container.`);
           while(container.firstChild) container.removeChild(container.firstChild);
           const videoPlayerContainer = document.createElement('div');
-          videoPlayerContainer.id = `video-track-${user.uid}`; // Give it an ID for easier debugging
+          videoPlayerContainer.id = `video-track-${user.uid}`; 
           videoPlayerContainer.className = 'w-full h-full';
           container.appendChild(videoPlayerContainer);
           user.videoTrack.play(videoPlayerContainer);
@@ -438,7 +435,7 @@ export default function MeetingDetailPage() {
         console.error("Failed to start camera on demand:", error);
         setHasCameraPermission(false);
         toast({ title: "Camera Error", description: `Could not start camera: ${error.message}. Check permissions.`, variant: "destructive" });
-        localVideoTrackRef.current = null; // Ensure it's nulled if creation failed
+        localVideoTrackRef.current = null; 
         setIsCameraOff(true);
       } finally {
         setIsPublishing(false);
@@ -494,7 +491,7 @@ export default function MeetingDetailPage() {
 
 
   if (isLoading || authLoading) {
-    return <div className="flex justify-center items-center h-[calc(100vh-10rem)]"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
+    return <div className="flex justify-center items-center h-screen bg-background"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
   }
 
   if (!meeting) {
@@ -510,11 +507,54 @@ export default function MeetingDetailPage() {
   
   const currentUserIsParticipant = user && meeting.participantUids.includes(user.uid);
   const isMeetingActive = meeting.isActive;
+  const totalParticipants = (isAgoraJoined && localVideoTrackRef.current ? 1 : 0) + remoteUsers.length;
+
+  const getGridColsClass = () => {
+    if (totalParticipants <= 1) return 'grid-cols-1';
+    if (totalParticipants === 2) return 'grid-cols-1 md:grid-cols-2';
+    if (totalParticipants <= 4) return 'grid-cols-2';
+    if (totalParticipants <= 6) return 'grid-cols-2 md:grid-cols-3';
+    if (totalParticipants <= 9) return 'grid-cols-3';
+    return 'grid-cols-3 md:grid-cols-4'; // Max 4 for larger screens
+  };
 
   return (
-    <div className="container mx-auto py-6 sm:py-8 space-y-6 sm:space-y-8">
+    <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden">
+      {/* Header Bar */}
+      <header className="bg-card border-b p-3 flex items-center justify-between shadow-sm">
+        <div className="flex items-center gap-2">
+            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => router.push('/meetings')}>
+                <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div>
+                <h1 className="text-lg font-semibold truncate max-w-xs sm:max-w-md md:max-w-lg">{meeting.title}</h1>
+                <p className="text-xs text-muted-foreground">
+                    {!isMeetingActive ? "Meeting Ended" : isAgoraJoined ? `${meeting.participants.length} participant(s) online` : "Not in call"}
+                </p>
+            </div>
+        </div>
+        <div className="flex items-center gap-2">
+            <Button onClick={copyMeetingLink} variant="ghost" size="sm" className="hidden sm:flex">
+                {hasCopied ? <Check className="mr-1.5 h-4 w-4 text-green-500" /> : <Copy className="mr-1.5 h-4 w-4" />}
+                {hasCopied ? 'Copied!' : 'Copy Link'}
+            </Button>
+            {!currentUserIsParticipant && isMeetingActive && (
+            <Button onClick={handleJoinMeeting} disabled={isJoiningMeeting || !isAgoraConfigValid} size="sm">
+                {isJoiningMeeting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
+                Join Meeting
+            </Button>
+            )}
+            {currentUserIsParticipant && isMeetingActive && !isAgoraJoined && (
+            <Button onClick={joinAgoraChannel} disabled={isPublishing || !isAgoraConfigValid || !isAgoraClientInitialized} size="sm" className="bg-green-600 hover:bg-green-700">
+                {isPublishing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Video className="mr-2 h-4 w-4" />}
+                Join Video Call
+            </Button>
+            )}
+        </div>
+      </header>
+
       {!isAgoraConfigValid && (AGORA_APP_ID === AGORA_PLACEHOLDER_APP_ID || AGORA_APP_ID === "YOUR_ACTUAL_AGORA_APP_ID_REPLACE_ME") && (
-         <Alert variant="destructive" className="mb-4">
+         <Alert variant="destructive" className="m-2">
             <AlertTriangle className="h-5 w-5" />
             <AlertTitle>Agora App ID Missing</AlertTitle>
             <AlertDescription>
@@ -522,247 +562,238 @@ export default function MeetingDetailPage() {
             </AlertDescription>
           </Alert>
       )}
-      <Card className="shadow-xl">
-        <CardHeader className="border-b">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-2">
-            <div className="flex-grow">
-              <Button variant="outline" size="sm" onClick={() => router.push('/meetings')} className="mb-2 sm:mb-0 hidden sm:inline-flex">
-                <ArrowLeft className="mr-2 h-4 w-4" /> All Meetings
-              </Button>
-              <CardTitle className="text-xl sm:text-2xl md:text-3xl font-bold font-headline mt-1">{meeting.title}</CardTitle>
-              <CardDescription className="text-xs sm:text-sm">
-                Hosted by {meeting.createdByName || 'User'} &bull; Created {formatDistanceToNowStrict(new Date(meeting.createdAt), { addSuffix: true })}
-                {!isMeetingActive && <span className="text-destructive font-semibold"> (Ended)</span>}
-              </CardDescription>
+
+      {/* Main Content Area */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Video Grid Area */}
+        <main className="flex-1 flex flex-col bg-muted/30 p-2 overflow-y-auto">
+          {!isMeetingActive ? (
+            <div className="flex-1 flex flex-col items-center justify-center text-center">
+              <VideoOff className="h-20 w-20 text-destructive mb-4" />
+              <h2 className="text-xl font-semibold">Meeting Has Ended</h2>
+              <p className="text-muted-foreground">This meeting is no longer active.</p>
             </div>
-            <div className="flex flex-col sm:flex-row gap-2 self-start sm:self-center w-full sm:w-auto">
-               <Button onClick={copyMeetingLink} variant="outline" size="sm" className="w-full sm:w-auto">
-                {hasCopied ? <Check className="mr-2 h-4 w-4 text-green-500" /> : <Copy className="mr-2 h-4 w-4" />}
-                {hasCopied ? 'Copied!' : 'Copy Link'}
-              </Button>
-              {!currentUserIsParticipant && isMeetingActive && (
-                <Button onClick={handleJoinMeeting} disabled={isJoiningMeeting || !isAgoraConfigValid} size="sm" className="w-full sm:w-auto">
-                  {isJoiningMeeting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
-                  Join Meeting
-                </Button>
-              )}
-              {currentUserIsParticipant && isMeetingActive && !isAgoraJoined && (
-                <Button onClick={joinAgoraChannel} disabled={isPublishing || !isAgoraConfigValid || !isAgoraClientInitialized} size="sm" className="w-full sm:w-auto bg-green-600 hover:bg-green-700">
-                    {isPublishing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Video className="mr-2 h-4 w-4" />}
-                    Join Video Call
-                </Button>
-              )}
+          ) : !isAgoraJoined && currentUserIsParticipant ? (
+            <div className="flex-1 flex flex-col items-center justify-center text-center">
+              <Video className="h-20 w-20 text-primary mb-4" />
+              <h2 className="text-xl font-semibold">Ready to Join Video?</h2>
+              <p className="text-muted-foreground mb-4">Click "Join Video Call" in the header to start.</p>
+              {!isAgoraConfigValid && <p className="text-xs text-destructive">Video call service is not configured properly.</p>}
             </div>
-          </div>
-        </CardHeader>
-        <CardContent className="pt-6 space-y-6">
-          <div className="grid md:grid-cols-12 gap-4">
-            <div className="md:col-span-8 space-y-4"> 
-              {currentUserIsParticipant && isAgoraJoined && isMeetingActive && (
-                <div className="mb-4">
-                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Your Camera</h3>
-                  <div 
-                    ref={localVideoContainerRef} 
-                    id="local-video-container" 
-                    className="aspect-video bg-black rounded-lg shadow-md relative overflow-hidden border"
-                    // Ensure the container has a defined size for Agora to attach the video
-                    style={{ minHeight: '150px' }} 
-                  >
-                    {(isCameraOff || hasCameraPermission === false || !localVideoTrackRef.current) && (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 rounded-md p-4 text-center">
-                            <VideoOff className="h-10 w-10 sm:h-12 sm:w-12 text-muted-foreground mb-2" />
-                            <p className="text-muted-foreground text-xs sm:text-sm">
-                              {hasCameraPermission === false ? "Camera permission denied or no camera found." : 
-                               !localVideoTrackRef.current && isAgoraJoined ? "Initializing camera..." :
-                               "Your camera is off."}
-                            </p>
-                            {hasCameraPermission === false && <p className="text-xs text-muted-foreground/80 mt-1">Check browser settings.</p>}
-                        </div>
+          ) : !currentUserIsParticipant ? (
+             <div className="flex-1 flex flex-col items-center justify-center text-center">
+              <Users className="h-20 w-20 text-muted-foreground mb-4" />
+              <h2 className="text-xl font-semibold">Join the Meeting</h2>
+              <p className="text-muted-foreground mb-4">Click "Join Meeting" in the header to participate.</p>
+            </div>
+          ) : (
+            // Video grid for active call
+            <div className={cn("grid flex-1 gap-2 items-center justify-center", getGridColsClass())}>
+              {/* Local User Video */}
+              <div
+                id="local-video-container-wrapper"
+                className={cn(
+                  "bg-black rounded-md shadow-lg relative overflow-hidden border-2",
+                  isCameraOff ? "border-muted" : "border-primary" // Highlight if camera is on
+                )}
+                style={{ aspectRatio: '16/9', minHeight: '120px' }}
+              >
+                <div ref={localVideoContainerRef} id="local-video-container" className="w-full h-full" />
+                {(isCameraOff || hasCameraPermission === false || !localVideoTrackRef.current && isAgoraJoined) && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 rounded-md p-2 text-center">
+                    {userProfile?.photoURL ? (
+                        <Avatar className="h-16 w-16 mb-2">
+                            <AvatarImage src={userProfile.photoURL} alt={userProfile.displayName || "You"} data-ai-hint="local user avatar placeholder" />
+                            <AvatarFallback>{getInitials(userProfile.displayName)}</AvatarFallback>
+                        </Avatar>
+                    ) : (
+                        <VideoOff className="h-10 w-10 text-muted-foreground mb-2" />
                     )}
-                    <p className="absolute bottom-2 left-2 text-xs bg-black/50 text-white px-2 py-1 rounded">
-                      {userProfile?.displayName || "You"}
+                    <p className="text-muted-foreground text-xs">
+                      {hasCameraPermission === false ? "Camera permission denied." : "Your camera is off."}
                     </p>
                   </div>
-                </div>
-              )}
+                )}
+                <p className="absolute bottom-1 left-1 text-xs bg-black/60 text-white px-1.5 py-0.5 rounded truncate">
+                  {userProfile?.displayName || "You"} (You)
+                </p>
+              </div>
 
-              {isMeetingActive && remoteUsers.length > 0 && (
-                <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-2">Participants</h3>
-                  <div className={cn(
-                    "grid gap-2",
-                    remoteUsers.length === 1 ? "grid-cols-1" :
-                    remoteUsers.length === 2 ? "grid-cols-1 sm:grid-cols-2" :
-                    remoteUsers.length <= 4 ? "grid-cols-1 sm:grid-cols-2" : 
-                    "grid-cols-1 sm:grid-cols-2 md:grid-cols-3" 
-                  )}>
-                    {remoteUsers.map(remoteU => (
-                      <div 
-                        key={remoteU.uid} 
-                        ref={el => remoteVideoContainerRefs.current.set(remoteU.uid, el)}
-                        id={`video-container-${remoteU.uid}`} 
-                        className="aspect-video bg-muted/70 rounded-lg flex flex-col items-center justify-center border border-muted-foreground/20 shadow-inner relative overflow-hidden"
-                        style={{ minHeight: '120px' }} // Ensure remote containers also have min size
-                      >
-                         {!remoteU.hasVideo && (
-                            <>
-                            <Avatar className="h-12 w-12 sm:h-16 sm:w-16 mb-2">
-                                <AvatarImage src={remoteU.photoURL || undefined} alt={remoteU.displayName || 'User'} data-ai-hint="remote participant avatar"/>
-                                <AvatarFallback>{getInitials(remoteU.displayName)}</AvatarFallback>
-                            </Avatar>
-                            <VideoOff className="h-6 w-6 sm:h-8 sm:w-8 text-muted-foreground opacity-50" />
-                            </>
-                        )}
-                        <p className="mt-2 text-xs text-muted-foreground text-center px-2 truncate w-full absolute bottom-2 bg-black/30 text-white py-1">
-                          {remoteU.displayName || `User ${remoteU.uid}`}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
+              {/* Remote Users Video */}
+              {remoteUsers.map(remoteU => (
+                <div 
+                  key={remoteU.uid} 
+                  id={`video-container-wrapper-${remoteU.uid}`}
+                  className="bg-black rounded-md shadow-lg relative overflow-hidden border-2 border-muted"
+                  style={{ aspectRatio: '16/9', minHeight: '120px' }}
+                >
+                  <div 
+                    ref={el => remoteVideoContainerRefs.current.set(remoteU.uid, el)}
+                    id={`video-container-${remoteU.uid}`} 
+                    className="w-full h-full"
+                  />
+                  {!remoteU.hasVideo && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 rounded-md p-2 text-center">
+                      <Avatar className="h-16 w-16 mb-2">
+                          <AvatarImage src={remoteU.photoURL || undefined} alt={remoteU.displayName || 'User'} data-ai-hint="remote participant avatar placeholder"/>
+                          <AvatarFallback>{getInitials(remoteU.displayName)}</AvatarFallback>
+                      </Avatar>
+                      <VideoOff className="h-6 w-6 text-muted-foreground opacity-50" />
+                    </div>
+                  )}
+                  <p className="absolute bottom-1 left-1 text-xs bg-black/60 text-white px-1.5 py-0.5 rounded truncate">
+                    {remoteU.displayName || `User ${remoteU.uid}`}
+                  </p>
                 </div>
-              )}
-              {isMeetingActive && isAgoraJoined && remoteUsers.length === 0 && (
-                  <div className="h-48 sm:h-64 bg-muted rounded-lg flex flex-col items-center justify-center border shadow-inner p-4">
-                    <Users className="h-12 w-12 sm:h-16 sm:w-16 text-muted-foreground opacity-50" />
-                    <p className="mt-4 text-muted-foreground text-sm sm:text-lg text-center">Waiting for others to join the video call...</p>
-                  </div>
-              )}
-              {isMeetingActive && !isAgoraJoined && currentUserIsParticipant && (
-                 <div className="h-48 sm:h-64 bg-muted rounded-lg flex flex-col items-center justify-center border shadow-inner p-4">
-                    <Video className="h-12 w-12 sm:h-16 sm:w-16 text-primary opacity-80" />
-                    <p className="mt-4 text-primary/90 text-sm sm:text-lg text-center">Click "Join Video Call" to start/join.</p>
-                    {!isAgoraConfigValid && <p className="text-xs text-destructive mt-2">Video call service is not configured.</p>}
-                  </div>
-              )}
-              {isMeetingActive && !currentUserIsParticipant && (
-                 <div className="h-48 sm:h-64 bg-muted rounded-lg flex flex-col items-center justify-center border shadow-inner p-4">
-                    <Video className="h-12 w-12 sm:h-16 sm:w-16 text-muted-foreground opacity-50" />
-                    <p className="mt-4 text-muted-foreground text-sm sm:text-lg text-center">Join the meeting to participate in the video call.</p>
-                     {!isAgoraConfigValid && <p className="text-xs text-destructive mt-2">Video call service is not configured.</p>}
-                  </div>
-              )}
-               {!isMeetingActive && (
-                 <div className="h-48 sm:h-64 bg-muted rounded-lg flex flex-col items-center justify-center border shadow-inner p-4">
-                    <VideoOff className="h-12 w-12 sm:h-16 sm:w-16 text-destructive opacity-80" />
-                    <p className="mt-4 text-destructive/90 text-sm sm:text-lg text-center">This meeting has ended.</p>
+              ))}
+              {isAgoraJoined && remoteUsers.length === 0 && localVideoTrackRef.current && (
+                  <div className="col-span-full flex items-center justify-center text-muted-foreground italic text-sm">
+                    Waiting for others to join...
                   </div>
               )}
             </div>
+          )}
+        </main>
 
-            <div className="md:col-span-4 space-y-4"> 
-              <Card>
-                <CardHeader className="p-3">
-                  <CardTitle className="flex items-center text-base"><Users className="mr-2 h-4 w-4 text-primary"/> Participants ({meeting.participants.length})</CardTitle>
-                </CardHeader>
-                <CardContent className="p-3 space-y-2 max-h-40 overflow-y-auto">
+        {/* Sidebar for Participants and Chat */}
+        {isMeetingActive && currentUserIsParticipant && showSidebar && (
+          <aside className="w-80 border-l bg-card flex flex-col h-full hidden md:flex">
+            <Tabs defaultValue="participants" className="flex-1 flex flex-col">
+              <TabsList className="grid w-full grid-cols-2 rounded-none border-b">
+                <TabsTrigger value="participants"><Users className="mr-1.5 h-4 w-4"/>Participants</TabsTrigger>
+                <TabsTrigger value="chat"><MessageSquareText className="mr-1.5 h-4 w-4"/>Chat</TabsTrigger>
+              </TabsList>
+              <TabsContent value="participants" className="flex-1 overflow-y-auto p-0">
+                <ScrollArea className="h-full p-3">
+                  <h3 className="text-sm font-medium mb-2 text-muted-foreground px-1">In this meeting ({meeting.participants.length})</h3>
                   {meeting.participants.map(p => (
                     <div key={p.uid} className="flex items-center space-x-2 p-1.5 hover:bg-muted/50 rounded-md">
                       <Avatar className="h-7 w-7">
-                        <AvatarImage src={p.photoURL || undefined} alt={p.displayName || 'User'} data-ai-hint="participant avatar"/>
+                        <AvatarImage src={p.photoURL || undefined} alt={p.displayName || 'User'} data-ai-hint="participant avatar list item"/>
                         <AvatarFallback className="text-xs">{getInitials(p.displayName)}</AvatarFallback>
                       </Avatar>
                       <span className="text-xs font-medium truncate">{p.displayName || 'User'}</span>
+                      {p.uid === user?.uid && <span className="text-xs text-muted-foreground">(You)</span>}
+                      {p.uid === meeting.createdBy && <span className="text-xs text-primary/80">(Host)</span>}
                     </div>
                   ))}
-                </CardContent>
-              </Card>
+                </ScrollArea>
+              </TabsContent>
+              <TabsContent value="chat" className="flex-1 flex flex-col p-0 overflow-hidden">
+                <ScrollArea className="h-full p-3" ref={chatScrollAreaRef}>
+                  {meetingChatMessages.length === 0 && (
+                    <p className="text-xs text-muted-foreground text-center py-4">No messages yet.</p>
+                  )}
+                  {meetingChatMessages.map(msg => (
+                    <MessageBubble key={msg.id} message={msg} currentUserId={user?.uid || ''} isMeetingChat={true} />
+                  ))}
+                </ScrollArea>
+                <form onSubmit={handleSendMeetingMessage} className="flex w-full items-center space-x-2 p-3 border-t bg-muted/30">
+                  <Input
+                    type="text"
+                    placeholder="Send a message..."
+                    value={newMeetingMessageText}
+                    onChange={(e) => setNewMeetingMessageText(e.target.value)}
+                    className="flex-1 text-xs"
+                    disabled={isSendingMeetingMessage || !isAgoraJoined}
+                  />
+                  <Button type="submit" size="icon" className="h-8 w-8" disabled={!newMeetingMessageText.trim() || isSendingMeetingMessage || !isAgoraJoined}>
+                    {isSendingMeetingMessage ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  </Button>
+                </form>
+              </TabsContent>
+            </Tabs>
+          </aside>
+        )}
+      </div>
 
-              <Card className="flex flex-col h-[calc(100%-10rem)] sm:h-[calc(100%-12rem)]">
-                <CardHeader className="p-3 border-b">
-                  <CardTitle className="text-base">Meeting Chat</CardTitle>
-                </CardHeader>
-                <CardContent className="flex-1 p-0 overflow-hidden">
-                  <ScrollArea className="h-full p-2" ref={chatScrollAreaRef}>
-                    {meetingChatMessages.length === 0 && (
-                      <p className="text-xs text-muted-foreground text-center py-4">No messages yet.</p>
-                    )}
-                    {meetingChatMessages.map(msg => (
-                      <MessageBubble key={msg.id} message={msg} currentUserId={user?.uid || ''} isMeetingChat={true} />
-                    ))}
-                  </ScrollArea>
-                </CardContent>
-                <CardFooter className="p-2 border-t">
-                  <form onSubmit={handleSendMeetingMessage} className="flex w-full items-center space-x-2">
-                    <Input
-                      type="text"
-                      placeholder="Send a message..."
-                      value={newMeetingMessageText}
-                      onChange={(e) => setNewMeetingMessageText(e.target.value)}
-                      className="flex-1 text-xs"
-                      disabled={!currentUserIsParticipant || isSendingMeetingMessage || !isAgoraJoined || !isMeetingActive}
-                    />
-                    <Button type="submit" size="icon" className="h-8 w-8" disabled={!currentUserIsParticipant || !newMeetingMessageText.trim() || isSendingMeetingMessage || !isAgoraJoined || !isMeetingActive}>
-                      {isSendingMeetingMessage ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                    </Button>
-                  </form>
-                </CardFooter>
-              </Card>
-            </div>
-          </div>
-        </CardContent>
+      {/* Controls Bar */}
+      {isMeetingActive && currentUserIsParticipant && isAgoraJoined && (
+        <footer className="border-t bg-card p-3 flex items-center justify-center gap-2 sm:gap-4 shadow-md">
+          <Button 
+            variant={isMicMuted ? "destructive" : "outline"} 
+            size="lg" 
+            className="px-3 sm:px-4"
+            title={isMicMuted ? "Unmute Microphone" : "Mute Microphone"} 
+            onClick={toggleMic}
+            disabled={!localAudioTrackRef.current || isPublishing}
+          >
+            {isMicMuted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+            <span className="ml-1.5 hidden sm:inline">{isMicMuted ? "Unmute" : "Mute"}</span>
+          </Button>
+          <Button 
+            variant={isCameraOff ? "destructive" : "outline"} 
+            size="lg" 
+            className="px-3 sm:px-4"
+            title={isCameraOff ? "Start Video" : "Stop Video"}
+            onClick={toggleCamera}
+            disabled={isPublishing && !localVideoTrackRef.current && !isCameraOff}
+          >
+            {isCameraOff ? <VideoOff className="h-5 w-5" /> : <Video className="h-5 w-5" />}
+            <span className="ml-1.5 hidden sm:inline">{isCameraOff ? "Start Video" : "Stop Video"}</span>
+          </Button>
+          <Button 
+            variant={isScreenSharing ? "default" : "outline"} 
+            size="lg" 
+            className="px-3 sm:px-4"
+            title={isScreenSharing ? "Stop Sharing" : "Share Screen (Placeholder)"}
+            onClick={() => {
+                setIsScreenSharing(!isScreenSharing);
+                toast({title: "Screen Sharing (Placeholder)", description: isScreenSharing ? "Screen sharing stopped." : "Screen sharing started."});
+            }}
+            disabled // Screen sharing not implemented
+          >
+            <ScreenShare className="h-5 w-5" />
+            <span className="ml-1.5 hidden sm:inline">{isScreenSharing ? "Stop Share" : "Share"}</span>
+          </Button>
+          
+          {/* Toggle Sidebar Button for small screens, or general toggle */}
+          <Button 
+            variant="outline" 
+            size="lg" 
+            className="px-3 sm:px-4 md:hidden" 
+            onClick={() => setShowSidebar(!showSidebar)} 
+            title={showSidebar ? "Hide Sidebar" : "Show Sidebar"}
+          >
+            {showSidebar ? <Users className="h-5 w-5" /> : <MessageSquareText className="h-5 w-5"/>}
+            <span className="ml-1.5 hidden sm:inline">{showSidebar ? "Participants" : "Chat"}</span>
+          </Button>
+          
+          {isCurrentUserHost ? (
+            <Button variant="destructive" size="lg" className="px-3 sm:px-4" title="End Meeting" onClick={handleEndMeeting} disabled={isEndingMeeting}>
+              {isEndingMeeting ? <Loader2 className="h-5 w-5 mr-0 sm:mr-1.5 animate-spin"/> : <PhoneOff className="h-5 w-5 mr-0 sm:mr-1.5" />}
+              <span className="hidden sm:inline">{isEndingMeeting ? "Ending..." : "End"}</span>
+            </Button>
+          ) : (
+            <Button variant="destructive" size="lg" className="px-3 sm:px-4" title="Leave Video Call" onClick={handleLeaveMeeting}>
+              <PhoneOff className="h-5 w-5 mr-0 sm:mr-1.5" />
+              <span className="hidden sm:inline">Leave</span>
+            </Button>
+          )}
 
-        {isMeetingActive && currentUserIsParticipant && isAgoraJoined && (
-          <CardFooter className="border-t p-3 sm:p-4 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3">
+          <Button variant="ghost" size="icon" className="h-10 w-10 hidden sm:inline-flex" title="Meeting Settings (Placeholder)" disabled>
+            <Settings2 className="h-5 w-5" />
+          </Button>
+        </footer>
+      )}
+      
+      {/* Small screen chat/participant toggle and drawer - placeholder for future enhancement */}
+      {!showSidebar && isMeetingActive && currentUserIsParticipant && (
+        <div className="md:hidden fixed bottom-16 right-4 z-50">
              <Button 
-                variant={isMicMuted ? "destructive" : "outline"} 
+                variant="outline" 
                 size="icon" 
-                className="h-10 w-10 sm:h-12 sm:w-12" 
-                title={isMicMuted ? "Unmute Microphone" : "Mute Microphone"} 
-                onClick={toggleMic}
-                disabled={!localAudioTrackRef.current || isPublishing}
-             >
-                {isMicMuted ? <MicOff className="h-5 w-5 sm:h-6 sm:w-6" /> : <Mic className="h-5 w-5 sm:h-6 sm:w-6" />}
-             </Button>
-             <Button 
-                variant={isCameraOff ? "destructive" : "outline"} 
-                size="icon" 
-                className="h-10 w-10 sm:h-12 sm:w-12" 
-                title={isCameraOff ? "Turn Camera On" : "Turn Camera Off"}
-                onClick={toggleCamera}
-                disabled={isPublishing && !localVideoTrackRef.current && !isCameraOff } 
-             >
-                {isCameraOff ? <VideoOff className="h-5 w-5 sm:h-6 sm:w-6" /> : <Video className="h-5 w-5 sm:h-6 sm:w-6" />}
-             </Button>
-             <Button 
-                variant={isScreenSharing ? "default" : "outline"} 
-                size="icon" 
-                className="h-10 w-10 sm:h-12 sm:w-12" 
-                title={isScreenSharing ? "Stop Sharing Screen" : "Share Screen (Placeholder)"}
-                onClick={() => {
-                    setIsScreenSharing(!isScreenSharing);
-                    toast({title: "Screen Sharing (Placeholder)", description: isScreenSharing ? "Screen sharing stopped." : "Screen sharing started."});
-                }}
-                disabled // Screen sharing is complex and not implemented yet
+                className="rounded-full shadow-lg h-12 w-12" 
+                onClick={() => setShowSidebar(true)} 
+                title="Open Panel"
             >
-                <ScreenShare className="h-5 w-5 sm:h-6 sm:w-6" />
+                <Users className="h-6 w-6" />
             </Button>
-            
-            {isCurrentUserHost ? (
-                <Button variant="destructive" size="lg" className="h-10 px-4 sm:h-12 sm:px-6" title="End Meeting" onClick={handleEndMeeting} disabled={isEndingMeeting}>
-                    {isEndingMeeting ? <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 mr-0 sm:mr-2 animate-spin"/> : <PhoneOff className="h-5 w-5 sm:h-6 sm:w-6 mr-0 sm:mr-2" />}
-                    <span className="hidden sm:inline">{isEndingMeeting ? "Ending..." : "End Meeting"}</span>
-                </Button>
-            ) : (
-                <Button variant="destructive" size="lg" className="h-10 px-4 sm:h-12 sm:px-6" title="Leave Video Call" onClick={handleLeaveMeeting}>
-                    <PhoneOff className="h-5 w-5 sm:h-6 sm:w-6 mr-0 sm:mr-2" />
-                    <span className="hidden sm:inline">Leave Call</span>
-                </Button>
-            )}
+        </div>
+      )}
 
-            <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-12 sm:w-12" title="Meeting Settings (Placeholder)" disabled>
-              <Settings2 className="h-5 w-5 sm:h-6 sm:w-6" />
-            </Button>
-          </CardFooter>
-        )}
-        {!isMeetingActive && (
-            <CardFooter className="border-t p-3 sm:p-4">
-                 <p className="text-xs text-destructive font-semibold text-center w-full">This meeting has ended.</p>
-            </CardFooter>
-        )}
-      </Card>
-       <Button variant="outline" size="sm" onClick={() => router.push('/meetings')} className="sm:hidden w-full mt-4">
-          <ArrowLeft className="mr-2 h-4 w-4" /> All Meetings
-        </Button>
     </div>
   );
 }
+
+    
