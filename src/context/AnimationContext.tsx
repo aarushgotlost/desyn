@@ -93,28 +93,25 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
 
 
   useEffect(() => {
-    if (!routeProjectIdFromProp) {
+    // This effect now rigorously resets and loads based on routeProjectIdFromProp
+    setIsLoadingProject(true);
+    setProjectName("Loading...");
+    setFps(12);
+    setActiveFrameIndex(0);
+    _setFramesInternal([]);
+    _setPanelLayersInternal(createDefaultLayers('loading-main-effect'));
+    setDrawingHistory([null]);
+    setDrawingHistoryPointer(0);
+
+    if (!routeProjectIdFromProp || routeProjectIdFromProp.trim() === "") {
       setIsLoadingProject(false);
-      setProjectName("No Project Loaded");
-      setFps(12);
-      setActiveFrameIndex(0);
-      const defaultNoProjFrame: Frame = { id: `frame-no-project-0-${Date.now()}`, dataUrl: null, layers: createDefaultLayers('no-proj') };
-      _setFramesInternal([defaultNoProjFrame]);
-      _setPanelLayersInternal(defaultNoProjFrame.layers);
-      setDrawingHistory([null]);
-      setDrawingHistoryPointer(0);
+      setProjectName("No Project ID");
+      const defaultNoIdFrame: Frame = { id: `frame-no-id-0-${Date.now()}`, dataUrl: null, layers: createDefaultLayers('no-id') };
+      _setFramesInternal([defaultNoIdFrame]);
+      _setPanelLayersInternal(defaultNoIdFrame.layers);
       return;
     }
     
-    setIsLoadingProject(true);
-    setProjectName("Loading..."); 
-    setFps(12); 
-    setActiveFrameIndex(0); 
-    _setFramesInternal([]); 
-    _setPanelLayersInternal(createDefaultLayers('loading')); 
-    setDrawingHistory([null]); 
-    setDrawingHistoryPointer(0);
-
     Promise.all([
       getProjectMetadata(routeProjectIdFromProp),
       loadAllFrames(routeProjectIdFromProp)
@@ -153,7 +150,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
       } else {
         setDrawingHistory([null]);
         setDrawingHistoryPointer(0);
-        _setPanelLayersInternal(createDefaultLayers('fallback-empty'));
+        _setPanelLayersInternal(createDefaultLayers('fallback-empty-main-effect'));
       }
     }).catch(error => {
       toast({title: "Load Error", description: `Failed to load animation project: ${error.message}`, variant: "destructive"});
@@ -169,7 +166,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
       setFps(12);
       setDrawingHistory([null]);
       setDrawingHistoryPointer(0);
-      _setPanelLayersInternal(fallbackFrames[0]?.layers || createDefaultLayers('fallback-error'));
+      _setPanelLayersInternal(fallbackFrames[0]?.layers || createDefaultLayers('fallback-error-main-effect'));
     }).finally(() => {
       setIsLoadingProject(false);
     });
@@ -286,8 +283,10 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
   const canRedoDrawing = drawingHistoryPointer < drawingHistory.length - 1;
 
   const saveActiveFrameManually = useCallback(async () => {
-    const currentProjectNameForToast = projectName || "Untitled Project";
-
+    if (isLoadingProject) {
+        toast({ title: "Save Frame Error", description: "Project is still loading. Please wait and try again.", variant: "destructive" });
+        return;
+    }
     if (!user || !user.uid) {
       toast({ title: "Authentication Error", description: "You must be logged in to save.", variant: "destructive" });
       return;
@@ -297,6 +296,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
       return;
     }
     
+    const currentProjectNameForToast = projectName || "Untitled Project";
     const currentActiveFrameIndex = activeFrameIndexRef.current;
     const currentFrames = framesRef.current;
 
@@ -333,13 +333,14 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
         duration: 7000,
       });
     }
-  }, [routeProjectIdFromProp, user, toast, projectName, framesRef, activeFrameIndexRef]); 
+  }, [isLoadingProject, routeProjectIdFromProp, user, toast, projectName, framesRef, activeFrameIndexRef]); 
 
 
   const saveAllFramesManually = useCallback(async () => {
-    const currentProjectNameForToast = projectName || "Untitled Project";
-    const currentFpsForSave = fps || 12;
-
+    if (isLoadingProject) {
+        toast({ title: "Save All Error", description: "Project is still loading. Please wait and try again.", variant: "destructive" });
+        return;
+    }
     if (!user || !user.uid) {
       toast({ title: "Authentication Error", description: "You must be logged in to save all frames.", variant: "destructive" });
       return;
@@ -349,7 +350,10 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
       return;
     }
 
+    const currentProjectNameForToast = projectName || "Untitled Project";
+    const currentFpsForSave = fps || 12;
     const currentFrames = framesRef.current;
+
     if (currentFrames.length === 0) {
       toast({ title: "Save All Error", description: "No frames to save.", variant: "default" });
       return;
@@ -378,7 +382,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
         duration: 7000,
       });
     }
-  }, [routeProjectIdFromProp, user, toast, projectName, fps, framesRef]); 
+  }, [isLoadingProject, routeProjectIdFromProp, user, toast, projectName, fps, framesRef]); 
 
 
   const contextValue: AnimationContextType = useMemo(() => ({

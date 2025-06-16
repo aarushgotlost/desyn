@@ -19,8 +19,8 @@ export default function Toolbar() {
     canUndoDrawing, canRedoDrawing,
     saveActiveFrameManually,
     saveAllFramesManually, 
-    // projectId is still available from context if needed for other UI elements,
-    // but save functions will use the projectId from their own scope.
+    isLoadingProject, // Get isLoadingProject from context
+    projectId, // Also get projectId for direct checks if needed, though context save fns will re-check
   } = useAnimation();
   const { toast } = useToast();
   const [isSavingFrame, setIsSavingFrame] = useState(false);
@@ -44,7 +44,6 @@ export default function Toolbar() {
   };
   
   const handleSaveFrame = async () => {
-    // The projectId check is now primarily within saveActiveFrameManually in the context
     setIsSavingFrame(true);
     try {
       await saveActiveFrameManually(); 
@@ -57,7 +56,6 @@ export default function Toolbar() {
   };
 
   const handleSaveAllFrames = async () => {
-     // The projectId check is now primarily within saveAllFramesManually in the context
     setIsSavingAll(true);
     try {
       await saveAllFramesManually();
@@ -112,7 +110,7 @@ export default function Toolbar() {
             title="Save Current Frame" 
             aria-label="Save Current Frame" 
             onClick={handleSaveFrame} 
-            disabled={isSavingFrame || isSavingAll} 
+            disabled={isLoadingProject || isSavingFrame || isSavingAll}  // Re-added isLoadingProject
           >
           {isSavingFrame ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
            {isSavingFrame ? "Saving..." : "Save Frame"}
@@ -123,7 +121,7 @@ export default function Toolbar() {
             title="Save All Frames" 
             aria-label="Save All Frames" 
             onClick={handleSaveAllFrames} 
-            disabled={isSavingAll || isSavingFrame} 
+            disabled={isLoadingProject || isSavingAll || isSavingFrame} // Re-added isLoadingProject
           >
           {isSavingAll ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Disc3 className="mr-2 h-4 w-4" />}
            {isSavingAll ? "Saving All..." : "Save All"}
