@@ -93,7 +93,6 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
 
 
   useEffect(() => {
-    // This effect now rigorously resets and loads based on routeProjectIdFromProp
     setIsLoadingProject(true);
     setProjectName("Loading...");
     setFps(12);
@@ -103,9 +102,10 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
     setDrawingHistory([null]);
     setDrawingHistoryPointer(0);
 
-    if (!routeProjectIdFromProp || routeProjectIdFromProp.trim() === "") {
+    if (routeProjectIdFromProp === null || routeProjectIdFromProp === undefined || routeProjectIdFromProp.trim() === "") {
       setIsLoadingProject(false);
       setProjectName("No Project ID");
+      toast({ title: "Error", description: "Project ID is missing in URL. Cannot load project.", variant: "destructive" });
       const defaultNoIdFrame: Frame = { id: `frame-no-id-0-${Date.now()}`, dataUrl: null, layers: createDefaultLayers('no-id') };
       _setFramesInternal([defaultNoIdFrame]);
       _setPanelLayersInternal(defaultNoIdFrame.layers);
@@ -152,6 +152,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
         setDrawingHistoryPointer(0);
         _setPanelLayersInternal(createDefaultLayers('fallback-empty-main-effect'));
       }
+      setIsLoadingProject(false); // Moved here to ensure it's set after successful load or default setup
     }).catch(error => {
       toast({title: "Load Error", description: `Failed to load animation project: ${error.message}`, variant: "destructive"});
       const fallbackFrameId = `frame-fallback-0-${Date.now()}`;
@@ -167,8 +168,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
       setDrawingHistory([null]);
       setDrawingHistoryPointer(0);
       _setPanelLayersInternal(fallbackFrames[0]?.layers || createDefaultLayers('fallback-error-main-effect'));
-    }).finally(() => {
-      setIsLoadingProject(false);
+      setIsLoadingProject(false); // Also ensure loading state is cleared on error
     });
   }, [routeProjectIdFromProp, toast]); 
 
@@ -213,7 +213,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
         
         _setFramesInternal(prevFrames => {
             const updatedFrames = [...prevFrames];
-            const currentActiveFrameIndex = activeFrameIndexRef.current; // Use ref for index
+            const currentActiveFrameIndex = activeFrameIndexRef.current;
             if (currentActiveFrameIndex >= 0 && currentActiveFrameIndex < updatedFrames.length && updatedFrames[currentActiveFrameIndex]) {
                 updatedFrames[currentActiveFrameIndex] = { 
                     ...updatedFrames[currentActiveFrameIndex], 
@@ -291,8 +291,8 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
       toast({ title: "Authentication Error", description: "You must be logged in to save.", variant: "destructive" });
       return;
     }
-    if (routeProjectIdFromProp === null || routeProjectIdFromProp === undefined || routeProjectIdFromProp.trim() === "") {
-      toast({ title: "Save Frame Error", description: "Project ID is not available. Please ensure you are on a valid project page.", variant: "destructive" });
+    if (routeProjectIdFromProp === null || routeProjectIdFromProp === undefined || typeof routeProjectIdFromProp !== 'string' || routeProjectIdFromProp.trim() === "") {
+      toast({ title: "Save Frame Error", description: "A valid Project ID is not available. Please ensure you are on a valid project page and try again.", variant: "destructive" });
       return;
     }
     
@@ -345,8 +345,8 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
       toast({ title: "Authentication Error", description: "You must be logged in to save all frames.", variant: "destructive" });
       return;
     }
-     if (routeProjectIdFromProp === null || routeProjectIdFromProp === undefined || routeProjectIdFromProp.trim() === "") {
-      toast({ title: "Save All Error", description: "Project ID is not available. Please ensure you are on a valid project page.", variant: "destructive" });
+     if (routeProjectIdFromProp === null || routeProjectIdFromProp === undefined || typeof routeProjectIdFromProp !== 'string' || routeProjectIdFromProp.trim() === "") {
+      toast({ title: "Save All Error", description: "A valid Project ID is not available. Please ensure you are on a valid project page and try again.", variant: "destructive" });
       return;
     }
 
