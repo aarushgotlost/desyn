@@ -1,6 +1,6 @@
 
 import { db, auth } from '@/lib/firebase'; 
-import type { Community, Post, Comment } from '@/types/data';
+import type { Community, Post, Comment, VideoCallSession } from '@/types/data'; // Added VideoCallSession
 import type { UserProfile } from '@/contexts/AuthContext';
 import {
   collection,
@@ -351,3 +351,14 @@ export async function getAllUsersForNewChat(currentUserId: string, count: number
     .slice(0, count); 
 }
 
+
+// Firestore service to get details of OUR application's video call session
+export async function getCallDetails(appCallId: string): Promise<VideoCallSession | null> {
+  noStore();
+  const callDocRef = doc(db, 'videoCalls', appCallId);
+  const callSnap = await getDoc(callDocRef);
+  if (callSnap.exists()) {
+    return processDoc<VideoCallSession>(callSnap);
+  }
+  return null;
+}

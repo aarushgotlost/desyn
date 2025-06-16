@@ -1,336 +1,279 @@
 
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import {
-  getCallDetails,
-  sendOffer,
-  sendAnswer,
-  addIceCandidateWithClientTimestamp as addIceCandidate, // Using client timestamp version
-  onCallSessionUpdate,
-  onIceCandidate,
-  cleanupCallData,
-} from '@/services/signalingService';
-import { updateCallStatus } from '@/actions/videoCallActions';
-import type { VideoCallSession } from '@/types/data';
+  HMSRoomProvider,
+  useHMSActions,
+  useHMSStore,
+  selectIsConnectedToRoom,
+  selectPeers,
+  selectLocalPeer,
+  selectRoomState,
+  HMSRoomState,
+  selectIsLocalAudioEnabled,
+  selectIsLocalVideoEnabled,
+} from '@100mslive/react-sdk';
+import { Video as HMSVideoTile } from '@100mslive/react-ui'; // Assuming 'Video' is the correct component
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Mic, MicOff, Video, VideoOff, PhoneOff, Loader2, AlertTriangle } from 'lucide-react';
+import { Mic, MicOff, VideoOff, PhoneOff, Loader2, AlertTriangle, Video as VideoIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { updateCallStatus as updateAppCallStatus } from '@/actions/videoCallActions'; // Action to update our Firestore session
+import { USER_ROLES_100MS } from '@/lib/constants';
 import { getInitials } from '@/lib/utils';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+
 
 interface VideoCallUIProps {
-  callId: string;
-  currentUserId: string;
+  authToken: string;
+  userName: string;
+  initialRole: string; // e.g., 'host' or 'guest' from USER_ROLES_100MS
+  appCallId: string; // Our application's Firestore call ID
+  onPermissionsError?: () => void;
 }
 
-const servers = {
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-    // In production, add TURN servers here for reliability
-  ],
-};
+function RoomContent({ authToken, userName, initialRole, appCallId, onPermissionsError }: VideoCallUIProps & {isLoading: boolean, setIsLoading: React.Dispatch<React.SetStateAction<boolean>>}) {
+  const hmsActions = useHMSActions();
+  const isConnected = useHMSStore(selectIsConnectedToRoom);
+  const peers = useHMSStore(selectPeers);
+  const localPeer = useHMSStore(selectLocalPeer);
+  const roomState = useHMSStore(selectRoomState);
+  const isLocalAudioEnabled = useHMSStore(selectIsLocalAudioEnabled);
+  const isLocalVideoEnabled = useHMSStore(selectIsLocalVideoEnabled);
 
-export function VideoCallUI({ callId, currentUserId }: VideoCallUIProps) {
-  const { userProfile } = useAuth();
   const { toast } = useToast();
-
-  const localVideoRef = useRef<HTMLVideoElement>(null);
-  const remoteVideoRef = useRef<HTMLVideoElement>(null);
-  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
-  const localStreamRef = useRef<MediaStream | null>(null);
-
-  const [callSession, setCallSession] = useState<VideoCallSession | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [callStatus, setCallStatus] = useState<VideoCallSession['status'] | 'connecting_media' | 'initializing_rtc' | 'waiting_for_peer' >('initializing_rtc');
-  
-  const [isAudioMuted, setIsAudioMuted] = useState(false);
-  const [isVideoMuted, setIsVideoMuted] = useState(false);
-  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
-
-  const otherUserId = callSession?.callerId === currentUserId ? callSession.calleeId : callSession?.callerId;
-  const otherUserName = callSession?.callerId === currentUserId ? callSession.calleeName : callSession?.callerName;
+  const [hasAttemptedJoin, setHasAttemptedJoin] = useState(false);
+  const {isLoading, setIsLoading} = arguments[0]; // Get from props
 
 
-  const initializeMedia = useCallback(async () => {
-    setCallStatus('connecting_media');
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      localStreamRef.current = stream;
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
-      }
-      setHasCameraPermission(true);
-      return stream;
-    } catch (error) {
-      console.error('Error accessing media devices.', error);
-      toast({ variant: 'destructive', title: 'Media Access Denied', description: 'Please enable camera and microphone permissions.' });
-      setHasCameraPermission(false);
-      setCallStatus('error');
-      updateCallStatus(callId, 'error');
-      throw error;
-    }
-  }, [callId, toast]);
-
-  const initializePeerConnection = useCallback((stream: MediaStream) => {
-    setCallStatus('initializing_rtc');
-    const pc = new RTCPeerConnection(servers);
-
-    pc.onicecandidate = (event) => {
-      if (event.candidate && otherUserId) {
-        addIceCandidate(callId, currentUserId, otherUserId, event.candidate.toJSON());
-      }
-    };
-
-    pc.ontrack = (event) => {
-      if (remoteVideoRef.current && event.streams[0]) {
-        remoteVideoRef.current.srcObject = event.streams[0];
-        setCallStatus('connected');
-        updateCallStatus(callId, 'connected');
-      }
-    };
-
-    stream.getTracks().forEach((track) => {
-      pc.addTrack(track, stream);
-    });
-
-    peerConnectionRef.current = pc;
-    return pc;
-  }, [callId, currentUserId, otherUserId]);
-
-
-  // Effect for fetching initial call details and setting up signaling listeners
+  // Effect to join the 100ms room
   useEffect(() => {
-    if (!callId || !currentUserId) return;
+    if (!authToken || !hmsActions || hasAttemptedJoin || roomState !== HMSRoomState.Disconnected) {
+      return;
+    }
+    
+    console.log(`Attempting to join 100ms room. Role: ${initialRole}, Token: ${authToken ? 'present' : 'absent'}`);
+    setHasAttemptedJoin(true);
     setIsLoading(true);
 
-    getCallDetails(callId).then(session => {
-      if (session) {
-        setCallSession(session);
-        setCallStatus(session.status === 'pending' && session.callerId !== currentUserId ? 'waiting_for_peer' : session.status);
-      } else {
-        toast({ variant: 'destructive', title: 'Call Not Found', description: 'The call session does not exist or has ended.' });
-        setCallStatus('error');
-      }
-      setIsLoading(false);
-    }).catch(err => {
-        console.error("Error fetching call details: ", err);
-        toast({ variant: 'destructive', title: 'Error', description: 'Could not load call details.' });
-        setIsLoading(false);
-        setCallStatus('error');
-    });
-    
-    const unsubscribeCallUpdates = onCallSessionUpdate(callId, (updatedSession) => {
-      if (updatedSession) {
-        setCallSession(updatedSession); // Keep local state in sync
-        // Handle incoming offer if I'm the callee
-        if (updatedSession.offer && updatedSession.calleeId === currentUserId && peerConnectionRef.current && peerConnectionRef.current.signalingState === 'stable') {
-          if(localStreamRef.current && peerConnectionRef.current) {
-            peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(updatedSession.offer))
-              .then(() => peerConnectionRef.current!.createAnswer())
-              .then(answer => peerConnectionRef.current!.setLocalDescription(answer))
-              .then(() => {
-                if (peerConnectionRef.current?.localDescription) {
-                  sendAnswer(callId, peerConnectionRef.current.localDescription.toJSON(), currentUserId);
-                  updateCallStatus(callId, 'answered');
-                  setCallStatus('answered');
-                }
-              })
-              .catch(e => { console.error("Error handling offer/answer for callee: ", e); setCallStatus('error');});
-          } else {
-            // Media not ready yet, this scenario needs robust handling (e.g., queueing the offer)
-            console.warn("Received offer but local media/PC not ready for callee");
-          }
-        }
-        // Handle incoming answer if I'm the caller
-        else if (updatedSession.answer && updatedSession.callerId === currentUserId && peerConnectionRef.current && peerConnectionRef.current.signalingState === 'have-local-offer') {
-          peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(updatedSession.answer))
-            .catch(e => { console.error("Error setting remote description for caller: ", e); setCallStatus('error');});
-        }
-        
-        if (updatedSession.status === 'ended' || updatedSession.status === 'declined' || updatedSession.status === 'cancelled') {
-            setCallStatus(updatedSession.status);
-            hangUp(false); // Don't send another update if already ended/declined
-        }
-      }
-    });
-
-    let unsubscribeIce: (() => void) | null = null;
-    if (otherUserId) { // Only subscribe if otherUserId is known
-        unsubscribeIce = onIceCandidate(callId, currentUserId, (candidate) => {
-          if (peerConnectionRef.current) {
-            peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate))
-              .catch(e => console.error("Error adding received ICE candidate: ", e));
-          }
+    const joinRoom = async () => {
+      try {
+        await hmsActions.join({
+          userName: userName,
+          authToken: authToken,
+          role: initialRole,
         });
-    }
-
-
-    return () => {
-      unsubscribeCallUpdates();
-      if (unsubscribeIce) unsubscribeIce();
-    };
-  }, [callId, currentUserId, otherUserId, toast]); // otherUserId dependency added
-
-  // Effect for initiating the call if current user is the caller
-  useEffect(() => {
-    if (callSession && callSession.callerId === currentUserId && callSession.status === 'pending' && peerConnectionRef.current && peerConnectionRef.current.signalingState === 'stable') {
-      setCallStatus('offered');
-      updateCallStatus(callId, 'offered');
-      peerConnectionRef.current.createOffer()
-        .then(offer => peerConnectionRef.current!.setLocalDescription(offer))
-        .then(() => {
-          if (peerConnectionRef.current?.localDescription) {
-            sendOffer(callId, peerConnectionRef.current.localDescription.toJSON(), currentUserId);
-          }
-        })
-        .catch(e => { console.error("Error creating/sending offer: ", e); setCallStatus('error');});
-    }
-  }, [callSession, currentUserId, callId]);
-
-
-  // Main setup effect: Get media, then initialize PC
-  useEffect(() => {
-    initializeMedia()
-      .then(stream => {
-        if (stream) {
-          initializePeerConnection(stream);
+        // Connection state will be managed by isConnected and roomState selectors
+        await updateAppCallStatus(appCallId, 'connected'); // Update our Firestore session
+      } catch (error: any) {
+        console.error('Error joining 100ms room:', error);
+        toast({
+          variant: 'destructive',
+          title: 'Connection Error',
+          description: error.message || 'Could not join the video call.',
+        });
+        await updateAppCallStatus(appCallId, 'error');
+         if (onPermissionsError && (error.code === 2001 || error.message?.includes('permission'))) { // Example error codes for permission issues
+            onPermissionsError();
         }
-      })
-      .catch(() => {
-        // Error already handled in initializeMedia
-      });
-    
-    return () => {
-        hangUp(true); // Attempt to notify other user on unmount/cleanup
+      } finally {
+         setIsLoading(false);
+      }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initializeMedia, initializePeerConnection]); // callId dependency removed as it causes re-runs, handled by parent context
+    joinRoom();
 
+  }, [hmsActions, authToken, userName, initialRole, hasAttemptedJoin, roomState, appCallId, toast, setIsLoading, onPermissionsError]);
 
-  const hangUp = async (notifyServer = true) => {
-    localStreamRef.current?.getTracks().forEach(track => track.stop());
-    peerConnectionRef.current?.close();
-    localStreamRef.current = null;
-    peerConnectionRef.current = null;
-    if (localVideoRef.current) localVideoRef.current.srcObject = null;
-    if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
-    setCallStatus('ended');
-    if (notifyServer && callId && callSession?.status !== 'ended' && callSession?.status !== 'declined' && callSession?.status !== 'cancelled') {
-        await updateCallStatus(callId, currentUserId === callSession?.callerId && callSession?.status === 'pending' ? 'cancelled' : 'ended');
-    }
-    if (callId) {
-        await cleanupCallData(callId); // Clean up Firestore data
-    }
-    // Optionally redirect or show "call ended" message
-    // router.push('/profile'); // Example redirect
-  };
+  // Effect to leave the 100ms room on component unmount or when isConnected changes
+  useEffect(() => {
+    return () => {
+      if (roomState !== HMSRoomState.Disconnected) {
+        console.log("Leaving 100ms room due to component unmount or disconnect state.");
+        hmsActions.leave()
+          .then(() => updateAppCallStatus(appCallId, 'ended'))
+          .catch(err => console.error("Error leaving 100ms room on unmount:", err));
+      }
+    };
+  }, [hmsActions, appCallId, roomState]); // roomState added to deps
 
-  const toggleAudio = () => {
-    if (localStreamRef.current) {
-      localStreamRef.current.getAudioTracks().forEach(track => track.enabled = !track.enabled);
-      setIsAudioMuted(prev => !prev);
-    }
-  };
-
-  const toggleVideo = () => {
-    if (localStreamRef.current) {
-      localStreamRef.current.getVideoTracks().forEach(track => track.enabled = !track.enabled);
-      setIsVideoMuted(prev => !prev);
+  const handleLeaveCall = async () => {
+    setIsLoading(true);
+    try {
+      await hmsActions.leave();
+      await updateAppCallStatus(appCallId, 'ended'); // Update our Firestore call session
+    } catch (error) {
+      console.error('Error leaving call:', error);
+      toast({ variant: 'destructive', title: 'Error', description: 'Could not leave the call properly.' });
+    } finally {
+        setIsLoading(false);
     }
   };
 
-  if (isLoading) {
-    return <div className="flex flex-col items-center justify-center h-screen"><Loader2 className="h-16 w-16 animate-spin text-primary" /><p className="mt-4">Loading call...</p></div>;
-  }
-  
-  if (hasCameraPermission === false) {
-     return (
-      <div className="flex flex-col items-center justify-center h-screen p-4 text-center">
-        <AlertTriangle className="h-16 w-16 text-destructive mb-4" />
-        <h2 className="text-2xl font-bold mb-2">Camera & Microphone Required</h2>
-        <p className="text-muted-foreground mb-4">This application requires access to your camera and microphone to function. Please grant permission in your browser settings.</p>
-        <Button onClick={() => window.location.reload()}>Retry Permissions</Button>
+  const toggleAudio = async () => {
+    await hmsActions.setLocalAudioEnabled(!isLocalAudioEnabled);
+  };
+
+  const toggleVideo = async () => {
+    await hmsActions.setLocalVideoEnabled(!isLocalVideoEnabled);
+  };
+
+
+  if (isLoading && !isConnected && roomState === HMSRoomState.Connecting) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full">
+        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+        <p>Joining call...</p>
       </div>
     );
   }
 
-  if (callStatus === 'error' || !callSession) {
-    return <div className="flex flex-col items-center justify-center h-screen text-destructive"><AlertTriangle className="h-16 w-16 mb-2" />Call Error or Not Found. Please try again.</div>;
+  if (roomState === HMSRoomState.Error || roomState === HMSRoomState.Failed) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-destructive">
+        <AlertTriangle className="h-12 w-12 mb-4" />
+        <p>Failed to connect to the call.</p>
+         <Button onClick={() => window.location.reload()} variant="outline" className="mt-4">Try Again</Button>
+      </div>
+    );
+  }
+  
+  if (!isConnected && (roomState === HMSRoomState.Disconnected && hasAttemptedJoin && !isLoading)) {
+     return (
+      <div className="flex flex-col items-center justify-center h-full text-destructive">
+        <AlertTriangle className="h-12 w-12 mb-4" />
+        <p>Disconnected. The call may have ended or there was a connection issue.</p>
+         <Button onClick={() => window.location.reload()} variant="outline" className="mt-4">Reconnect</Button>
+      </div>
+    );
   }
 
-  if (callStatus === 'ended' || callStatus === 'declined' || callStatus === 'cancelled') {
-    return <div className="flex flex-col items-center justify-center h-screen"><PhoneOff className="h-16 w-16 text-muted-foreground mb-2" />Call Ended.</div>;
-  }
 
+  if (!isConnected && !hasAttemptedJoin && !isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full">
+        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+        <p>Initializing...</p>
+      </div>
+    );
+  }
+  
+  // Display for remote peers
+  const remotePeers = peers.filter(peer => !peer.isLocal);
 
   return (
-    <div className="flex flex-col h-screen bg-gray-900 text-white relative">
-      {/* Remote Video - Takes up most of the space */}
-      <div className="flex-grow relative bg-black flex items-center justify-center">
-        <video ref={remoteVideoRef} autoPlay playsInline className="h-full w-full object-cover" />
-        {(callStatus === 'connecting_media' || callStatus === 'initializing_rtc' || callStatus === 'pending' || callStatus === 'offered' || callStatus === 'answered' || callStatus === 'waiting_for_peer') && !remoteVideoRef.current?.srcObject && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70">
-            <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-            <p className="text-lg">
-              {callStatus === 'waiting_for_peer' ? `Waiting for ${otherUserName || 'peer'} to join...` :
-               callStatus === 'pending' && callSession.callerId === currentUserId ? `Calling ${otherUserName || 'peer'}...` :
-               callStatus === 'offered' && callSession.callerId === currentUserId ? `Calling ${otherUserName || 'peer'}...` :
-               callStatus === 'answered' && callSession.calleeId === currentUserId ? `Connecting to ${otherUserName || 'peer'}...`:
-               `Connecting call with ${otherUserName || 'peer'}... (${callStatus})`}
-            </p>
-             {callSession.callerId === currentUserId && (callStatus === 'pending' || callStatus === 'offered') && (
-                <Button variant="destructive" onClick={() => hangUp(true)} className="mt-6">Cancel Call</Button>
-            )}
-            {callSession.calleeId === currentUserId && callStatus === 'waiting_for_peer' && (
-                 <div className="mt-6 space-x-4">
-                    {/* Answer button is implicit for callee, this is just visual status */}
-                 </div>
-            )}
-          </div>
-        )}
-        {callStatus === 'connected' && !remoteVideoRef.current?.srcObject && (
-             <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70">
-                <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-                <p className="text-lg">Waiting for remote video...</p>
+    <div className="flex flex-col h-full bg-gray-900 text-white relative">
+      {/* Video Grid */}
+      <div className="flex-grow grid grid-cols-1 md:grid-cols-2 gap-2 p-2 overflow-auto">
+        {localPeer && (
+            <div className="relative aspect-video bg-black rounded-md overflow-hidden shadow-lg border-2 border-primary">
+                <HMSVideoTile 
+                    peer={localPeer} 
+                    isLocal={true} 
+                    className="object-cover w-full h-full"
+                />
+                <div className="absolute bottom-2 left-2 bg-black/50 text-white px-2 py-1 rounded text-sm">
+                    {localPeer.name} (You)
+                </div>
             </div>
         )}
-         <div className="absolute top-4 left-4 bg-black/50 p-2 rounded-md">
-            <p className="text-sm">Connected to: {otherUserName || 'Peer'}</p>
-        </div>
+        {remotePeers.map(peer => (
+          <div key={peer.id} className="relative aspect-video bg-black rounded-md overflow-hidden shadow-lg">
+            {peer.videoTrack ? (
+              <HMSVideoTile 
+                trackId={peer.videoTrack} 
+                className="object-cover w-full h-full" 
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center bg-gray-800">
+                <Avatar className="w-24 h-24 text-3xl">
+                  <AvatarFallback>{getInitials(peer.name)}</AvatarFallback>
+                </Avatar>
+              </div>
+            )}
+            <div className="absolute bottom-2 left-2 bg-black/50 text-white px-2 py-1 rounded text-sm">
+              {peer.name}
+            </div>
+          </div>
+        ))}
+        {remotePeers.length === 0 && isConnected && (
+            <div className="md:col-span-1 flex items-center justify-center text-muted-foreground text-center p-4">
+                <p>Waiting for others to join...</p>
+            </div>
+        )}
       </div>
-
-      {/* Local Video - Smaller, in a corner */}
-      <video 
-        ref={localVideoRef} 
-        autoPlay 
-        playsInline 
-        muted 
-        className="absolute bottom-20 md:bottom-24 right-4 w-32 h-24 md:w-48 md:h-36 object-cover rounded-md border-2 border-gray-700 shadow-lg"
-        style={{ display: isVideoMuted || !hasCameraPermission ? 'none' : 'block' }}
-      />
-      {isVideoMuted && hasCameraPermission && (
-        <div className="absolute bottom-20 md:bottom-24 right-4 w-32 h-24 md:w-48 md:h-36 bg-gray-800 flex items-center justify-center rounded-md border-2 border-gray-700 shadow-lg">
-            <VideoOff className="h-8 w-8 text-gray-400"/>
-        </div>
-      )}
-
 
       {/* Controls */}
-      <div className="bg-gray-800/80 backdrop-blur-sm p-3 md:p-4 flex justify-center items-center space-x-3 md:space-x-4 absolute bottom-0 left-0 right-0">
-        <Button onClick={toggleAudio} variant="outline" size="icon" className={`rounded-full h-12 w-12 md:h-14 md:w-14 ${isAudioMuted ? 'bg-destructive hover:bg-destructive/90' : 'bg-gray-700 hover:bg-gray-600'} text-white`}>
-          {isAudioMuted ? <MicOff /> : <Mic />}
-        </Button>
-        <Button onClick={toggleVideo} variant="outline" size="icon" className={`rounded-full h-12 w-12 md:h-14 md:w-14 ${isVideoMuted ? 'bg-destructive hover:bg-destructive/90' : 'bg-gray-700 hover:bg-gray-600'} text-white`}>
-          {isVideoMuted ? <VideoOff /> : <Video />}
-        </Button>
-        <Button onClick={() => hangUp(true)} variant="destructive" size="icon" className="rounded-full h-14 w-14 md:h-16 md:w-16">
-          <PhoneOff />
-        </Button>
-      </div>
+      {isConnected && (
+        <div className="bg-gray-800/80 backdrop-blur-sm p-3 md:p-4 flex justify-center items-center space-x-3 md:space-x-4 absolute bottom-0 left-0 right-0">
+          <Button onClick={toggleAudio} variant="outline" size="icon" className={`rounded-full h-12 w-12 md:h-14 md:w-14 ${!isLocalAudioEnabled ? 'bg-destructive hover:bg-destructive/90' : 'bg-gray-700 hover:bg-gray-600'} text-white`}>
+            {!isLocalAudioEnabled ? <MicOff /> : <Mic />}
+          </Button>
+          <Button onClick={toggleVideo} variant="outline" size="icon" className={`rounded-full h-12 w-12 md:h-14 md:w-14 ${!isLocalVideoEnabled ? 'bg-destructive hover:bg-destructive/90' : 'bg-gray-700 hover:bg-gray-600'} text-white`}>
+            {!isLocalVideoEnabled ? <VideoOff /> : <VideoIcon />}
+          </Button>
+          <Button onClick={handleLeaveCall} variant="destructive" size="icon" className="rounded-full h-14 w-14 md:h-16 md:w-16">
+            <PhoneOff />
+          </Button>
+        </div>
+      )}
     </div>
+  );
+}
+
+
+export function VideoCallUIWrapper(props: VideoCallUIProps) {
+  const [isLoading, setIsLoading] = useState(true); // Moved loading state here
+  const [hasMediaPermission, setHasMediaPermission] = useState<boolean | null>(null);
+  const mediaCheckedRef = useRef(false);
+  const { toast } = useToast();
+
+  const checkMediaPermissions = useCallback(async () => {
+    if (mediaCheckedRef.current) return;
+    mediaCheckedRef.current = true;
+    setIsLoading(true);
+    try {
+      // Just request to check, stream not stored here
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      stream.getTracks().forEach(track => track.stop()); // Stop tracks immediately after permission check
+      setHasMediaPermission(true);
+      props.onPermissionsError?.(); // Call if defined, though it's success here
+    } catch (error) {
+      console.error("Error getting media permissions:", error);
+      toast({ variant: "destructive", title: "Permissions Denied", description: "Camera and microphone access are required for video calls."});
+      setHasMediaPermission(false);
+      if (props.onPermissionsError) props.onPermissionsError();
+    } finally {
+      setIsLoading(false);
+    }
+  }, [props, toast]);
+
+  useEffect(() => {
+    checkMediaPermissions();
+  }, [checkMediaPermissions]);
+  
+  if (isLoading || hasMediaPermission === null) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-background text-foreground">
+        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+        <p className="text-lg">Checking permissions...</p>
+      </div>
+    );
+  }
+
+  if (hasMediaPermission === false) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen p-4 text-center bg-background text-foreground">
+        <AlertTriangle className="h-16 w-16 text-destructive mb-4" />
+        <h2 className="text-2xl font-bold mb-2">Media Access Required</h2>
+        <p className="text-muted-foreground mb-4">Please grant camera and microphone permissions in your browser settings and refresh the page.</p>
+        <Button onClick={() => window.location.reload()}>Refresh Page</Button>
+      </div>
+    );
+  }
+
+  return (
+    <HMSRoomProvider>
+      <RoomContent {...props} isLoading={isLoading} setIsLoading={setIsLoading} />
+    </HMSRoomProvider>
   );
 }

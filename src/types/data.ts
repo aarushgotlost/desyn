@@ -42,16 +42,13 @@ export interface Comment {
 // UserProfile is defined in AuthContext.tsx
 
 export interface VideoCallSession {
-  id: string;
+  id: string; // Firestore document ID for our app's call session
   callerId: string;
   calleeId: string;
   callerName?: string;
   calleeName?: string;
-  callerFcmTokens?: string[];
-  calleeFcmTokens?: string[];
-  offer?: RTCSessionDescriptionInit;
-  answer?: RTCSessionDescriptionInit;
-  status: 'pending' | 'offered' | 'answered' | 'connected' | 'ended' | 'declined' | 'error' | 'cancelled';
+  // offer and answer are removed as 100ms SDK handles WebRTC details
+  status: 'pending' | 'connected' | 'ended' | 'declined' | 'error' | 'cancelled'; // Our app's status for the call
   createdAt: string; // ISO string
   updatedAt: string; // ISO string
 }
