@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { HomeIcon, PlusCircle, MessageSquare, User as UserIcon, Compass } from 'lucide-react';
+import { HomeIcon, PlusCircle, MessageSquare, User as UserIcon, Compass, Film } from 'lucide-react'; // Added Film
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -12,6 +12,7 @@ import { getInitials } from '@/lib/utils';
 const navItems = [
   { href: "/", label: "Home", icon: HomeIcon, authRequired: false },
   { href: "/communities", label: "Discover", icon: Compass, authRequired: false },
+  { href: "/animation", label: "Tearix2D", icon: Film, authRequired: true }, // Added Tearix2D
   { href: "/posts/create", label: "Create", icon: PlusCircle, authRequired: true },
   { href: "/messages", label: "Messages", icon: MessageSquare, authRequired: true },
   { href: "/profile", label: "Profile", icon: UserIcon, authRequired: true, isProfile: true }, 
@@ -28,9 +29,10 @@ export function BottomNavigationBar() {
   const authPages = ['/login', '/signup', '/forgot-password', '/onboarding', '/onboarding/profile-setup'];
   const isChatDetailPage = pathname.startsWith('/messages/') && pathname.split('/').length > 2 && pathname.split('/')[2] !== 'new';
   const isChatBotPage = pathname === '/chatbot';
+  const isAnimationWorkspace = pathname.startsWith('/animation/') && pathname.split('/').length > 2;
 
 
-  if (authPages.includes(pathname) || isChatDetailPage || isChatBotPage ) { 
+  if (authPages.includes(pathname) || isChatDetailPage || isChatBotPage || isAnimationWorkspace) { 
     return null;
   }
 
@@ -54,10 +56,16 @@ export function BottomNavigationBar() {
         gridColClass
       )}>
         {itemsToRender.map(item => { 
-          const isActive = (item.href === "/" && pathname === item.href) || 
+          let isActive = (item.href === "/" && pathname === item.href) || 
                            (item.href !== "/" && pathname.startsWith(item.href) && 
-                            !(item.href === "/messages" && isChatDetailPage)
+                            !(item.href === "/messages" && isChatDetailPage) &&
+                            !(item.href === "/animation" && isAnimationWorkspace) 
                            );
+          
+          // Specific check for /animation to be active only on /animation, not /animation/[projectId]
+          if (item.href === "/animation") {
+            isActive = pathname === "/animation";
+          }
           
           return (
             <Link
