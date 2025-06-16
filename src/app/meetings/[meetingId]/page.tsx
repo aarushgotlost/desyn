@@ -15,12 +15,12 @@ import { getMeetingDetails } from '@/services/firestoreService';
 import { joinMeeting as joinMeetingAction } from '@/actions/meetingActions';
 import type { Meeting, MeetingParticipant } from '@/types/data';
 import { formatDistanceToNowStrict } from 'date-fns';
-import { getInitials, cn } from '@/lib/utils';
+import { getInitials, cn } from "@/lib/utils";
 import AgoraRTC, { type IAgoraRTCClient, type ILocalAudioTrack, type ILocalVideoTrack, type IRemoteAudioTrack, type IRemoteVideoTrack, type IAgoraRTCRemoteUser, type UID } from 'agora-rtc-sdk-ng';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const AGORA_APP_ID = process.env.NEXT_PUBLIC_AGORA_APP_ID || "";
-const AGORA_PLACEHOLDER_APP_ID = "YOUR_AGORA_APP_ID"; // Used for checking if the default placeholder is still there
+const AGORA_PLACEHOLDER_APP_ID = "YOUR_AGORA_APP_ID";
 
 interface RemoteUserWithTracks extends IAgoraRTCRemoteUser {
   displayName?: string;
@@ -101,20 +101,17 @@ export default function MeetingDetailPage() {
         toast({ title: "Agora Error", description: "Error leaving video call.", variant: "destructive" });
       }
     }
-    // Do not destroy the client here if you intend to re-join,
-    // but if this is a final cleanup, you might consider it.
-    // For simplicity now, we keep the client instance.
     
     setIsAgoraJoined(false);
     setRemoteUsers([]);
-    setIsCameraOff(true); // Reset camera state
-    setIsMicMuted(false);  // Reset mic state
+    setIsCameraOff(true); 
+    setIsMicMuted(false); 
     console.log("Agora cleanup finished.");
   }, [isAgoraJoined, toast]);
 
 
   useEffect(() => {
-    initializeAgoraClient(); // Initialize on component mount
+    initializeAgoraClient(); 
 
     if (!meetingId) {
         router.push('/meetings');
@@ -139,16 +136,10 @@ export default function MeetingDetailPage() {
     }
     fetchMeeting();
     
+    // Cleanup on component unmount
     return () => {
       console.log("MeetingDetailPage unmounting, performing cleanupAgora.");
       cleanupAgora();
-      // If you want to completely destroy the client on unmount:
-      // if (agoraClientRef.current) {
-      //   agoraClientRef.current.removeAllListeners(); // Important for preventing memory leaks
-      //   agoraClientRef.current = null; // Allow re-initialization if component mounts again
-      //   setIsAgoraClientInitialized(false);
-      //   console.log("Agora client fully destroyed.");
-      // }
     };
   }, [meetingId, router, toast, cleanupAgora, initializeAgoraClient]);
 
@@ -166,22 +157,24 @@ export default function MeetingDetailPage() {
     setIsPublishing(true);
     console.log("Attempting to join Agora channel:", meetingId, "as user:", user.uid);
     try {
+      // For production, ensure your Agora project uses token authentication.
+      // For testing without a token server, your Agora project must be set to "APP ID" (testing mode).
+      // If it's set to "APP ID + Certificate", this join will fail without a valid token.
       await agoraClientRef.current.join(AGORA_APP_ID, meetingId, null, user.uid);
       setIsAgoraJoined(true);
       toast({ title: "Joined video call" });
       console.log("Successfully joined Agora channel");
 
       console.log("Attempting to create and publish local tracks...");
-      // Create and publish local tracks
       try {
         const tracks = await AgoraRTC.createMicrophoneAndCameraTracks();
         localAudioTrackRef.current = tracks[0];
         localVideoTrackRef.current = tracks[1];
         console.log("Local audio and video tracks created.");
-      } catch (mediaError) {
+      } catch (mediaError: any) {
         console.error("Failed to create media tracks:", mediaError);
-        toast({ title: "Media Error", description: `Could not access camera/microphone: ${(mediaError as Error).message}. Please check permissions.`, variant: "destructive", duration: 7000 });
-        await cleanupAgora(); // Cleanup if media fails
+        toast({ title: "Media Error", description: `Could not access camera/microphone: ${mediaError.message}. Please check permissions.`, variant: "destructive", duration: 7000 });
+        await cleanupAgora(); 
         setIsPublishing(false);
         return;
       }
@@ -194,17 +187,23 @@ export default function MeetingDetailPage() {
         console.warn("Local video track or container not available for playback.");
       }
       if (localAudioTrackRef.current) {
-        setIsMicMuted(false); // Assuming default is unmuted
+        setIsMicMuted(false); 
         console.log("Local audio track initialized (default unmuted).");
       }
       
       await agoraClientRef.current.publish([localAudioTrackRef.current!, localVideoTrackRef.current!]);
       console.log("Published local tracks successfully.");
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to join Agora channel or publish tracks:", error);
-      toast({ title: "Video Call Error", description: `Could not join or publish: ${(error as Error).message}`, variant: "destructive" });
-      await cleanupAgora(); // Ensure cleanup on failure
+      let description = `Could not join or publish: ${error.message || 'Unknown error'}`;
+      // Check for the specific "dynamic use static key" error
+      if (error.code === 'CAN_NOT_GET_GATEWAY_SERVER' || (error.message && error.message.toLowerCase().includes('dynamic use static key'))) {
+        description = "Failed to join: The Agora project might be configured to require a security token, but the app is trying to join without one. Please check your Agora project settings (consider using 'APP ID' only for testing, or implement token authentication for production).";
+        console.error("Specific Agora Error: ", description);
+      }
+      toast({ title: "Video Call Error", description, variant: "destructive", duration: 10000 });
+      await cleanupAgora(); 
     } finally {
       setIsPublishing(false);
     }
@@ -214,7 +213,6 @@ export default function MeetingDetailPage() {
   useEffect(() => {
     const client = agoraClientRef.current;
     if (!client || !isAgoraJoined || !isAgoraClientInitialized) {
-        // console.log("Agora client not ready for event listeners or not joined.");
         return;
     }
 
@@ -226,12 +224,11 @@ export default function MeetingDetailPage() {
         await client.subscribe(remoteUser, mediaType);
         console.log(`Subscribed to ${mediaType} from ${remoteUser.uid}`);
         
-        // Update remoteUsers state to include user info and trigger re-render
         setRemoteUsers(prevUsers => {
           const existingUser = prevUsers.find(u => u.uid === remoteUser.uid);
           const participantProfile = meeting?.participants.find(p => p.uid === remoteUser.uid.toString());
           const updatedUser = {
-            ...remoteUser, // Spread the latest remoteUser object which includes tracks
+            ...remoteUser, 
             displayName: participantProfile?.displayName || `User ${remoteUser.uid}`,
             photoURL: participantProfile?.photoURL,
           };
@@ -242,10 +239,6 @@ export default function MeetingDetailPage() {
           return [...prevUsers, updatedUser];
         });
 
-        if (mediaType === 'video' && remoteUser.videoTrack) {
-          console.log(`Video track for ${remoteUser.uid} is available.`);
-          // Defer playback to the effect that monitors remoteUsers change
-        }
         if (mediaType === 'audio' && remoteUser.audioTrack) {
           console.log(`Audio track for ${remoteUser.uid} is available. Playing.`);
           remoteUser.audioTrack.play();
@@ -270,31 +263,23 @@ export default function MeetingDetailPage() {
     client.on("user-published", handleUserPublished);
     client.on("user-unpublished", handleUserUnpublished);
     client.on("user-left", handleUserLeft);
-    // client.on("connection-state-change", (curState, prevState, reason) => {
-    //   console.log("Connection state change:", curState, prevState, reason);
-    // });
 
     return () => {
       console.log("Cleaning up Agora event listeners.");
       client.off("user-published", handleUserPublished);
       client.off("user-unpublished", handleUserUnpublished);
       client.off("user-left", handleUserLeft);
-      // client.off("connection-state-change");
     };
   }, [isAgoraJoined, meeting?.participants, isAgoraClientInitialized]);
 
-  // Effect for playing remote video tracks when they become available
+  // Effect for playing remote video tracks
   useEffect(() => {
     remoteUsers.forEach(user => {
       if (user.videoTrack && user.hasVideo) {
         const container = remoteVideoContainerRefs.current.get(user.uid);
-        if (container && !container.hasChildNodes()) { // Play only if container is empty
+        if (container && !container.hasChildNodes()) { 
           console.log(`Playing video for remote user ${user.uid} in its container.`);
           user.videoTrack.play(container);
-        } else if (container && container.hasChildNodes()){
-          // console.log(`Video container for ${user.uid} already has content or track not ready.`);
-        } else if (!container) {
-          console.warn(`Video container for remote user ${user.uid} not found.`);
         }
       }
     });
@@ -348,9 +333,9 @@ export default function MeetingDetailPage() {
         await agoraClientRef.current?.publish([localVideoTrackRef.current]);
         setIsCameraOff(false);
         console.log("Camera track created and published on demand.");
-      } catch (error) {
+      } catch (error: any) {
         console.error("Failed to start camera on demand:", error);
-        toast({ title: "Camera Error", description: `Could not start camera: ${(error as Error).message}`, variant: "destructive"});
+        toast({ title: "Camera Error", description: `Could not start camera: ${error.message}`, variant: "destructive"});
       } finally {
         setIsPublishing(false);
       }
@@ -375,7 +360,7 @@ export default function MeetingDetailPage() {
       await localAudioTrackRef.current.setEnabled(!localAudioTrackRef.current.enabled);
       setIsMicMuted(!localAudioTrackRef.current.enabled);
       console.log(`Microphone toggled. Enabled: ${localAudioTrackRef.current.enabled}`);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error toggling microphone:", error);
       toast({ title: "Microphone Error", description: "Could not toggle microphone state.", variant: "destructive"});
     }
@@ -385,8 +370,6 @@ export default function MeetingDetailPage() {
     console.log("User clicked Leave Meeting button.");
     await cleanupAgora();
     toast({title: "You left the video call."});
-    // Optional: update Firestore status or navigate away
-    // router.push('/meetings'); 
   };
 
   if (isLoading || authLoading) {
@@ -419,7 +402,7 @@ export default function MeetingDetailPage() {
             <AlertTriangle className="h-5 w-5" />
             <AlertTitle>Agora App ID Missing or Invalid</AlertTitle>
             <AlertDescription>
-              Video call functionality is disabled. Please ensure <code className="font-mono bg-muted px-1 py-0.5 rounded">NEXT_PUBLIC_AGORA_APP_ID</code> is correctly set in your <code className="font-mono bg-muted px-1 py-0.5 rounded">.env.local</code> file and is not the placeholder value. Restart your development server after changes.
+              Video call functionality is disabled. Please ensure <code className="font-mono bg-muted px-1 py-0.5 rounded">NEXT_PUBLIC_AGORA_APP_ID</code> is correctly set in your environment and is not the placeholder value. Restart your development server after changes.
             </AlertDescription>
           </Alert>
       )}
@@ -482,8 +465,8 @@ export default function MeetingDetailPage() {
                     "grid gap-2",
                     remoteUsers.length === 1 ? "grid-cols-1" :
                     remoteUsers.length === 2 ? "grid-cols-1 sm:grid-cols-2" :
-                    remoteUsers.length <= 4 ? "grid-cols-1 sm:grid-cols-2" : // Up to 4, use 2 columns on sm+
-                    "grid-cols-1 sm:grid-cols-2 md:grid-cols-3" // More than 4, use 3 columns on md+
+                    remoteUsers.length <= 4 ? "grid-cols-1 sm:grid-cols-2" : 
+                    "grid-cols-1 sm:grid-cols-2 md:grid-cols-3" 
                   )}>
                     {remoteUsers.map(remoteU => (
                       <div 
@@ -620,12 +603,5 @@ export default function MeetingDetailPage() {
   );
 }
     
-// Note: The direct script tag for playing remote video was removed.
-// Instead, remote video playback is handled within the `useEffect` hook
-// that listens to changes in the `remoteUsers` state.
-// The `remoteVideoContainerRefs` map helps associate UIDs with their DOM elements.
-// The global `window.agoraClientInstance` hack was also removed.
-// Proper cleanup of listeners and client instance is crucial for stability.
-// If issues persist, more specific error messages from the console would be very helpful.
-      
+
     
