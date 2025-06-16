@@ -30,7 +30,7 @@ interface AnimationContextType {
   setLayers: (newLayersOrFn: SetStateAction<Layer[]>) => void; // Updates panel and active frame's layers
   currentTool: string;
   setCurrentTool: Dispatch<SetStateAction<string>>;
-  projectId: string | null;
+  projectId: string | null; // Will now be derived from internalProjectId
   projectName: string;
   setProjectName: Dispatch<SetStateAction<string>>;
   isLoadingProject: boolean;
@@ -77,6 +77,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [fps, setFps] = useState<number>(12);
   const [projectName, setProjectName] = useState<string>("Untitled Animation");
+  const [internalProjectId, setInternalProjectId] = useState<string | null>(null);
 
   const [drawingHistory, setDrawingHistory] = useState<(string | null)[]>([]);
   const [drawingHistoryPointer, setDrawingHistoryPointer] = useState<number>(-1);
@@ -94,6 +95,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
 
   useEffect(() => {
     setIsLoadingProject(true);
+    setInternalProjectId(null); // Reset internal project ID on route change
     setProjectName("Loading...");
     setFps(12);
     setActiveFrameIndex(0);
@@ -109,6 +111,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
       const defaultNoIdFrame: Frame = { id: `frame-no-id-0-${Date.now()}`, dataUrl: null, layers: createDefaultLayers('no-id') };
       _setFramesInternal([defaultNoIdFrame]);
       _setPanelLayersInternal(defaultNoIdFrame.layers);
+      // internalProjectId remains null
       return;
     }
     
@@ -152,7 +155,8 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
         setDrawingHistoryPointer(0);
         _setPanelLayersInternal(createDefaultLayers('fallback-empty-main-effect'));
       }
-      setIsLoadingProject(false); // Moved here to ensure it's set after successful load or default setup
+      setInternalProjectId(routeProjectIdFromProp); // Set internal ID only on successful load
+      setIsLoadingProject(false);
     }).catch(error => {
       toast({title: "Load Error", description: `Failed to load animation project: ${error.message}`, variant: "destructive"});
       const fallbackFrameId = `frame-fallback-0-${Date.now()}`;
@@ -168,7 +172,8 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
       setDrawingHistory([null]);
       setDrawingHistoryPointer(0);
       _setPanelLayersInternal(fallbackFrames[0]?.layers || createDefaultLayers('fallback-error-main-effect'));
-      setIsLoadingProject(false); // Also ensure loading state is cleared on error
+      // internalProjectId remains null or its previous state, setIsLoadingProject to false
+      setIsLoadingProject(false);
     });
   }, [routeProjectIdFromProp, toast]); 
 
@@ -291,7 +296,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
       toast({ title: "Authentication Error", description: "You must be logged in to save.", variant: "destructive" });
       return;
     }
-    if (routeProjectIdFromProp === null || routeProjectIdFromProp === undefined || typeof routeProjectIdFromProp !== 'string' || routeProjectIdFromProp.trim() === "") {
+    if (internalProjectId === null || internalProjectId.trim() === "") {
       toast({ title: "Save Frame Error", description: "A valid Project ID is not available. Please ensure you are on a valid project page and try again.", variant: "destructive" });
       return;
     }
@@ -317,7 +322,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
     });
 
     try {
-      await saveFrameToDb(routeProjectIdFromProp, currentActiveFrameIndex, frameToSave.dataUrl, user.uid, frameToSave.layers);
+      await saveFrameToDb(internalProjectId, currentActiveFrameIndex, frameToSave.dataUrl, user.uid, frameToSave.layers);
       toast.dismiss(savingToastId);
       toast({
         title: "Frame Saved!",
@@ -333,7 +338,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
         duration: 7000,
       });
     }
-  }, [isLoadingProject, routeProjectIdFromProp, user, toast, projectName, framesRef, activeFrameIndexRef]); 
+  }, [isLoadingProject, internalProjectId, user, toast, projectName, framesRef, activeFrameIndexRef]); 
 
 
   const saveAllFramesManually = useCallback(async () => {
@@ -345,7 +350,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
       toast({ title: "Authentication Error", description: "You must be logged in to save all frames.", variant: "destructive" });
       return;
     }
-     if (routeProjectIdFromProp === null || routeProjectIdFromProp === undefined || typeof routeProjectIdFromProp !== 'string' || routeProjectIdFromProp.trim() === "") {
+     if (internalProjectId === null || internalProjectId.trim() === "") {
       toast({ title: "Save All Error", description: "A valid Project ID is not available. Please ensure you are on a valid project page and try again.", variant: "destructive" });
       return;
     }
@@ -366,7 +371,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
     });
 
     try {
-      await saveAllFramesToDb(routeProjectIdFromProp, currentFrames, user.uid, currentProjectNameForToast, currentFpsForSave);
+      await saveAllFramesToDb(internalProjectId, currentFrames, user.uid, currentProjectNameForToast, currentFpsForSave);
       toast.dismiss(savingAllToastId);
       toast({
         title: "All Frames Saved!",
@@ -382,7 +387,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
         duration: 7000,
       });
     }
-  }, [isLoadingProject, routeProjectIdFromProp, user, toast, projectName, fps, framesRef]); 
+  }, [isLoadingProject, internalProjectId, user, toast, projectName, fps, framesRef]); 
 
 
   const contextValue: AnimationContextType = useMemo(() => ({
@@ -394,7 +399,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
     setLayers: setLayersForActiveFrameAndPanel,
     currentTool,
     setCurrentTool,
-    projectId: routeProjectIdFromProp || null, 
+    projectId: internalProjectId, 
     projectName,
     setProjectName,
     isLoadingProject,
@@ -416,7 +421,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectIdFromProp 
   }), [
     _framesInternal, setFramesDispatch, activeFrameIndex, 
     _panelLayers, setLayersForActiveFrameAndPanel, currentTool, 
-    routeProjectIdFromProp, projectName, isLoadingProject, currentColor, brushSize, 
+    internalProjectId, projectName, isLoadingProject, currentColor, brushSize, 
     isPlaying, fps, updateActiveFrameDrawing, undoDrawing, redoDrawing,
     canUndoDrawing, canRedoDrawing, saveActiveFrameManually, saveAllFramesManually
   ]);
@@ -436,3 +441,4 @@ export const useAnimation = (): AnimationContextType => {
   return context;
 };
 
+    
