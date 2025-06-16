@@ -87,15 +87,33 @@ const processDoc = <T extends { id: string; createdAt?: string | Timestamp | Dat
   }
   
   // Process meeting specific fields
-  if (docSnap.ref.parent.id === 'meetings') {
+  if (docSnap.ref.parent.id === 'meetings' || docSnap.ref.path.includes('meetings')) {
     if (data.hostProfile) {
         processedData.hostProfile = data.hostProfile;
     }
-    if (data.participants) {
-        processedData.participants = data.participants.map((p: any) => ({
-            ...p,
-            joinedAt: (p.joinedAt as Timestamp)?.toDate ? (p.joinedAt as Timestamp).toDate().toISOString() : new Date(p.joinedAt).toISOString(),
-        }));
+    if (data.participants && Array.isArray(data.participants)) {
+        processedData.participants = data.participants.map((p: any) => {
+            let joinedAtStr: string;
+            const originalJoinedAt = p.joinedAt;
+
+            if (originalJoinedAt && typeof (originalJoinedAt as Timestamp).toDate === 'function') {
+                joinedAtStr = (originalJoinedAt as Timestamp).toDate().toISOString();
+            } else if (originalJoinedAt instanceof Date) {
+                joinedAtStr = originalJoinedAt.toISOString();
+            } else if (typeof originalJoinedAt === 'string') {
+                const d = new Date(originalJoinedAt);
+                if (!isNaN(d.getTime())) {
+                    joinedAtStr = d.toISOString();
+                } else {
+                    console.warn(`FirestoreService: Participant ${p.uid} in meeting ${docSnap.id} has an invalid joinedAt string: ${originalJoinedAt}. Falling back to Epoch.`);
+                    joinedAtStr = new Date(0).toISOString(); // Fallback to Epoch
+                }
+            } else {
+                console.warn(`FirestoreService: Participant ${p.uid} in meeting ${docSnap.id} has an unexpected or missing joinedAt value:`, originalJoinedAt, `Type: ${typeof originalJoinedAt}. Falling back to Epoch.`);
+                joinedAtStr = new Date(0).toISOString(); // Fallback to Epoch
+            }
+            return { ...p, joinedAt: joinedAtStr };
+        });
     } else {
         processedData.participants = [];
     }
@@ -384,3 +402,4 @@ export async function getMeetingDetailsFirestore(meetingId: string): Promise<Mee
   }
   return null;
 }
+
