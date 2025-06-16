@@ -28,9 +28,9 @@ export default function MeetingPage() {
   const [isLoadingMeeting, setIsLoadingMeeting] = useState(true);
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [isJoiningVideo, setIsJoiningVideo] = useState(false);
-  const [showTokenInputPrompt, setShowTokenInputPrompt] = useState(false); // Renamed for clarity
-  const [manualToken, setManualToken] = useState(''); // Still needed if hardcoded token fails
-  const [tokenGenerationMessage, setTokenGenerationMessage] = useState<string | null>(null); // Store messages from token flow
+  // Removed showTokenInputPrompt state
+  const [manualToken, setManualToken] = useState('');
+  const [tokenGenerationMessage, setTokenGenerationMessage] = useState<string | null>(null);
   const [needsToJoinFirestore, setNeedsToJoinFirestore] = useState(false);
   const [isProcessingFirestoreJoin, setIsProcessingFirestoreJoin] = useState(false);
 
@@ -82,27 +82,24 @@ export default function MeetingPage() {
   const attemptTokenGeneration = async (roomId100ms: string, userId: string, role: string) => {
     setIsJoiningVideo(true);
     setTokenGenerationMessage(null);
-    setShowTokenInputPrompt(false);
+    // setShowTokenInputPrompt(false); // Removed
     try {
       const tokenResult = await get100msTokenAction(userId, roomId100ms, role);
       if (tokenResult.token) {
         setAuthToken(tokenResult.token);
         if (tokenResult.message) {
-          // Log the prototype message, but don't show it as an error if token is present
           console.info("Token Generation Info:", tokenResult.message);
-          // You might want to display this message to the user in a non-error way if it's important
-          // For now, we prioritize getting into the meeting.
+          // Optionally, display this message if needed, but not as an error if token is present
+          // For this prototype, we might setTokenGenerationMessage(tokenResult.message) if we want to show it.
         }
       } else {
-        // If no token, but there's a message (e.g. simulation warning or dev note), show it.
-        // And prompt for manual input as a fallback.
-        setTokenGenerationMessage(tokenResult.message || tokenResult.error || "A 100ms auth token is required.");
-        setShowTokenInputPrompt(true);
+        setTokenGenerationMessage(tokenResult.message || tokenResult.error || "A 100ms auth token is required for this meeting.");
+        // setShowTokenInputPrompt(true); // Removed
       }
     } catch (error: any) {
       toast({ title: "Token Error", description: error.message || "Failed to get meeting token.", variant: "destructive" });
       setTokenGenerationMessage(error.message || "Failed to get meeting token.");
-      setShowTokenInputPrompt(true);
+      // setShowTokenInputPrompt(true); // Removed
     } finally {
       setIsJoiningVideo(false);
     }
@@ -112,8 +109,7 @@ export default function MeetingPage() {
     e.preventDefault();
     if (manualToken.trim()) {
       setAuthToken(manualToken.trim());
-      setShowTokenInputPrompt(false);
-      setTokenGenerationMessage(null);
+      setTokenGenerationMessage(null); // Clear message if manual token is submitted
     } else {
       setTokenGenerationMessage("Please enter a valid 100ms auth token.");
     }
@@ -155,7 +151,6 @@ export default function MeetingPage() {
         toast({ title: "Error", description: result.message, variant: "destructive" });
       }
     } else {
-      // For non-hosts, "leaving" is handled by 100ms SDK's leave(). Firestore data isn't changed.
       toast({ title: "Left Meeting", description: "You have left the meeting." });
     }
     router.push('/meetings');
@@ -219,8 +214,9 @@ export default function MeetingPage() {
     );
   }
 
-  // If authToken is not yet available AND we are supposed to show the token input prompt
-  if (!authToken && showTokenInputPrompt) {
+  // If authToken is not yet available AND there's a tokenGenerationMessage (meaning flow didn't provide a token)
+  // AND we are not currently in the process of joining/fetching the token.
+  if (!authToken && tokenGenerationMessage && !isJoiningVideo) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-4">
         <Card className="w-full max-w-md shadow-lg">
@@ -292,8 +288,7 @@ export default function MeetingPage() {
     );
   }
 
-  // Fallback loading or error state if none of the above conditions are met
-  // (e.g., meetingDetails is somehow null after initial load, or user logs out during the process)
+  // Fallback loading or error state
   return (
       <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
          <VideoOff size={64} className="text-destructive mb-4" />
@@ -305,4 +300,3 @@ export default function MeetingPage() {
       </div>
   );
 }
-
