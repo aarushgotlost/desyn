@@ -3,7 +3,7 @@
 
 import { useAnimation } from '@/context/AnimationContext';
 import { Button } from '@/components/ui/button';
-import { Pencil, Eraser, Hand, Palette, Undo, Redo, Play, Pause, Save, Loader2, Disc3 } from 'lucide-react'; // Added Pause, Disc3 for Save All
+import { Pencil, Eraser, Hand, Palette, Undo, Redo, Play, Pause, Save, Loader2, Disc3 } from 'lucide-react'; 
 import { useToast } from '@/hooks/use-toast'; 
 import { useState } from 'react';
 
@@ -19,8 +19,7 @@ export default function Toolbar() {
     canUndoDrawing, canRedoDrawing,
     saveActiveFrameManually,
     saveAllFramesManually, 
-    projectId, // projectId is still used for initial check if available for context functions
-    isLoadingProject // isLoadingProject is no longer used to disable buttons here
+    projectId, // This is the reactive projectId from the context
   } = useAnimation();
   const { toast } = useToast();
   const [isSavingFrame, setIsSavingFrame] = useState(false);
@@ -44,13 +43,14 @@ export default function Toolbar() {
   };
   
   const handleSaveFrame = async () => {
-    // The context function saveActiveFrameManually will check for projectId and user
+    if (!projectId) {
+        toast({ title: "Save Frame Error", description: "Project ID is missing. Cannot save frame.", variant: "destructive" });
+        return;
+    }
     setIsSavingFrame(true);
     try {
-      await saveActiveFrameManually();
-      // Toast for success/error is handled within saveActiveFrameManually in context
+      await saveActiveFrameManually(projectId); // Pass projectId
     } catch (error) {
-      // This catch might be redundant if saveActiveFrameManually handles its own errors with toasts
       console.error("Toolbar save frame failed:", error); 
       toast({ title: "Save Frame Error", description: "An unexpected error occurred while saving the frame.", variant: "destructive" });
     } finally {
@@ -59,11 +59,13 @@ export default function Toolbar() {
   };
 
   const handleSaveAllFrames = async () => {
-    // The context function saveAllFramesManually will check for projectId and user
+    if (!projectId) {
+        toast({ title: "Save All Frames Error", description: "Project ID is missing. Cannot save all frames.", variant: "destructive" });
+        return;
+    }
     setIsSavingAll(true);
     try {
-      await saveAllFramesManually();
-      // Toast for success/error is handled within saveAllFramesManually in context
+      await saveAllFramesManually(projectId); // Pass projectId
     } catch (error) {
       console.error("Toolbar save all frames failed:", error);
       toast({ title: "Save All Frames Error", description: "An unexpected error occurred while saving all frames.", variant: "destructive" });
@@ -115,7 +117,7 @@ export default function Toolbar() {
             title="Save Current Frame" 
             aria-label="Save Current Frame" 
             onClick={handleSaveFrame} 
-            disabled={isSavingFrame || isSavingAll} // Removed isLoadingProject and !projectId
+            disabled={isSavingFrame || isSavingAll} 
           >
           {isSavingFrame ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
            {isSavingFrame ? "Saving..." : "Save Frame"}
@@ -126,7 +128,7 @@ export default function Toolbar() {
             title="Save All Frames" 
             aria-label="Save All Frames" 
             onClick={handleSaveAllFrames} 
-            disabled={isSavingAll || isSavingFrame} // Removed isLoadingProject and !projectId
+            disabled={isSavingAll || isSavingFrame} 
           >
           {isSavingAll ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Disc3 className="mr-2 h-4 w-4" />}
            {isSavingAll ? "Saving All..." : "Save All"}
