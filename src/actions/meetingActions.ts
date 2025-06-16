@@ -17,7 +17,8 @@ import { revalidatePath } from 'next/cache';
 import type { UserProfile } from '@/contexts/AuthContext';
 import type { Meeting, MeetingParticipant } from '@/types/data';
 import { DEFAULT_100MS_ROOM_ID, USER_ROLES_100MS } from '@/lib/constants';
-import { generate100msToken, type GenerateTokenInput, type GenerateTokenOutput } from '@/ai/flows/generate100msTokenFlow';
+// Import the types from the flow file, but not the flow function itself for this bypass
+import type { GenerateTokenInput, GenerateTokenOutput } from '@/ai/flows/generate100msTokenFlow';
 
 export async function createMeetingSession(
   title: string,
@@ -36,13 +37,13 @@ export async function createMeetingSession(
     displayName: hostProfile.displayName,
     photoURL: hostProfile.photoURL,
     role: USER_ROLES_100MS.SPEAKER, // Host is typically a speaker
-    joinedAt: new Date().toISOString(), // Client-generated timestamp for initial participant in an array
+    joinedAt: new Date().toISOString(), 
   };
 
   const newMeetingData: Omit<Meeting, 'id' | 'createdAt'> & { createdAt: Timestamp } = {
     title: title.trim(),
     description: description?.trim() || '',
-    roomId100ms: DEFAULT_100MS_ROOM_ID, // Use the default room ID from constants
+    roomId100ms: DEFAULT_100MS_ROOM_ID, 
     hostUid: hostProfile.uid,
     hostProfile: {
       uid: hostProfile.uid,
@@ -69,7 +70,7 @@ export async function createMeetingSession(
 export async function joinMeetingSession(
   meetingId: string,
   userProfile: Pick<UserProfile, 'uid' | 'displayName' | 'photoURL'>,
-  role: string = USER_ROLES_100MS.LISTENER // Default role for joining
+  role: string = USER_ROLES_100MS.LISTENER 
 ): Promise<{ success: boolean; message: string }> {
   if (!userProfile.uid) {
     return { success: false, message: 'User not authenticated.' };
@@ -90,7 +91,7 @@ export async function joinMeetingSession(
       displayName: userProfile.displayName,
       photoURL: userProfile.photoURL,
       role: role,
-      joinedAt: serverTimestamp() as unknown as string, // Firestore handles serverTimestamp in arrayUnion
+      joinedAt: serverTimestamp() as unknown as string, 
     };
 
     await updateDoc(meetingRef, {
@@ -150,12 +151,34 @@ export async function get100msTokenAction(
     return { error: "User ID, Room ID, and Role are required.", message: "Ensure all parameters are provided." };
   }
 
-  const input: GenerateTokenInput = { userId, roomId: roomId100ms, role };
-  try {
-    const result = await generate100msToken(input);
-    return result;
-  } catch (error: any) {
-    console.error("Error calling generate100msToken flow:", error);
-    return { error: "Failed to process token request.", message: error.message || "Unknown error in Genkit flow." };
+  // --- TEMPORARY PROTOTYPE BYPASS for Genkit API key error ---
+  console.warn(
+      `SECURITY WARNING (ACTION BYPASS): Using a hardcoded prototype 100ms token for room ${roomId100ms}, user ${userId}, role ${role}.` +
+      ` This is NOT for production. A real backend is required for secure token generation.`
+  );
+  // This is the token provided by the user.
+  const PROTOTYPE_GUEST_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ2ZXJzaW9uIjoyLCJ0eXBlIjoiYXBwIiwiYXBwX2RhdGEiOm51bGwsImFjY2Vzc19rZXkiOiI2ODUwMTAyMGJkMGRhYjVmOWEwMTI4YWQiLCJyb2xlIjoiZ3Vlc3QiLCJyb29tX2lkIjoiNjg1MDEzMDVhNDhjYTYxYzQ2NDc0MGU3IiwidXNlcl9pZCI6ImEyY2FhYjcyLTMxOWEtNDI5YS05MTkwLTM2OWJhYTI0NDhjOCIsImV4cCI6MTc1MDE2NTQ0MCwianRpIjoiYjc5Y2EyMjctNTVjZS00MmNmLTg0NjEtYzRmNTA3N2QwMDFkIiwiaWF0IjoxNzUwMDc5MDQwLCJpc3MiOiI2ODUwMTAyMGJkMGRhYjVmOWEwMTI4YWIiLCJuYmYiOjE3NTAwNzkwNDAsInN1YiI6ImFwaSJ9.0ALU1v2WrZo8phrYvky1vX-yLtyXkOJ0i785LRtK2jk";
+
+  if (role === USER_ROLES_100MS.LISTENER || role === USER_ROLES_100MS.SPEAKER) { // Using constants for roles
+    return {
+      token: PROTOTYPE_GUEST_TOKEN,
+      message: "Using a hardcoded prototype token (from action bypass due to Genkit config). This is insecure and for development testing only. Replace with real backend token generation for production."
+    };
   }
+  return {
+    error: "Token generation is simulated for this role (from action bypass).",
+    message: "For this prototype, a hardcoded token is used for 'guest'/'host'. A secure backend is required for real token generation for all roles."
+  };
+  // --- END TEMPORARY PROTOTYPE BYPASS ---
+
+  // Original code to call Genkit flow (will be bypassed by the above for now)
+  // const input: GenerateTokenInput = { userId, roomId: roomId100ms, role };
+  // try {
+  //   const result = await generate100msToken(input); // generate100msToken is the flow wrapper
+  //   return result;
+  // } catch (error: any) {
+  //   console.error("Error calling generate100msToken flow:", error);
+  //   return { error: "Failed to process token request.", message: error.message || "Unknown error in Genkit flow." };
+  // }
 }
+
