@@ -96,9 +96,10 @@ export const AnimationProvider = ({ children, projectId: routeProjectId }: { chi
     }
     
     setIsLoadingProject(true);
-    setProjectName("Loading...");
-    setFps(12);
-    setActiveFrameIndex(0);
+    // Reset state for the new project
+    setProjectName("Loading..."); 
+    setFps(12); 
+    setActiveFrameIndex(0); 
     _setFramesInternal([]); 
     _setPanelLayersInternal(createDefaultLayers()); 
     setDrawingHistory([null]); 
@@ -122,10 +123,11 @@ export const AnimationProvider = ({ children, projectId: routeProjectId }: { chi
           ).map((layer, lIdx) => ({ ...layer, id: layer.id || `layer-db-${index}-${lIdx}-${Date.now()}-${Math.random()}` }))
         }));
       } else {
+        // This path is taken for a brand new project ID, creating a default frame
         initialFramesToSet = [{
-          id: `frame-new-0-${Date.now()}`,
-          dataUrl: null,
-          layers: createDefaultLayers()
+          id: `frame-new-0-${Date.now()}`, 
+          dataUrl: null, 
+          layers: createDefaultLayers() // Ensures new layers with new IDs
         }];
       }
       _setFramesInternal(initialFramesToSet);
@@ -139,6 +141,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectId }: { chi
         setDrawingHistoryPointer(0);
         _setPanelLayersInternal(activeFrameData.layers || createDefaultLayers());
       } else {
+        // Fallback if initialFramesToSet somehow ends up empty (should not happen with above logic)
         setDrawingHistory([null]);
         setDrawingHistoryPointer(0);
         _setPanelLayersInternal(createDefaultLayers());
@@ -169,6 +172,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectId }: { chi
     if (frames.length > 0 && activeFrameIndex >= 0 && activeFrameIndex < frames.length) {
       const currentFrame = frames[activeFrameIndex];
       if (currentFrame) {
+        // Only reset drawing history if the dataUrl actually differs, to preserve history if frame content is same
         if (drawingHistoryPointer === -1 || drawingHistory[drawingHistoryPointer] !== currentFrame.dataUrl) {
             setDrawingHistory([currentFrame.dataUrl]);
             setDrawingHistoryPointer(0);
@@ -176,6 +180,8 @@ export const AnimationProvider = ({ children, projectId: routeProjectId }: { chi
         _setPanelLayersInternal(currentFrame.layers || createDefaultLayers());
       }
     } else if (frames.length === 0 && !isLoadingProject) {
+      // This case should ideally be covered by the main useEffect,
+      // but as a safeguard, re-initialize if frames somehow become empty post-load.
       const defaultFrameForEmpty: Frame = {
           id: `frame-empty-default-0-${Date.now()}`, dataUrl: null, layers: createDefaultLayers()
       };
@@ -191,6 +197,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectId }: { chi
   const setFramesDispatch: Dispatch<SetStateAction<Frame[]>> = useCallback((valueOrFn) => {
     _setFramesInternal(prevFrames => {
         const newFramesRaw = typeof valueOrFn === 'function' ? valueOrFn(prevFrames) : valueOrFn;
+        // Ensure all frames have unique IDs and default layers if missing
         const newFramesWithLayers = newFramesRaw.map((frame, index) => {
             return {
                 ...frame,
@@ -206,8 +213,10 @@ export const AnimationProvider = ({ children, projectId: routeProjectId }: { chi
   }, []);
 
   const setLayersForActiveFrameAndPanel = useCallback((newLayersOrFn: SetStateAction<Layer[]>) => {
+    // Update the panel's layer state
     _setPanelLayersInternal(newLayersOrFn);
 
+    // Update the layers within the specific active frame in the 'frames' state
     _setFramesInternal(prevFrames => {
         const updatedFrames = [...prevFrames];
         if (activeFrameIndex >= 0 && activeFrameIndex < updatedFrames.length && updatedFrames[activeFrameIndex]) {
@@ -231,7 +240,8 @@ export const AnimationProvider = ({ children, projectId: routeProjectId }: { chi
     setDrawingHistory(prevHistory => {
         const newHistorySlice = prevHistory.slice(0, drawingHistoryPointer + 1);
         newHistorySlice.push(newDataUrl);
-        while (newHistorySlice.length > 30) { newHistorySlice.shift(); }
+        // Limit history size for performance
+        while (newHistorySlice.length > 30) { newHistorySlice.shift(); } 
         setDrawingHistoryPointer(newHistorySlice.length - 1);
         return newHistorySlice;
     });
@@ -289,10 +299,11 @@ export const AnimationProvider = ({ children, projectId: routeProjectId }: { chi
         return;
     }
 
+    const currentProjectName = projectName || "Untitled Project";
     const { id: savingToastId } = toast({
       title: "Saving Frame...",
-      description: `Frame ${activeFrameIndex + 1} of "${projectName || 'Untitled Project'}" is being saved.`,
-      duration: 100000,
+      description: `Frame ${activeFrameIndex + 1} of "${currentProjectName}" is being saved.`,
+      duration: 100000, // Long duration, will be dismissed manually
     });
 
     try {
@@ -300,7 +311,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectId }: { chi
       toast.dismiss(savingToastId);
       toast({
         title: "Frame Saved!",
-        description: `Frame ${activeFrameIndex + 1} for "${projectName || 'Untitled Project'}" has been successfully saved.`,
+        description: `Frame ${activeFrameIndex + 1} for "${currentProjectName}" has been successfully saved.`,
         duration: 3000,
       });
     } catch (error: any) {
@@ -328,18 +339,20 @@ export const AnimationProvider = ({ children, projectId: routeProjectId }: { chi
       return;
     }
 
+    const currentProjectName = projectName || "Untitled Project";
+    const currentFps = fps || 12;
     const { id: savingAllToastId } = toast({
       title: "Saving All Frames...",
-      description: `All ${frames.length} frames for "${projectName || 'Untitled Project'}" are being saved.`,
-      duration: 100000,
+      description: `All ${frames.length} frames for "${currentProjectName}" are being saved.`,
+      duration: 100000, // Long duration, will be dismissed manually
     });
 
     try {
-      await saveAllFramesToDb(routeProjectId, frames, user.uid, projectName, fps);
+      await saveAllFramesToDb(routeProjectId, frames, user.uid, currentProjectName, currentFps);
       toast.dismiss(savingAllToastId);
       toast({
         title: "All Frames Saved!",
-        description: `All ${frames.length} frames for "${projectName || 'Untitled Project'}" have been successfully saved.`,
+        description: `All ${frames.length} frames for "${currentProjectName}" have been successfully saved.`,
         duration: 4000,
       });
     } catch (error: any) {
