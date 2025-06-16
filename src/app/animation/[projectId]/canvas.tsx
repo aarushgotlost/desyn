@@ -11,10 +11,10 @@ export default function Canvas() {
     currentTool, 
     activeFrameIndex, 
     frames, 
-    _updateActiveFrameDrawing, 
+    updateActiveFrameDrawing,  // Changed from _updateActiveFrameDrawing
     currentColor, 
     brushSize,
-    isLoadingProject // Added to potentially gate rendering or show loading
+    isLoadingProject 
   } = useAnimation();
   
   useAutosave(); 
@@ -24,14 +24,13 @@ export default function Canvas() {
 
   const redrawCurrentFrame = useCallback(() => {
     const canvas = canvasRef.current;
-    if (!canvas || isLoadingProject) return; // Prevent drawing if loading or no canvas
+    if (!canvas || isLoadingProject) return; 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     ctx.fillStyle = "white"; 
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Ensure frames array and activeFrameIndex are valid before accessing
     const currentFrame = frames && frames[activeFrameIndex];
     const currentFrameDataUrl = currentFrame?.dataUrl;
 
@@ -52,7 +51,6 @@ export default function Canvas() {
       image.onerror = () => console.error("Error loading image for frame " + activeFrameIndex);
       image.src = currentFrameDataUrl;
     } else {
-        // Ensure white background if frame has no dataUrl (e.g., new or cleared frame)
         ctx.fillStyle = "white";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
@@ -63,9 +61,6 @@ export default function Canvas() {
     const canvas = canvasRef.current;
     if (!canvas || !canvas.parentElement) return;
     
-    // Save current drawing state if needed (complex for scaling, simplified here)
-    // For simplicity, we rely on redrawCurrentFrame to handle content after resize.
-
     canvas.width = canvas.parentElement.offsetWidth;
     canvas.height = canvas.parentElement.offsetHeight;
     
@@ -81,7 +76,6 @@ export default function Canvas() {
 
 
   useEffect(() => {
-    // This effect ensures the canvas updates when the active frame or its content changes.
     if (!isLoadingProject) {
         redrawCurrentFrame();
     }
@@ -169,13 +163,13 @@ export default function Canvas() {
     }
 
     const dataUrl = canvas.toDataURL('image/png');
-    _updateActiveFrameDrawing(dataUrl); 
+    updateActiveFrameDrawing(dataUrl); // Changed from _updateActiveFrameDrawing
   };
   
   return (
     <div className="flex-1 flex items-center justify-center bg-muted p-2 overflow-hidden relative">
       {isLoadingProject ? (
-        <p>Loading animation workspace...</p> // Or a spinner component
+        <p>Loading animation workspace...</p> 
       ) : (
         <canvas
           ref={canvasRef}
@@ -190,4 +184,3 @@ export default function Canvas() {
     </div>
   );
 }
-
