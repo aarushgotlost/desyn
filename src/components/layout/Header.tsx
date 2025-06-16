@@ -27,15 +27,14 @@ export default function Header() {
   const navLinks = [
     { href: "/", label: "Home", icon: HomeIcon, authRequired: false },
     { href: "/communities", label: "Discover", icon: Compass, authRequired: false },
-    // { href: "/meetings", label: "Meetings", icon: Video, authRequired: true }, // Removed Meetings
     { href: "/posts/create", label: "Create Post", icon: PlusCircle, authRequired: true },
     { href: "/messages", label: "Messages", icon: MessageSquare, authRequired: true },
   ];
 
   const authRestrictedPages = ['/login', '/signup', '/forgot-password', '/onboarding', '/onboarding/profile-setup'];
-  const isMeetingRoomPages = pathname.startsWith('/meeting-room');
+  // Removed meeting-room specific check as it's being removed
 
-  if (authRestrictedPages.includes(pathname) || isMeetingRoomPages) {
+  if (authRestrictedPages.includes(pathname)) {
     return null;
   }
 

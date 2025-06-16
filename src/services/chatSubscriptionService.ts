@@ -1,6 +1,6 @@
 
 import { db } from '@/lib/firebase';
-import type { ChatMessage, ChatSession, CommunityChatMessage, MeetingChatMessage } from '@/types/messaging';
+import type { ChatMessage, ChatSession, CommunityChatMessage } from '@/types/messaging';
 import {
   collection,
   query,
@@ -42,15 +42,6 @@ const processCommunityChatMessageData = (docSnap: DocumentData): CommunityChatMe
     ...data,
     createdAt: (data.createdAt as Timestamp)?.toDate ? (data.createdAt as Timestamp).toDate().toISOString() : new Date(data.createdAt).toISOString(),
   } as CommunityChatMessage;
-};
-
-const processMeetingChatMessageData = (docSnap: DocumentData): MeetingChatMessage => {
-  const data = docSnap.data();
-  return {
-    id: docSnap.id,
-    ...data,
-    createdAt: (data.createdAt as Timestamp)?.toDate ? (data.createdAt as Timestamp).toDate().toISOString() : new Date(data.createdAt).toISOString(),
-  } as MeetingChatMessage;
 };
 
 
@@ -117,28 +108,6 @@ export function getCommunityChatMessages(
   },
   (error) => {
     console.error("Error in getCommunityChatMessages snapshot: ", error);
-    if (onError) {
-      onError(error);
-    }
-  });
-
-  return unsubscribe;
-}
-
-export function getMeetingChatMessages(
-  meetingId: string,
-  onUpdate: (messages: MeetingChatMessage[]) => void,
-  onError?: (error: Error) => void
-): () => void {
-  const messagesColRef = collection(db, 'meetings', meetingId, 'chatMessages');
-  const q = query(messagesColRef, orderBy('createdAt', 'asc'), limit(100));
-
-  const unsubscribe = onSnapshot(q, (querySnapshot: QuerySnapshot<DocumentData>) => {
-    const messages: MeetingChatMessage[] = querySnapshot.docs.map(processMeetingChatMessageData);
-    onUpdate(messages);
-  },
-  (error) => {
-    console.error("Error in getMeetingChatMessages snapshot: ", error);
     if (onError) {
       onError(error);
     }

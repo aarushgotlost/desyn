@@ -10,13 +10,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardFooter, CardTitle }
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Send, Loader2, ArrowLeft, Film } from 'lucide-react'; // Film icon
+import { Send, Loader2, ArrowLeft } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { MessageBubble } from '@/components/messaging/MessageBubble';
 import { getInitials } from '@/lib/utils';
-import Link from 'next/link'; // Link component
+import Link from 'next/link'; 
 
 export default function ChatPage({ params }: { params: { chatId: string } }) {
   const { user, userProfile, loading: authLoading } = useAuth();
@@ -30,7 +30,7 @@ export default function ChatPage({ params }: { params: { chatId: string } }) {
   const chatContentRef = useRef<HTMLDivElement>(null);
   const initialLoadDoneRef = useRef(false);
 
-  const chatId = params.chatId; // Directly access chatId from params
+  const chatId = params.chatId; 
 
   useEffect(() => {
     const scrollableElement = chatContentRef.current;
@@ -134,12 +134,7 @@ export default function ChatPage({ params }: { params: { chatId: string } }) {
           <div className="flex-1">
             <CardTitle className="text-lg">{otherParticipant?.displayName || 'Chat'}</CardTitle>
           </div>
-          <Button variant="outline" size="icon" asChild title="Go to Meeting Room">
-            <Link href="/meeting-room">
-              <Film className="h-5 w-5" />
-              <span className="sr-only">Go to Meeting Room</span>
-            </Link>
-          </Button>
+          {/* Removed meeting room button */}
         </div>
       </CardHeader>
       <CardContent ref={chatContentRef} className="flex-1 overflow-y-auto p-4 space-y-0.5">

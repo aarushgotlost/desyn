@@ -1,6 +1,6 @@
 
 import { db, auth } from '@/lib/firebase'; 
-import type { Community, Post, Comment, Meeting } from '@/types/data';
+import type { Community, Post, Comment } from '@/types/data';
 import type { UserProfile } from '@/contexts/AuthContext';
 import {
   collection,
@@ -29,7 +29,7 @@ export async function getCurrentUserId(): Promise<string | null> {
   return null; // Let client components use useAuth()
 }
 
-const processDoc = <T extends { id: string; createdAt?: string | Timestamp | Date; updatedAt?: string | Timestamp | Date; lastLogin?: string | Timestamp | Date; lastMessageAt?: string | Timestamp | Date; members?: string[]; authorAvatar?: string | null; photoURL?: string | null; bannerURL?: string | null; followersCount?: number; followingCount?: number; skills?: string[]; participants?: any[]; participantUids?: string[]; }>(docSnap: any): T => {
+const processDoc = <T extends { id: string; createdAt?: string | Timestamp | Date; updatedAt?: string | Timestamp | Date; lastLogin?: string | Timestamp | Date; lastMessageAt?: string | Timestamp | Date; members?: string[]; authorAvatar?: string | null; photoURL?: string | null; bannerURL?: string | null; followersCount?: number; followingCount?: number; skills?: string[]; }>(docSnap: any): T => {
   const data = docSnap.data();
   const processedData: any = {
     id: docSnap.id,
@@ -85,14 +85,6 @@ const processDoc = <T extends { id: string; createdAt?: string | Timestamp | Dat
       processedData.interests = data.interests || [];
       processedData.onboardingCompleted = typeof data.onboardingCompleted === 'boolean' ? data.onboardingCompleted : false;
   }
-
-  // Check for meeting specific fields
-  if (docSnap.ref.parent.id === 'meetings') {
-    processedData.participants = data.participants || [];
-    processedData.participantUids = data.participantUids || [];
-    processedData.isActive = typeof data.isActive === 'boolean' ? data.isActive : true;
-  }
-
 
   return processedData as T;
 };
@@ -354,23 +346,4 @@ export async function getAllUsersForNewChat(currentUserId: string, count: number
     .map(docSnap => processDoc<UserProfile>(docSnap))
     .sort((a, b) => (a.displayName || '').localeCompare(b.displayName || ''))
     .slice(0, count); // Apply limit after sorting
-}
-
-export async function getMeetings(count: number = 20): Promise<Meeting[]> {
-  noStore();
-  const meetingsCol = collection(db, 'meetings');
-  const q = query(meetingsCol, orderBy('createdAt', 'desc'), limit(count));
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map(docSnap => processDoc<Meeting>(docSnap));
-}
-
-export async function getMeetingDetails(meetingId: string): Promise<Meeting | null> {
-  noStore();
-  if (!meetingId) return null;
-  const meetingDocRef = doc(db, 'meetings', meetingId);
-  const docSnap = await getDoc(meetingDocRef);
-  if (docSnap.exists()) {
-    return processDoc<Meeting>(docSnap);
-  }
-  return null;
 }

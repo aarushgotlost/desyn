@@ -35,13 +35,3 @@ export interface CommunityChatMessage {
   text: string;
   createdAt: string; // ISO string
 }
-
-export interface MeetingChatMessage {
-  id: string;
-  meetingId: string; // For context
-  senderId: string;
-  senderName: string | null;
-  senderAvatar?: string | null;
-  text: string;
-  createdAt: string; // ISO string
-}

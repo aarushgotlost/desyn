@@ -39,19 +39,6 @@ export interface Comment {
   createdAt: string; // ISO string
 }
 
-export interface Meeting {
-  id: string;
-  title: string;
-  createdBy: string; // User ID of the creator
-  createdByName: string | null; // Display name of the creator
-  createdAt: string; // ISO string
-  participants: { uid: string; displayName: string | null; photoURL?: string | null }[]; // Array of participant profiles
-  participantUids: string[]; // Array of User IDs for querying
-  isActive: boolean; // To indicate if the meeting is currently "live"
-  // endedAt?: string; // ISO string, optional for when the meeting ends
-}
-
-
 // UserProfile is defined in AuthContext.tsx to avoid circular dependencies
 // but it's good to have a reference here for what it generally contains.
 // export interface UserProfile {
@@ -70,4 +57,3 @@ export interface Meeting {
 //   followersCount?: number;
 //   followingCount?: number;
 // }
-

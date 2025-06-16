@@ -28,12 +28,9 @@ export function BottomNavigationBar() {
   const authPages = ['/login', '/signup', '/forgot-password', '/onboarding', '/onboarding/profile-setup'];
   const isChatDetailPage = pathname.startsWith('/messages/') && pathname.split('/').length > 2 && pathname.split('/')[2] !== 'new';
   const isChatBotPage = pathname === '/chatbot';
-  const isAnimatorPage = pathname === '/meeting-room/animator';
-  const isMeetingsPage = pathname === '/meetings'; // Main meetings list page
-  const isMeetingDetailPage = pathname.startsWith('/meetings/') && pathname.split('/').length > 2; // Individual meeting page
+  // Removed meeting-specific checks
 
-
-  if (authPages.includes(pathname) || isChatDetailPage || isChatBotPage || isAnimatorPage || isMeetingsPage || isMeetingDetailPage) { 
+  if (authPages.includes(pathname) || isChatDetailPage || isChatBotPage) { 
     return null;
   }
 
@@ -63,8 +60,7 @@ export function BottomNavigationBar() {
 
           const isActive = (item.href === "/" && pathname === item.href) || 
                            (item.href !== "/" && pathname.startsWith(item.href) && 
-                            !(item.href === "/messages" && isChatDetailPage) && 
-                            !(item.href === "/meetings" && pathname.startsWith("/meetings/")) 
+                            !(item.href === "/messages" && isChatDetailPage)
                            );
           
           return (
