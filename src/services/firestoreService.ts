@@ -1,5 +1,5 @@
 
-import { db, auth } from '@/lib/firebase'; 
+import { db, auth } from '@/lib/firebase';
 import type { Community, Post, Comment, VideoCallSession } from '@/types/data'; // Added VideoCallSession
 import type { UserProfile } from '@/contexts/AuthContext';
 import {
@@ -28,15 +28,15 @@ export async function getCurrentUserId(): Promise<string | null> {
   // For now, it will return null, relying on client components or actions to get the current user.
   // To make this work server-side reliably, you'd need a different auth mechanism (e.g., session cookies).
   // Consider using `useAuth` in client components or passing userId from client to server actions.
-  
+
   // TEMPORARY: To allow some server components to work without full auth integration,
   // we'll try to get the user from the auth object if available. This is NOT reliable for SSR
   // without proper session management.
   // return auth.currentUser?.uid || null;
-  return null; 
+  return null;
 }
 
-const processDoc = <T extends { id: string; createdAt?: string | Timestamp | Date; updatedAt?: string | Timestamp | Date; lastLogin?: string | Timestamp | Date; lastMessageAt?: string | Timestamp | Date; members?: string[]; authorAvatar?: string | null; photoURL?: string | null; bannerURL?: string | null; followersCount?: number; followingCount?: number; skills?: string[]; }>(docSnap: any): T => {
+const processDoc = <T extends { id: string; createdAt?: string | Timestamp | Date; updatedAt?: string | Timestamp | Date; lastLogin?: string | Timestamp | Date; lastMessageAt?: string | Timestamp | Date; members?: string[]; authorAvatar?: string | null; photoURL?: string | null; bannerURL?: string | null; followersCount?: number; followingCount?: number; skills?: string[]; likes?: number; commentsCount?: number; memberCount?: number; }>(docSnap: any): T => {
   const data = docSnap.data();
   const processedData: any = {
     id: docSnap.id,
@@ -50,22 +50,22 @@ const processDoc = <T extends { id: string; createdAt?: string | Timestamp | Dat
       processedData[field] = (fieldValue as Timestamp).toDate().toISOString();
     } else if (fieldValue instanceof Date) {
       processedData[field] = fieldValue.toISOString();
-    } else if (typeof fieldValue === 'string') { 
+    } else if (typeof fieldValue === 'string') {
       try {
-        const d = new Date(fieldValue);
-        if (!isNaN(d.getTime())) {
-          processedData[field] = d.toISOString();
-        } else {
-          processedData[field] = fieldValue; 
-        }
+            const d = new Date(fieldValue);
+            if (!isNaN(d.getTime())) { // Check if date is valid
+              processedData[field] = d.toISOString();
+            } else {
+              processedData[field] = fieldValue; // Keep original if invalid
+            }
       } catch (e) {
-        processedData[field] = fieldValue; 
+        processedData[field] = fieldValue; // Fallback
       }
     } else if (fieldValue && typeof fieldValue === 'object' && fieldValue.seconds && fieldValue.nanoseconds) { // Handle plain Timestamp-like objects
         try {
             processedData[field] = new Timestamp(fieldValue.seconds, fieldValue.nanoseconds).toDate().toISOString();
         } catch (e) {
-            processedData[field] = null; // Or some default/error state
+            processedData[field] = null;
         }
     }
   });
@@ -73,25 +73,36 @@ const processDoc = <T extends { id: string; createdAt?: string | Timestamp | Dat
 
   if (data.members && docSnap.ref.parent.id === 'communities') {
     processedData.members = data.members;
-  } else if (docSnap.ref.parent.id === 'communities' || docSnap.ref.path.includes('communities')) { 
-    processedData.members = []; 
+  } else if (docSnap.ref.parent.id === 'communities' || docSnap.ref.path.includes('communities')) {
+    processedData.members = [];
   }
 
-  if ('authorId' in data) { 
+  if ('authorId' in data) {
       processedData.authorAvatar = data.authorAvatar || null;
   }
-  
-  if (typeof data.uid !== 'undefined' || docSnap.ref.parent.id === 'users') { 
+
+  if (typeof data.uid !== 'undefined' || docSnap.ref.parent.id === 'users') {
       processedData.photoURL = data.photoURL || null;
       processedData.bannerURL = data.bannerURL || null;
-      processedData.followersCount = data.followersCount || 0;
-      processedData.followingCount = data.followingCount || 0;
+      processedData.followersCount = typeof data.followersCount === 'number' ? data.followersCount : 0;
+      processedData.followingCount = typeof data.followingCount === 'number' ? data.followingCount : 0;
       processedData.bio = data.bio || '';
       processedData.skills = data.skills || [];
       processedData.interests = data.interests || [];
       processedData.onboardingCompleted = typeof data.onboardingCompleted === 'boolean' ? data.onboardingCompleted : false;
   }
-  
+
+  // Ensure common numeric fields are numbers or default to 0
+  if ('likes' in data) {
+    processedData.likes = typeof data.likes === 'number' ? data.likes : 0;
+  }
+  if ('commentsCount' in data) {
+    processedData.commentsCount = typeof data.commentsCount === 'number' ? data.commentsCount : 0;
+  }
+  if ('memberCount' in data && docSnap.ref.parent.id === 'communities') { // memberCount relevant for communities
+    processedData.memberCount = typeof data.memberCount === 'number' ? data.memberCount : 0;
+  }
+
 
   return processedData as T;
 };
@@ -100,19 +111,29 @@ export async function getCommunities(): Promise<Community[]> {
   noStore();
   const communitiesCol = collection(db, 'communities');
   const q = query(communitiesCol, orderBy('createdAt', 'desc'));
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map(docSnap => processDoc<Community>(docSnap));
+  try {
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(docSnap => processDoc<Community>(docSnap));
+  } catch (error) {
+    console.error("Error fetching communities:", error);
+    return [];
+  }
 }
 
 export async function getCommunityDetails(communityId: string): Promise<Community | null> {
   noStore();
   if (!communityId) return null;
   const communityDocRef = doc(db, 'communities', communityId);
-  const docSnap = await getDoc(communityDocRef);
-  if (docSnap.exists()) {
-    return processDoc<Community>(docSnap);
+  try {
+    const docSnap = await getDoc(communityDocRef);
+    if (docSnap.exists()) {
+      return processDoc<Community>(docSnap);
+    }
+    return null;
+  } catch (error) {
+    console.error(`Error fetching community details for ${communityId}:`, error);
+    return null;
   }
-  return null;
 }
 
 export async function getPostsForCommunity(communityId: string, count: number = 10): Promise<Post[]> {
@@ -124,26 +145,41 @@ export async function getPostsForCommunity(communityId: string, count: number = 
     orderBy('createdAt', 'desc'),
     limit(count)
   );
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map(docSnap => processDoc<Post>(docSnap));
+  try {
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(docSnap => processDoc<Post>(docSnap));
+  } catch (error) {
+    console.error(`Error fetching posts for community ${communityId}:`, error);
+    return [];
+  }
 }
 
 export async function getRecentPosts(count: number = 10): Promise<Post[]> {
   noStore();
   const postsCol = collection(db, 'posts');
   const q = query(postsCol, orderBy('createdAt', 'desc'), limit(count));
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map(docSnap => processDoc<Post>(docSnap));
+  try {
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(docSnap => processDoc<Post>(docSnap));
+  } catch (error) {
+    console.error("Error fetching recent posts:", error);
+    return [];
+  }
 }
 
 export async function getPostDetails(postId: string): Promise<Post | null> {
   noStore();
   const postDocRef = doc(db, 'posts', postId);
-  const docSnap = await getDoc(postDocRef);
-  if (docSnap.exists()) {
-    return processDoc<Post>(docSnap);
+  try {
+    const docSnap = await getDoc(postDocRef);
+    if (docSnap.exists()) {
+      return processDoc<Post>(docSnap);
+    }
+    return null;
+  } catch (error) {
+    console.error(`Error fetching post details for ${postId}:`, error);
+    return null;
   }
-  return null;
 }
 
 
@@ -151,8 +187,13 @@ export async function getCommentsForPostSSR(postId: string): Promise<Comment[]> 
   noStore();
   const commentsColRef = collection(db, 'posts', postId, 'comments');
   const q = query(commentsColRef, orderBy('createdAt', 'asc'));
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map(docSnap => processDoc<Comment>(docSnap));
+  try {
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(docSnap => processDoc<Comment>(docSnap));
+  } catch (error) {
+    console.error(`Error fetching comments SSR for post ${postId}:`, error);
+    return [];
+  }
 }
 
 export function getCommentsForPostRealtime(
@@ -172,16 +213,16 @@ export function getCommentsForPostRealtime(
       } else if (data.createdAt instanceof Date) {
         createdAtStr = data.createdAt.toISOString();
       } else if (typeof data.createdAt === 'string') {
-        createdAtStr = data.createdAt; 
+        createdAtStr = data.createdAt;
       } else if (data.createdAt) {
          try {
              createdAtStr = new Date(data.createdAt).toISOString();
          } catch {
-            createdAtStr = new Date().toISOString(); 
+            createdAtStr = new Date().toISOString();
          }
       }
       else {
-        createdAtStr = new Date().toISOString(); 
+        createdAtStr = new Date().toISOString();
       }
       return {
         id: docSnap.id,
@@ -195,7 +236,7 @@ export function getCommentsForPostRealtime(
     if (onError) onError(error);
   });
 
-  return unsubscribe; 
+  return unsubscribe;
 }
 
 
@@ -205,16 +246,16 @@ export async function getDiscoverableUsers(currentUserId: string | null, count: 
     let q;
     if (currentUserId) {
         q = query(
-            usersCol, 
+            usersCol,
             where('onboardingCompleted', '==', true),
-            where('uid', '!=', currentUserId),  
-            orderBy('uid'), 
+            where('uid', '!=', currentUserId),
+            orderBy('uid'),
             limit(count)
         );
     } else {
         q = query(usersCol, where('onboardingCompleted', '==', true), orderBy('displayName', 'asc'), limit(count));
     }
-    
+
     try {
         const snapshot = await getDocs(q);
         let users = snapshot.docs.map(docSnap => processDoc<UserProfile>(docSnap));
@@ -238,8 +279,13 @@ export async function getUserPosts(userId: string, count: number = 10): Promise<
     orderBy('createdAt', 'desc'),
     limit(count)
   );
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map(docSnap => processDoc<Post>(docSnap));
+  try {
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(docSnap => processDoc<Post>(docSnap));
+  } catch (error) {
+    console.error(`Error fetching posts for user ${userId}:`, error);
+    return [];
+  }
 }
 
 export async function getUserJoinedCommunities(userId: string): Promise<Community[]> {
@@ -249,14 +295,19 @@ export async function getUserJoinedCommunities(userId: string): Promise<Communit
   const q = query(
     communitiesCol,
     where('members', 'array-contains', userId),
-    orderBy('name', 'asc') 
+    orderBy('name', 'asc')
   );
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map(docSnap => processDoc<Community>(docSnap));
+  try {
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(docSnap => processDoc<Community>(docSnap));
+  } catch (error) {
+    console.error(`Error fetching joined communities for user ${userId}:`, error);
+    return [];
+  }
 }
 
 export async function isFollowing(currentUserId: string, targetUserId: string): Promise<boolean> {
-  noStore(); 
+  noStore();
   if (!currentUserId || !targetUserId) return false;
   try {
     const followingRef = doc(db, 'users', currentUserId, 'following', targetUserId);
@@ -264,7 +315,7 @@ export async function isFollowing(currentUserId: string, targetUserId: string): 
     return docSnap.exists();
   } catch (error) {
     console.error("Error checking follow status:", error);
-    return false; 
+    return false;
   }
 }
 
@@ -273,24 +324,29 @@ export async function getFollowers(userId: string, count: number = 10): Promise<
     if (!userId) return [];
     const followersColRef = collection(db, 'users', userId, 'followers');
     const q = query(followersColRef, orderBy('followedAt', 'desc'), limit(count));
-    const snapshot = await getDocs(q);
-    
-    const followerProfiles: Partial<UserProfile>[] = [];
-    for (const followerDoc of snapshot.docs) {
-        const followerData = followerDoc.data();
-        if (followerData.userId) { 
-          const userProfileDoc = await getDoc(doc(db, 'users', followerData.userId));
-          if (userProfileDoc.exists()) {
-              const profile = processDoc<UserProfile>(userProfileDoc); 
-              followerProfiles.push({
-                  uid: userProfileDoc.id,
-                  displayName: profile.displayName,
-                  photoURL: profile.photoURL,
-              });
+
+    try {
+      const snapshot = await getDocs(q);
+      const followerProfiles: Partial<UserProfile>[] = [];
+      for (const followerDoc of snapshot.docs) {
+          const followerData = followerDoc.data();
+          if (followerData.userId) {
+            const userProfileDoc = await getDoc(doc(db, 'users', followerData.userId));
+            if (userProfileDoc.exists()) {
+                const profile = processDoc<UserProfile>(userProfileDoc);
+                followerProfiles.push({
+                    uid: userProfileDoc.id,
+                    displayName: profile.displayName,
+                    photoURL: profile.photoURL,
+                });
+            }
           }
-        }
+      }
+      return followerProfiles;
+    } catch (error) {
+      console.error(`Error fetching followers for user ${userId}:`, error);
+      return [];
     }
-    return followerProfiles;
 }
 
 export async function getFollowing(userId: string, count: number = 10): Promise<Partial<UserProfile>[]> {
@@ -298,24 +354,28 @@ export async function getFollowing(userId: string, count: number = 10): Promise<
     if (!userId) return [];
     const followingColRef = collection(db, 'users', userId, 'following');
     const q = query(followingColRef, orderBy('followedAt', 'desc'), limit(count));
-    const snapshot = await getDocs(q);
-
-    const followingProfiles: Partial<UserProfile>[] = [];
-    for (const followingDoc of snapshot.docs) {
-        const followingData = followingDoc.data();
-        if (followingData.userId) { 
-          const userProfileDoc = await getDoc(doc(db, 'users', followingData.userId));
-          if (userProfileDoc.exists()) {
-              const profile = processDoc<UserProfile>(userProfileDoc); 
-              followingProfiles.push({
-                  uid: userProfileDoc.id,
-                  displayName: profile.displayName,
-                  photoURL: profile.photoURL,
-              });
+    try {
+      const snapshot = await getDocs(q);
+      const followingProfiles: Partial<UserProfile>[] = [];
+      for (const followingDoc of snapshot.docs) {
+          const followingData = followingDoc.data();
+          if (followingData.userId) {
+            const userProfileDoc = await getDoc(doc(db, 'users', followingData.userId));
+            if (userProfileDoc.exists()) {
+                const profile = processDoc<UserProfile>(userProfileDoc);
+                followingProfiles.push({
+                    uid: userProfileDoc.id,
+                    displayName: profile.displayName,
+                    photoURL: profile.photoURL,
+                });
+            }
           }
-        }
+      }
+      return followingProfiles;
+    } catch (error) {
+      console.error(`Error fetching following for user ${userId}:`, error);
+      return [];
     }
-    return followingProfiles;
 }
 
 export async function getUserProfile(userId: string): Promise<UserProfile | null> {
@@ -340,15 +400,20 @@ export async function getAllUsersForNewChat(currentUserId: string, count: number
   const q = query(
     usersCol,
     where('uid', '!=', currentUserId),
-    where('onboardingCompleted', '==', true), 
-    orderBy('uid'), 
+    where('onboardingCompleted', '==', true),
+    orderBy('uid'),
   );
-  
-  const snapshot = await getDocs(q);
-  return snapshot.docs
-    .map(docSnap => processDoc<UserProfile>(docSnap))
-    .sort((a, b) => (a.displayName || '').localeCompare(b.displayName || ''))
-    .slice(0, count); 
+
+  try {
+    const snapshot = await getDocs(q);
+    return snapshot.docs
+      .map(docSnap => processDoc<UserProfile>(docSnap))
+      .sort((a, b) => (a.displayName || '').localeCompare(b.displayName || ''))
+      .slice(0, count);
+  } catch (error) {
+    console.error("Error fetching all users for new chat:", error);
+    return [];
+  }
 }
 
 
@@ -356,9 +421,14 @@ export async function getAllUsersForNewChat(currentUserId: string, count: number
 export async function getCallDetails(appCallId: string): Promise<VideoCallSession | null> {
   noStore();
   const callDocRef = doc(db, 'videoCalls', appCallId);
-  const callSnap = await getDoc(callDocRef);
-  if (callSnap.exists()) {
-    return processDoc<VideoCallSession>(callSnap);
+  try {
+    const callSnap = await getDoc(callDocRef);
+    if (callSnap.exists()) {
+      return processDoc<VideoCallSession>(callSnap);
+    }
+    return null;
+  } catch (error) {
+    console.error(`Error fetching call details for ${appCallId}:`, error);
+    return null;
   }
-  return null;
 }
