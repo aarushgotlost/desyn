@@ -1,17 +1,46 @@
 
 "use client";
 
+import { useEffect, useRef } from 'react';
 import { useAnimation } from '@/context/AnimationContext';
 import { Button } from '@/components/ui/button';
 import { PlusCircle, Trash2 } from 'lucide-react';
 
 export default function Timeline() {
-  const { frames, setFrames, activeFrameIndex, setActiveFrameIndex } = useAnimation();
+  const { 
+    frames, 
+    setFrames, 
+    activeFrameIndex, 
+    setActiveFrameIndex,
+    isPlaying,
+    fps 
+  } = useAnimation();
+
+  const playbackIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (isPlaying && frames.length > 0) {
+      playbackIntervalRef.current = setInterval(() => {
+        setActiveFrameIndex(prevIndex => (prevIndex + 1) % frames.length);
+      }, 1000 / fps);
+    } else {
+      if (playbackIntervalRef.current) {
+        clearInterval(playbackIntervalRef.current);
+        playbackIntervalRef.current = null;
+      }
+    }
+    return () => {
+      if (playbackIntervalRef.current) {
+        clearInterval(playbackIntervalRef.current);
+      }
+    };
+  }, [isPlaying, frames.length, fps, setActiveFrameIndex]);
+
 
   const addFrame = () => {
-    const newFrame = { id: `frame-${frames.length}`, dataUrl: null, layers: [] }; // Basic frame structure
-    setFrames([...frames, newFrame]);
-    setActiveFrameIndex(frames.length); // Activate the new frame
+    const newFrame = { id: `frame-${frames.length}-${Date.now()}`, dataUrl: null, layers: [] };
+    setFrames(prevFrames => [...prevFrames, newFrame]);
+    setActiveFrameIndex(frames.length); // Activate the new frame (index will be current length before adding)
   };
 
   const selectFrame = (index: number) => {
@@ -20,12 +49,11 @@ export default function Timeline() {
 
   const deleteFrame = (index: number) => {
     if (frames.length <= 1) {
-      alert("Cannot delete the last frame."); // Or handle more gracefully
+      alert("Cannot delete the last frame.");
       return;
     }
-    const newFrames = frames.filter((_, i) => i !== index);
-    setFrames(newFrames);
-    // Adjust activeFrameIndex if the deleted frame was active or before active
+    setFrames(prevFrames => prevFrames.filter((_, i) => i !== index));
+    
     if (activeFrameIndex === index) {
       setActiveFrameIndex(Math.max(0, index - 1));
     } else if (activeFrameIndex > index) {
@@ -49,11 +77,10 @@ export default function Timeline() {
             className={`group relative flex-shrink-0 w-24 h-full border-2 rounded-md cursor-pointer flex flex-col items-center justify-center bg-muted hover:border-primary
                         ${index === activeFrameIndex ? 'border-primary ring-2 ring-primary' : 'border-muted-foreground/30'}`}
           >
-            {/* Placeholder for frame preview - replace with actual FramePreview component if desired */}
             <img 
               src={frame.dataUrl || `https://placehold.co/96x54.png?text=F${index + 1}`} 
               alt={`Frame ${index + 1}`} 
-              className="max-w-full max-h-full object-contain rounded-sm"
+              className="max-w-full max-h-[calc(100%-1.25rem)] object-contain rounded-sm" // Adjusted max-h for text
               data-ai-hint="animation frame small"
             />
             <span className="absolute bottom-1 right-1 text-xs bg-black/50 text-white px-1 rounded-sm">{index + 1}</span>
@@ -63,7 +90,7 @@ export default function Timeline() {
                 size="icon"
                 className="absolute top-0 right-0 h-5 w-5 p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
                 onClick={(e) => {
-                  e.stopPropagation(); // Prevent frame selection
+                  e.stopPropagation(); 
                   deleteFrame(index);
                 }}
                 aria-label={`Delete frame ${index + 1}`}

@@ -3,7 +3,7 @@
 
 import type { ReactNode } from 'react';
 import { createContext, useState, useContext, useEffect, Dispatch, SetStateAction } from 'react';
-import { loadAllFrames, saveFrame } from '@/lib/animationUtils'; 
+import { loadAllFrames } from '@/lib/animationUtils'; // Removed saveFrame as it's not directly used here
 
 // Define types for context values
 interface Frame {
@@ -34,6 +34,10 @@ interface AnimationContextType {
   setCurrentColor: Dispatch<SetStateAction<string>>;
   brushSize: number;
   setBrushSize: Dispatch<SetStateAction<number>>;
+  isPlaying: boolean;
+  setIsPlaying: Dispatch<SetStateAction<boolean>>;
+  fps: number;
+  setFps: Dispatch<SetStateAction<number>>;
 }
 
 const AnimationContext = createContext<AnimationContextType | undefined>(undefined);
@@ -46,8 +50,11 @@ export const AnimationProvider = ({ children, projectId }: { children: ReactNode
   ]);
   const [currentTool, setCurrentTool] = useState<string>('brush'); 
   const [isLoadingProject, setIsLoadingProject] = useState<boolean>(true);
-  const [currentColor, setCurrentColor] = useState<string>('#000000'); // Default to black
-  const [brushSize, setBrushSize] = useState<number>(5); // Default brush size
+  const [currentColor, setCurrentColor] = useState<string>('#000000');
+  const [brushSize, setBrushSize] = useState<number>(5);
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [fps, setFps] = useState<number>(12);
+
 
   useEffect(() => {
     if (projectId) {
@@ -63,13 +70,14 @@ export const AnimationProvider = ({ children, projectId }: { children: ReactNode
             setFrames(processedFrames);
             setActiveFrameIndex(0); 
           } else {
-            setFrames([{ id: 'frame-0', dataUrl: null, layers: [{ id: 'layer-0', name: 'Layer 1', visible: true }] }]);
+            // Ensure a default frame exists if no frames are loaded
+            setFrames([{ id: `frame-0-${Date.now()}`, dataUrl: null, layers: [{ id: 'layer-0', name: 'Layer 1', visible: true }] }]);
             setActiveFrameIndex(0);
           }
         })
         .catch(error => {
           console.error("Failed to load frames:", error);
-          setFrames([{ id: 'frame-0', dataUrl: null, layers: [{ id: 'layer-0', name: 'Layer 1', visible: true }] }]);
+          setFrames([{ id: `frame-0-${Date.now()}`, dataUrl: null, layers: [{ id: 'layer-0', name: 'Layer 1', visible: true }] }]);
           setActiveFrameIndex(0);
         })
         .finally(() => {
@@ -93,6 +101,10 @@ export const AnimationProvider = ({ children, projectId }: { children: ReactNode
     setCurrentColor,
     brushSize,
     setBrushSize,
+    isPlaying,
+    setIsPlaying,
+    fps,
+    setFps,
   };
 
   return (

@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useRef, useEffect, useState, MouseEvent as ReactMouseEvent } from 'react';
+import { useRef, useEffect, useState, MouseEvent as ReactMouseEvent, useCallback } from 'react';
 import { useAnimation } from '@/context/AnimationContext';
 import { useAutosave } from '@/hooks/useAutosave';
 
@@ -16,20 +16,34 @@ export default function Canvas() {
     brushSize 
   } = useAnimation();
   
-  useAutosave(); // Initialize autosave hook
+  useAutosave(); 
 
   const [isDrawing, setIsDrawing] = useState(false);
   const lastPosRef = useRef<{ x: number; y: number } | null>(null);
 
+  const resizeCanvas = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !canvas.parentElement) return;
+    // Set canvas drawing surface size to match its displayed size
+    canvas.width = canvas.parentElement.offsetWidth;
+    canvas.height = canvas.parentElement.offsetHeight;
+    // Redraw the current frame after resize
+    redrawCurrentFrame();
+  }, [frames, activeFrameIndex]); // Add dependencies that might require redraw on resize
 
-  // Effect to clear and redraw canvas when active frame or its dataUrl changes
   useEffect(() => {
+    resizeCanvas(); // Initial resize
+    window.addEventListener('resize', resizeCanvas);
+    return () => window.removeEventListener('resize', resizeCanvas);
+  }, [resizeCanvas]);
+
+
+  const redrawCurrentFrame = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = "white"; // Ensure canvas background is white for new/empty frames
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -37,23 +51,30 @@ export default function Canvas() {
     if (currentFrameData) {
       const image = new Image();
       image.onload = () => {
-        ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+        // Draw the image, maintaining aspect ratio and fitting within the canvas
+        const hRatio = canvas.width / image.width;
+        const vRatio = canvas.height / image.height;
+        const ratio = Math.min(hRatio, vRatio);
+        const centerShift_x = (canvas.width - image.width * ratio) / 2;
+        const centerShift_y = (canvas.height - image.height * ratio) / 2;  
+        ctx.drawImage(image, 0, 0, image.width, image.height,
+                      centerShift_x, centerShift_y, image.width * ratio, image.height * ratio);
       };
-      image.onerror = () => {
-        console.error("Error loading image for frame " + activeFrameIndex);
-      }
+      image.onerror = () => console.error("Error loading image for frame " + activeFrameIndex);
       image.src = currentFrameData;
     }
-  }, [activeFrameIndex, frames]); // Removed frames[activeFrameIndex]?.dataUrl to rely on frames for broader changes
+  }, [activeFrameIndex, frames]);
+
+
+  useEffect(() => {
+    redrawCurrentFrame();
+  }, [activeFrameIndex, frames, redrawCurrentFrame]); // Redraw when active frame or its data changes
 
   const getMousePos = (e: ReactMouseEvent<HTMLCanvasElement>): { x: number; y: number } => {
     const rect = canvasRef.current!.getBoundingClientRect();
-    // Consider devicePixelRatio for hidpi screens if needed for precision
-    // const scaleX = canvasRef.current!.width / rect.width;    
-    // const scaleY = canvasRef.current!.height / rect.height;  
     return {
-      x: e.clientX - rect.left, // * scaleX,
-      y: e.clientY - rect.top, // * scaleY
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
     };
   };
 
@@ -67,15 +88,18 @@ export default function Canvas() {
     const pos = getMousePos(e);
     lastPosRef.current = pos;
 
-    // Initial dot for brush tool
     if (currentTool === 'brush' || currentTool === 'eraser') {
         ctx.beginPath();
         ctx.arc(pos.x, pos.y, brushSize / 2, 0, Math.PI * 2);
-        ctx.fillStyle = currentTool === 'brush' ? currentColor : 'white'; // Eraser draws "white"
-        if (currentTool === 'eraser') ctx.globalCompositeOperation = 'destination-out';
+        if (currentTool === 'brush') {
+          ctx.fillStyle = currentColor;
+          ctx.globalCompositeOperation = 'source-over';
+        } else { // Eraser
+          ctx.fillStyle = 'white'; // For eraser, effectively drawing white
+          ctx.globalCompositeOperation = 'destination-out'; // This "erases"
+        }
         ctx.fill();
-        if (currentTool === 'eraser') ctx.globalCompositeOperation = 'source-over'; // Reset
-        ctx.closePath(); // Added closePath
+        ctx.closePath();
     }
   };
 
@@ -96,19 +120,19 @@ export default function Canvas() {
       ctx.strokeStyle = currentColor;
       ctx.lineWidth = brushSize;
     } else if (currentTool === 'eraser') {
-      ctx.globalCompositeOperation = 'destination-out'; // This makes subsequent drawing erase
-      ctx.lineWidth = brushSize; // Eraser size
-      // No strokeStyle needed for eraser with destination-out
+      ctx.globalCompositeOperation = 'destination-out'; 
+      ctx.strokeStyle = 'rgba(0,0,0,1)'; // Color doesn't matter for destination-out stroke
+      ctx.lineWidth = brushSize;
     } else {
-      ctx.closePath(); // Ensure path is closed if not drawing
-      return; // Do nothing for other tools for now
+      ctx.closePath();
+      return; 
     }
     
     ctx.lineTo(pos.x, pos.y);
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.stroke();
-    ctx.closePath(); // Close the path after stroking
+    ctx.closePath();
 
     lastPosRef.current = pos;
   };
@@ -123,34 +147,33 @@ export default function Canvas() {
     const ctx = canvas.getContext('2d');
     if(!ctx) return;
 
-    // Reset composite operation after erasing
     if (currentTool === 'eraser') {
-        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalCompositeOperation = 'source-over'; // Reset composite operation
     }
 
-
-    const dataUrl = canvas.toDataURL('image/png'); // Save as PNG
+    const dataUrl = canvas.toDataURL('image/png');
     setFrames(prevFrames => {
       const newFrames = [...prevFrames];
       if (newFrames[activeFrameIndex]) {
         newFrames[activeFrameIndex] = { ...newFrames[activeFrameIndex], dataUrl };
+      } else if (newFrames.length === 0 && activeFrameIndex === 0) { // Case for the very first frame
+         newFrames.push({ id: `frame-0-${Date.now()}`, dataUrl, layers: [{ id: 'layer-0', name: 'Layer 1', visible: true }] });
       }
       return newFrames;
     });
   };
   
   return (
-    <div className="flex-1 flex items-center justify-center bg-muted p-2 overflow-auto">
+    <div className="flex-1 flex items-center justify-center bg-muted p-2 overflow-hidden relative">
       <canvas
         ref={canvasRef}
         className="bg-white border border-foreground/20 shadow-lg" 
-        width={1280} 
-        height={720}  
+        // Removed fixed width and height, will be set by JS
         onMouseDown={startDrawing}
         onMouseMove={draw}
         onMouseUp={stopDrawing}
-        onMouseLeave={stopDrawing} // Stop drawing if mouse leaves canvas
-        style={{ touchAction: 'none' }} // Improves touch interaction
+        onMouseLeave={stopDrawing}
+        style={{ touchAction: 'none', display: 'block', width: '100%', height: '100%' }} // Make canvas element fill parent
       />
     </div>
   );
