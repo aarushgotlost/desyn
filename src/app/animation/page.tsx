@@ -81,7 +81,7 @@ export default function AnimationLandingPage() {
                 {projects.map((project) => (
                   <Card key={project.id} className="overflow-hidden hover:shadow-lg transition-shadow">
                     <Link href={`/animation/${project.id}`}>
-                      <div className="aspect-video bg-muted flex items-center justify-center">
+                      <div className="aspect-video bg-muted flex items-center justify-center" data-ai-hint="project card visual area">
                         {project.thumbnailURL ? (
                           <Image
                             src={project.thumbnailURL}
@@ -92,14 +92,9 @@ export default function AnimationLandingPage() {
                             data-ai-hint="animation project thumbnail"
                           />
                         ) : (
-                           <Image
-                            src="https://placehold.co/300x169.png" 
-                            alt={project.name || "Animation Project"}
-                            width={300}
-                            height={169}
-                            className="object-cover w-full h-full"
-                            data-ai-hint="animation placeholder thumbnail"
-                          />
+                           <div className="w-full h-full flex items-center justify-center bg-muted text-muted-foreground" data-ai-hint="animation no thumbnail">
+                             <FolderKanban size={48} />
+                           </div>
                         )}
                       </div>
                     </Link>
