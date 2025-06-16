@@ -19,7 +19,8 @@ export default function Toolbar() {
     canUndoDrawing, canRedoDrawing,
     saveActiveFrameManually,
     saveAllFramesManually, // New context function
-    projectId 
+    projectId,
+    isLoadingProject // Get isLoadingProject from context
   } = useAnimation();
   const { toast } = useToast();
   const [isSavingFrame, setIsSavingFrame] = useState(false);
@@ -114,11 +115,25 @@ export default function Toolbar() {
         <Button variant="ghost" size="icon" onClick={togglePlay} title={isPlaying ? "Pause Animation" : "Play Animation"} aria-label={isPlaying ? "Pause Animation" : "Play Animation"}>
           {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
         </Button>
-         <Button variant="outline" size="sm" title="Save Current Frame" aria-label="Save Current Frame" onClick={handleSaveFrame} disabled={isSavingFrame || isSavingAll || !projectId}>
+         <Button 
+            variant="outline" 
+            size="sm" 
+            title="Save Current Frame" 
+            aria-label="Save Current Frame" 
+            onClick={handleSaveFrame} 
+            disabled={isLoadingProject || isSavingFrame || isSavingAll || !projectId}
+          >
           {isSavingFrame ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
            {isSavingFrame ? "Saving..." : "Save Frame"}
         </Button>
-        <Button variant="default" size="sm" title="Save All Frames" aria-label="Save All Frames" onClick={handleSaveAllFrames} disabled={isSavingFrame || isSavingAll || !projectId}>
+        <Button 
+            variant="default" 
+            size="sm" 
+            title="Save All Frames" 
+            aria-label="Save All Frames" 
+            onClick={handleSaveAllFrames} 
+            disabled={isLoadingProject || isSavingFrame || isSavingAll || !projectId}
+          >
           {isSavingAll ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Disc3 className="mr-2 h-4 w-4" />}
            {isSavingAll ? "Saving All..." : "Save All"}
         </Button>
@@ -126,3 +141,4 @@ export default function Toolbar() {
     </div>
   );
 }
+
