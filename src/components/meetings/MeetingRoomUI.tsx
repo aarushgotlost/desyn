@@ -10,7 +10,8 @@ import {
   selectLocalPeer,
   HMSReactiveStore,
 } from '@100mslive/react-sdk';
-import { HMSVideoGrid, HMSVideoTile, HMSRootLayout, HMSPages } from '@100mslive/react-ui';
+// Changed import based on error hint "Did you mean to import Video?"
+import { Video as HMSVideoTile } from '@100mslive/react-ui'; 
 import { MeetingControls } from './MeetingControls';
 import { Loader2, AlertTriangle } from 'lucide-react';
 
@@ -33,15 +34,12 @@ function RoomView({ onLeaveMeeting, meetingTitle, userName, isHost }: Omit<Meeti
 
   useEffect(() => {
     const joinRoom = async () => {
-      // authToken is passed via HMSRoomProvider now, join config uses it
       try {
         await hmsActions.join({
           userName: userName,
-          // authToken: authToken, // This is now handled by the provider
         });
       } catch (e) {
         console.error("Error joining 100ms room:", e);
-        // Handle join error (e.g., show toast, redirect)
       }
     };
 
@@ -50,14 +48,13 @@ function RoomView({ onLeaveMeeting, meetingTitle, userName, isHost }: Omit<Meeti
     }
 
     return () => {
-      // Ensure leave is called if component unmounts while connected
       if (isConnected) {
         hmsActions.leave();
       }
     };
-  }, [isConnected, userName]); // Removed authToken from dependencies as it's via provider
+  }, [isConnected, userName]);
 
-  if (!isConnected) {
+  if (!isConnected && !localPeer) { 
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-background text-foreground">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
@@ -66,23 +63,56 @@ function RoomView({ onLeaveMeeting, meetingTitle, userName, isHost }: Omit<Meeti
       </div>
     );
   }
-
+  
   return (
     <div className="flex flex-col h-screen bg-background text-foreground">
       <header className="p-4 border-b border-border bg-card text-card-foreground shadow-sm">
         <h1 className="text-xl font-semibold truncate">{meetingTitle}</h1>
       </header>
       
-      <main className="flex-1 overflow-hidden p-2 md:p-4">
-        {/* Using HMSVideoGrid for a responsive layout of video tiles */}
-        <HMSVideoGrid
-            peers={peers}
-            maxTileCount={9} // Show up to 9 tiles, adjust as needed
-            aspectRatio={{ width: 16, height: 9 }}
-            isLocalScreenShared={false} // You'd update this based on screen share state
-        >
-            {/* You can customize individual tiles if needed, but HMSVideoGrid handles rendering */}
-        </HMSVideoGrid>
+      <main className="flex-1 overflow-hidden">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-2 h-full overflow-y-auto">
+          {/* Render local peer first if available */}
+          {localPeer && (
+            <div key={localPeer.id} className="relative aspect-video bg-muted rounded-lg overflow-hidden shadow-md">
+              <HMSVideoTile
+                peer={localPeer}
+                isLocal={true}
+                width="100%"
+                height="100%"
+              />
+              <div className="absolute bottom-1 left-1 bg-black/50 text-white text-xs px-1.5 py-0.5 rounded">
+                {localPeer.name} (You)
+              </div>
+            </div>
+          )}
+          {/* Render remote peers */}
+          {peers.filter(p => !p.isLocal).map((peer) => {
+            return (
+              <div key={peer.id} className="relative aspect-video bg-muted rounded-lg overflow-hidden shadow-md">
+                <HMSVideoTile
+                  peer={peer}
+                  isLocal={false}
+                  width="100%"
+                  height="100%"
+                />
+                <div className="absolute bottom-1 left-1 bg-black/50 text-white text-xs px-1.5 py-0.5 rounded">
+                  {peer.name}
+                </div>
+              </div>
+            );
+          })}
+          {peers.length === 0 && !localPeer && ( 
+            <div className="col-span-full flex items-center justify-center h-full">
+              <p className="text-muted-foreground">Waiting for participants...</p>
+            </div>
+          )}
+           {peers.length === 1 && localPeer && peers[0].id === localPeer.id && ( // Only local peer
+            <div className="col-span-full flex items-center justify-center h-full">
+              <p className="text-muted-foreground">You are the only one in the meeting.</p>
+            </div>
+          )}
+        </div>
       </main>
 
       <MeetingControls
@@ -106,8 +136,13 @@ export function MeetingRoomUI({ authToken, userName, meetingTitle, onLeaveMeetin
       </div>
     );
   }
+
   return (
-    <HMSRoomProvider actions={hmsActions} store={hmsManager.getStore()} config={{authToken, userName}}>
+    <HMSRoomProvider 
+      actions={hmsActions} 
+      store={hmsManager.getStore()} 
+      config={{authToken, userName}}
+    >
         <RoomView 
             userName={userName} 
             meetingTitle={meetingTitle} 
