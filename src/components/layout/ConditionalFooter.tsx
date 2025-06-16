@@ -13,9 +13,8 @@ export function ConditionalFooter() {
   ];
 
   const isChatDetailPage = pathname.startsWith('/messages/') && pathname.split('/').length > 2 && pathname.split('/')[2] !== 'new';
-  const isMeetingDetailPage = pathname.startsWith('/meetings/') && pathname.split('/').length > 2;
 
-  if (hiddenFooterPaths.includes(pathname) || isChatDetailPage || isMeetingDetailPage) {
+  if (hiddenFooterPaths.includes(pathname) || isChatDetailPage) {
     return null;
   }
 
