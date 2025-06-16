@@ -32,29 +32,17 @@ function RoomView({ onLeaveMeeting, meetingTitle, userName, isHost }: Omit<Meeti
   const localPeer = useHMSStore(selectLocalPeer);
 
   useEffect(() => {
-    const joinRoom = async () => {
-      try {
-        // Ensure HMS Actions are available and not called if already connected
-        if (hmsActions && typeof hmsActions.join === 'function' && !isConnected) {
-            await hmsActions.join({
-                userName: userName,
-                // authToken is handled by HMSRoomProvider config
-            });
-        }
-      } catch (e) {
-        console.error("Error joining 100ms room:", e);
-      }
-    };
-
-    joinRoom(); // Attempt to join when component mounts if not connected
+    // HMSRoomProvider should handle joining automatically with the config prop.
+    // The explicit hmsActions.join() call has been removed.
 
     return () => {
       // Ensure hmsActions and leave are available before calling
-      if (hmsActions && typeof hmsActions.leave === 'function' && isConnected) {
+      // Check if connected before attempting to leave to avoid errors if never connected.
+      if (hmsActions && typeof hmsActions.leave === 'function' && hmsManager.getStore().getState(selectIsConnectedToRoom)) {
         hmsActions.leave();
       }
     };
-  }, [isConnected, userName]); // Removed hmsActions from deps as it's stable
+  }, []); // Empty dependency array, leave logic only depends on unmount.
 
   if (!isConnected && !localPeer) { 
     return (
@@ -79,8 +67,6 @@ function RoomView({ onLeaveMeeting, meetingTitle, userName, isHost }: Omit<Meeti
               <HMSVideoTile
                 peer={localPeer}
                 isLocal={true}
-                // width="100%" // These props might not be needed if aspect-video and object-cover work
-                // height="100%"
                 className="object-cover w-full h-full"
               />
               <div className="absolute bottom-1 left-1 bg-black/50 text-white text-xs px-1.5 py-0.5 rounded">
@@ -94,8 +80,6 @@ function RoomView({ onLeaveMeeting, meetingTitle, userName, isHost }: Omit<Meeti
                 <HMSVideoTile
                   peer={peer}
                   isLocal={false}
-                  // width="100%"
-                  // height="100%"
                   className="object-cover w-full h-full"
                 />
                 <div className="absolute bottom-1 left-1 bg-black/50 text-white text-xs px-1.5 py-0.5 rounded">
