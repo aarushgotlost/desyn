@@ -1,7 +1,7 @@
 
 "use client";
 
-import { use, useEffect, useState, useRef, FormEvent } from 'react'; 
+import { useEffect, useState, useRef, FormEvent } from 'react'; 
 import { useAuth } from '@/contexts/AuthContext';
 import { sendMessage } from '@/services/chatService'; 
 import { getChatMessages } from '@/services/chatSubscriptionService'; 
@@ -30,8 +30,7 @@ export default function ChatPage({ params }: { params: { chatId: string } }) {
   const chatContentRef = useRef<HTMLDivElement>(null);
   const initialLoadDoneRef = useRef(false);
 
-  const resolvedParams = use(params as unknown as Promise<{ chatId: string }>);
-  const chatId = resolvedParams.chatId;
+  const chatId = params.chatId; // Directly access chatId from params
 
   useEffect(() => {
     const scrollableElement = chatContentRef.current;
