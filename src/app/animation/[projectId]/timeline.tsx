@@ -2,9 +2,13 @@
 "use client";
 
 import { useEffect, useRef } from 'react';
-import { useAnimation } from '@/context/AnimationContext';
+import { useAnimation, type Layer } from '@/context/AnimationContext'; // Import Layer type
 import { Button } from '@/components/ui/button';
 import { PlusCircle, Trash2 } from 'lucide-react';
+
+// Define default layers for new frames, possibly import from a shared util or context default
+const defaultLayersForNewFrameTemplate: Layer[] = [{ id: `layer-template-0`, name: 'Layer 1', visible: true, data: [] }];
+
 
 export default function Timeline() {
   const { 
@@ -38,27 +42,42 @@ export default function Timeline() {
 
 
   const addFrame = () => {
-    const newFrame = { id: `frame-${frames.length}-${Date.now()}`, dataUrl: null, layers: [] };
+    // Create a deep copy of default layers with unique IDs for the new frame
+    const newFrameLayers: Layer[] = defaultLayersForNewFrameTemplate.map((layer, index) => ({
+      ...layer,
+      id: `layer-frame${frames.length}-${index}-${Date.now()}` 
+    }));
+
+    const newFrame = { 
+      id: `frame-${frames.length}-${Date.now()}`, 
+      dataUrl: null, 
+      layers: newFrameLayers // Initialize with default layer structure
+    };
     setFrames(prevFrames => [...prevFrames, newFrame]);
-    setActiveFrameIndex(frames.length); // Activate the new frame (index will be current length before adding)
+    setActiveFrameIndex(frames.length); 
   };
 
   const selectFrame = (index: number) => {
     setActiveFrameIndex(index);
   };
 
-  const deleteFrame = (index: number) => {
+  const deleteFrame = (indexToDelete: number) => {
     if (frames.length <= 1) {
       alert("Cannot delete the last frame.");
       return;
     }
-    setFrames(prevFrames => prevFrames.filter((_, i) => i !== index));
     
-    if (activeFrameIndex === index) {
-      setActiveFrameIndex(Math.max(0, index - 1));
-    } else if (activeFrameIndex > index) {
+    setFrames(prevFrames => prevFrames.filter((_, i) => i !== indexToDelete));
+    
+    // Adjust activeFrameIndex after deletion
+    if (activeFrameIndex === indexToDelete) {
+      // If the active frame was deleted, select the previous one, or 0 if it was the first
+      setActiveFrameIndex(Math.max(0, indexToDelete - 1));
+    } else if (activeFrameIndex > indexToDelete) {
+      // If a frame before the active one was deleted, decrement active index
       setActiveFrameIndex(activeFrameIndex - 1);
     }
+    // If a frame after the active one was deleted, activeFrameIndex doesn't need to change
   };
 
   return (
@@ -72,7 +91,7 @@ export default function Timeline() {
       <div className="flex-1 overflow-x-auto flex items-center space-x-2 pb-2">
         {frames.map((frame, index) => (
           <div
-            key={frame.id || index}
+            key={frame.id} // Use guaranteed unique frame.id
             onClick={() => selectFrame(index)}
             className={`group relative flex-shrink-0 w-24 h-full border-2 rounded-md cursor-pointer flex flex-col items-center justify-center bg-muted hover:border-primary
                         ${index === activeFrameIndex ? 'border-primary ring-2 ring-primary' : 'border-muted-foreground/30'}`}
@@ -80,8 +99,8 @@ export default function Timeline() {
             <img 
               src={frame.dataUrl || `https://placehold.co/96x54.png?text=F${index + 1}`} 
               alt={`Frame ${index + 1}`} 
-              className="max-w-full max-h-[calc(100%-1.25rem)] object-contain rounded-sm" // Adjusted max-h for text
-              data-ai-hint="animation frame small"
+              className="max-w-full max-h-[calc(100%-1.25rem)] object-contain rounded-sm"
+              data-ai-hint="animation frame preview"
             />
             <span className="absolute bottom-1 right-1 text-xs bg-black/50 text-white px-1 rounded-sm">{index + 1}</span>
              {frames.length > 1 && (
@@ -107,3 +126,4 @@ export default function Timeline() {
     </div>
   );
 }
+

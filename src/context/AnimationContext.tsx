@@ -8,13 +8,13 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
 // Define types for context values
-interface Frame {
+export interface Frame {
   id: string; 
   dataUrl: string | null; 
   layers: Layer[]; 
 }
 
-interface Layer {
+export interface Layer {
   id: string;
   name: string;
   visible: boolean;
@@ -23,11 +23,11 @@ interface Layer {
 
 interface AnimationContextType {
   frames: Frame[];
-  setFrames: Dispatch<SetStateAction<Frame[]>>; // This will be the history-aware setter
+  setFrames: Dispatch<SetStateAction<Frame[]>>; 
   activeFrameIndex: number; 
   setActiveFrameIndex: Dispatch<SetStateAction<number>>;
   layers: Layer[]; 
-  setLayers: Dispatch<SetStateAction<Layer[]>>;
+  setLayers: Dispatch<SetStateAction<Layer[]>>; // This will manage layers for the active frame or a global template
   currentTool: string; 
   setCurrentTool: Dispatch<SetStateAction<string>>;
   projectId: string | null;
@@ -43,27 +43,26 @@ interface AnimationContextType {
   fps: number;
   setFps: Dispatch<SetStateAction<number>>;
 
-  // Undo/Redo for drawing
   undoDrawing: () => void;
   redoDrawing: () => void;
   canUndoDrawing: boolean;
   canRedoDrawing: boolean;
   
-  // Manual Save
   saveActiveFrameManually: () => Promise<void>;
 }
 
 const AnimationContext = createContext<AnimationContextType | undefined>(undefined);
 
+const defaultInitialLayers: Layer[] = [{ id: `layer-0-${Date.now()}`, name: 'Layer 1', visible: true, data: [] }];
+
 export const AnimationProvider = ({ children, projectId: routeProjectId }: { children: ReactNode, projectId: string }) => {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const [frames, _setFramesInternal] = useState<Frame[]>([]); // Internal state for frames
+  const [frames, _setFramesInternal] = useState<Frame[]>([]);
   const [activeFrameIndex, setActiveFrameIndex] = useState<number>(0);
-  const [layers, setLayers] = useState<Layer[]>([
-    { id: 'layer-0', name: 'Layer 1', visible: true, data: [] }
-  ]);
+  // Global/template layers, or layers of the active frame. For now, simpler global/template.
+  const [layers, setLayers] = useState<Layer[]>([...defaultInitialLayers]); 
   const [currentTool, setCurrentTool] = useState<string>('brush'); 
   const [isLoadingProject, setIsLoadingProject] = useState<boolean>(true);
   const [currentColor, setCurrentColor] = useState<string>('#000000');
@@ -72,15 +71,13 @@ export const AnimationProvider = ({ children, projectId: routeProjectId }: { chi
   const [fps, setFps] = useState<number>(12);
   const [projectName, setProjectName] = useState<string>("Untitled Animation");
 
-
-  // State for active frame's drawing history (Undo/Redo)
   const [drawingHistory, setDrawingHistory] = useState<(string | null)[]>([]);
   const [drawingHistoryPointer, setDrawingHistoryPointer] = useState<number>(-1);
 
-  // Load project data (metadata and frames)
   useEffect(() => {
     if (routeProjectId) {
       setIsLoadingProject(true);
+      setLayers([...defaultInitialLayers]); // Reset layers panel for new project
       Promise.all([
         getProjectMetadata(routeProjectId),
         loadAllFrames(routeProjectId)
@@ -89,75 +86,112 @@ export const AnimationProvider = ({ children, projectId: routeProjectId }: { chi
           setProjectName(metadata.name);
           setFps(metadata.fps || 12);
         } else {
-          setProjectName(`Untitled Animation ${routeProjectId.substring(routeProjectId.length - 6)}`);
+          setProjectName(`Untitled Project ${routeProjectId.substring(routeProjectId.length - 6)}`);
         }
 
-        let initialFrames: Frame[];
+        let initialFramesToSet: Frame[];
         if (loadedFrames && loadedFrames.length > 0) {
-          initialFrames = loadedFrames.map((f, index) => ({
-            id: f.id || `frame-${index}-${Date.now()}`, // Ensure unique ID
+          initialFramesToSet = loadedFrames.map((f, index) => ({
+            id: f.id || `frame-${index}-${Date.now()}`,
             dataUrl: f.dataUrl || null,
-            layers: f.layers || [{ id: 'default-layer-0', name: 'Layer 1', visible: true, data: [] }] 
+            layers: f.layers && f.layers.length > 0 ? f.layers : [...defaultInitialLayers.map(l => ({...l, id: `layer-${index}-${l.id}-${Date.now()}`}))] 
           }));
         } else {
-          // Ensure at least one frame exists by default
-          initialFrames = [{ id: `frame-0-${Date.now()}`, dataUrl: null, layers: [{ id: 'layer-0', name: 'Layer 1', visible: true, data: [] }] }];
+          initialFramesToSet = [{ 
+            id: `frame-0-${Date.now()}`, 
+            dataUrl: null, 
+            layers: [...defaultInitialLayers.map(l => ({...l, id: `layer-initial-0-${l.id}-${Date.now()}`}))] 
+          }];
         }
-        _setFramesInternal(initialFrames);
+        _setFramesInternal(initialFramesToSet);
         setActiveFrameIndex(0);
 
-        // Initialize drawing history for the first active frame
-        if (initialFrames.length > 0 && initialFrames[0]) {
-          setDrawingHistory([initialFrames[0].dataUrl]);
+        if (initialFramesToSet.length > 0 && initialFramesToSet[0]) {
+          setDrawingHistory([initialFramesToSet[0].dataUrl]);
           setDrawingHistoryPointer(0);
+           // If active frame has layers, set them to the global layers for the panel
+          if (initialFramesToSet[0].layers && initialFramesToSet[0].layers.length > 0) {
+            setLayers(initialFramesToSet[0].layers);
+          } else {
+            setLayers([...defaultInitialLayers]);
+          }
         } else {
-          // This case should ideally not be hit if initialFrames is always populated
-          setDrawingHistory([null]); 
+          setDrawingHistory([null]);
           setDrawingHistoryPointer(0);
+          setLayers([...defaultInitialLayers]);
         }
       }).catch(error => {
         console.error("Failed to load project data:", error);
-        // Fallback: ensure at least one frame exists even on error
-        const defaultFrameId = `frame-0-${Date.now()}`;
-        _setFramesInternal([{ id: defaultFrameId, dataUrl: null, layers: [{ id: 'layer-0', name: 'Layer 1', visible: true, data: [] }] }]);
+        const fallbackFrames: Frame[] = [{ 
+            id: `frame-fallback-0-${Date.now()}`, 
+            dataUrl: null, 
+            layers: [...defaultInitialLayers.map(l => ({...l, id: `layer-fallback-0-${l.id}-${Date.now()}`}))] 
+        }];
+        _setFramesInternal(fallbackFrames);
         setActiveFrameIndex(0);
         setDrawingHistory([null]);
         setDrawingHistoryPointer(0);
+        setLayers([...defaultInitialLayers]);
       }).finally(() => {
         setIsLoadingProject(false);
       });
     }
   }, [routeProjectId]);
 
-  // Effect to reset/update drawing history when activeFrameIndex changes
   useEffect(() => {
     if (frames.length > 0 && activeFrameIndex >= 0 && activeFrameIndex < frames.length) {
-      const activeFrameDataUrl = frames[activeFrameIndex]?.dataUrl;
-      setDrawingHistory([activeFrameDataUrl]); // Start history for new active frame
+      const currentFrame = frames[activeFrameIndex];
+      setDrawingHistory([currentFrame?.dataUrl]); 
       setDrawingHistoryPointer(0);
-    } else if (frames.length === 0) { // Handle case where all frames might be deleted
+      // Update the global layers panel to reflect the active frame's layers
+      if (currentFrame?.layers && currentFrame.layers.length > 0) {
+        setLayers(currentFrame.layers);
+      } else {
+        // If active frame has no layers (should not happen if initialized correctly), reset panel to default
+        const defaultLayersForActiveFrame = [...defaultInitialLayers.map(l => ({...l, id: `layer-active-${activeFrameIndex}-${l.id}-${Date.now()}`}))];
+        setLayers(defaultLayersForActiveFrame);
+        // Optionally, update the frame itself if it was missing layers
+         _setFramesInternal(prev => {
+            const newFrames = [...prev];
+            if(newFrames[activeFrameIndex] && (!newFrames[activeFrameIndex].layers || newFrames[activeFrameIndex].layers.length === 0)) {
+                newFrames[activeFrameIndex] = {...newFrames[activeFrameIndex], layers: defaultLayersForActiveFrame};
+            }
+            return newFrames;
+        });
+      }
+    } else if (frames.length === 0) { 
         setDrawingHistory([null]);
         setDrawingHistoryPointer(0);
+        setLayers([...defaultInitialLayers]);
     }
-  }, [activeFrameIndex, frames]);
+  }, [activeFrameIndex]); // Only run when activeFrameIndex changes, frames dependency removed to avoid loop with _setFramesInternal
 
-
-  // Wrapper for _setFramesInternal that consumers will use (not for history management, direct state update)
-  const setFrames: Dispatch<SetStateAction<Frame[]>> = (newFramesValue) => {
-    // This setFrames is for structural changes like adding/deleting frames, not drawing updates.
-    // Drawing updates should use updateActiveFrameDrawing.
-    _setFramesInternal(newFramesValue);
-    // If a structural change happens, drawing history for the *current* active frame might be invalidated or become complex to manage.
-    // For now, we'll reset it for simplicity when setFrames is called directly.
-    // A more sophisticated approach would be needed for undoing add/delete frames.
-    if (frames.length > 0 && activeFrameIndex < frames.length && frames[activeFrameIndex]) {
-        setDrawingHistory([frames[activeFrameIndex].dataUrl]);
-        setDrawingHistoryPointer(0);
-    }
+  const setFrames: Dispatch<SetStateAction<Frame[]>> = (valueOrFn) => {
+    _setFramesInternal(prevFrames => {
+        const newFrames = typeof valueOrFn === 'function' ? valueOrFn(prevFrames) : valueOrFn;
+        // When frames array is structurally changed (add/delete),
+        // ensure the active frame's layers are reflected in the panel.
+        if (newFrames.length > 0 && activeFrameIndex >= 0 && activeFrameIndex < newFrames.length) {
+            const currentActiveFrame = newFrames[activeFrameIndex];
+            if (currentActiveFrame && currentActiveFrame.layers && currentActiveFrame.layers.length > 0) {
+                setLayers(currentActiveFrame.layers);
+            } else {
+                 // If the new active frame somehow has no layers, reset panel
+                setLayers([...defaultInitialLayers.map(l => ({...l, id: `layer-newstruct-${activeFrameIndex}-${l.id}-${Date.now()}`}))]);
+            }
+            // Also reset drawing history for the current frame as its data might be new
+            setDrawingHistory([currentActiveFrame?.dataUrl || null]);
+            setDrawingHistoryPointer(0);
+        } else if (newFrames.length === 0) {
+            setActiveFrameIndex(0); // Reset to 0 if all frames are gone
+            setLayers([...defaultInitialLayers]);
+            setDrawingHistory([null]);
+            setDrawingHistoryPointer(0);
+        }
+        return newFrames;
+    });
   };
 
-
-  // Function to update active frame's drawing, managing its history
   const updateActiveFrameDrawing = (newDataUrl: string | null) => {
     _setFramesInternal(prevFrames => {
       const newFrames = [...prevFrames];
@@ -169,10 +203,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectId }: { chi
 
     const newHistory = drawingHistory.slice(0, drawingHistoryPointer + 1);
     newHistory.push(newDataUrl);
-    // Limit history size (e.g., 30 steps)
-    while (newHistory.length > 30) {
-        newHistory.shift();
-    }
+    while (newHistory.length > 30) { newHistory.shift(); }
     setDrawingHistory(newHistory);
     setDrawingHistoryPointer(newHistory.length - 1);
   };
@@ -216,7 +247,7 @@ export const AnimationProvider = ({ children, projectId: routeProjectId }: { chi
       return;
     }
     const frameToSave = frames[activeFrameIndex];
-    if (frameToSave && frameToSave.dataUrl !== null) {
+    if (frameToSave && frameToSave.dataUrl !== null) { // Ensure there's something to save
       try {
         toast({ title: "Saving...", description: `Saving frame ${activeFrameIndex + 1}...` });
         await saveFrameToDb(routeProjectId, activeFrameIndex, frameToSave.dataUrl, user?.uid);
@@ -226,19 +257,30 @@ export const AnimationProvider = ({ children, projectId: routeProjectId }: { chi
         toast({ title: "Save Failed", description: "Could not save the frame. Please try again.", variant: "destructive" });
       }
     } else {
-      toast({ title: "Nothing to Save", description: "Current frame is empty.", variant: "default" });
+      toast({ title: "Nothing to Save", description: "Current frame is empty or has no changes.", variant: "default" });
     }
   };
 
-
   const contextValue: AnimationContextType = {
     frames,
-    setFrames, // Note: For drawing, canvas.tsx should call updateActiveFrameDrawing
-    _updateActiveFrameDrawing: updateActiveFrameDrawing, // Exposed for canvas.tsx
+    setFrames,
     activeFrameIndex,
     setActiveFrameIndex,
-    layers,
-    setLayers,
+    layers, // This is now intended to be the layers of the active frame for the panel
+    setLayers: (newLayersOrFn) => { // Custom setter for layers to update the active frame
+        _setFramesInternal(prevFrames => {
+            const newFrames = [...prevFrames];
+            if (activeFrameIndex >= 0 && activeFrameIndex < newFrames.length && newFrames[activeFrameIndex]) {
+                const currentFrame = newFrames[activeFrameIndex];
+                const updatedLayers = typeof newLayersOrFn === 'function' 
+                    ? newLayersOrFn(currentFrame.layers || []) 
+                    : newLayersOrFn;
+                newFrames[activeFrameIndex] = { ...currentFrame, layers: updatedLayers };
+                setLayers(updatedLayers); // Also update the panel's view immediately
+            }
+            return newFrames;
+        });
+    },
     currentTool,
     setCurrentTool,
     projectId: routeProjectId || null,
@@ -267,11 +309,27 @@ export const AnimationProvider = ({ children, projectId: routeProjectId }: { chi
   );
 };
 
-// Custom hook to use the context
 export const useAnimation = (): AnimationContextType & { _updateActiveFrameDrawing: (newDataUrl: string | null) => void } => {
   const context = useContext(AnimationContext);
   if (context === undefined) {
     throw new Error('useAnimation must be used within an AnimationProvider');
   }
-  return context as AnimationContextType & { _updateActiveFrameDrawing: (newDataUrl: string | null) => void };
+  // Expose internal _updateActiveFrameDrawing for canvas.tsx
+  return {
+    ...context,
+    _updateActiveFrameDrawing: (context as any).updateActiveFrameDrawing || ((newDataUrl: string | null) => {
+        // Fallback if updateActiveFrameDrawing is not directly on context type
+        // This assumes 'updateActiveFrameDrawing' is a method made available by the provider logic,
+        // not directly on the context type itself for external use, but canvas needs it.
+        // A cleaner way would be to add it to AnimationContextType if it's meant to be part of the public API from useAnimation.
+        // For now, this cast allows canvas.tsx to call the internal method.
+        const internalContext = context as unknown as { updateActiveFrameDrawing: (newDataUrl: string | null) => void };
+        if (internalContext.updateActiveFrameDrawing) {
+            internalContext.updateActiveFrameDrawing(newDataUrl);
+        } else {
+            console.error("_updateActiveFrameDrawing is not available on context. This is a bug.");
+        }
+    }),
+  };
 };
+

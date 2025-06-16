@@ -11,10 +11,10 @@ export default function Canvas() {
     currentTool, 
     activeFrameIndex, 
     frames, 
-    // setFrames, // Direct setFrames is less safe with history; use specialized updaters
-    _updateActiveFrameDrawing, // Use this for drawing updates
+    _updateActiveFrameDrawing, 
     currentColor, 
-    brushSize 
+    brushSize,
+    isLoadingProject // Added to potentially gate rendering or show loading
   } = useAnimation();
   
   useAutosave(); 
@@ -24,14 +24,17 @@ export default function Canvas() {
 
   const redrawCurrentFrame = useCallback(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || isLoadingProject) return; // Prevent drawing if loading or no canvas
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     ctx.fillStyle = "white"; 
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    const currentFrameDataUrl = frames[activeFrameIndex]?.dataUrl;
+    // Ensure frames array and activeFrameIndex are valid before accessing
+    const currentFrame = frames && frames[activeFrameIndex];
+    const currentFrameDataUrl = currentFrame?.dataUrl;
+
     if (currentFrameDataUrl) {
       const image = new Image();
       image.onload = () => {
@@ -40,7 +43,7 @@ export default function Canvas() {
         const ratio = Math.min(hRatio, vRatio);
         const centerShift_x = (canvas.width - image.width * ratio) / 2;
         const centerShift_y = (canvas.height - image.height * ratio) / 2;  
-        ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear before drawing new image
+        ctx.clearRect(0, 0, canvas.width, canvas.height); 
         ctx.fillStyle = "white"; 
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(image, 0, 0, image.width, image.height,
@@ -49,39 +52,24 @@ export default function Canvas() {
       image.onerror = () => console.error("Error loading image for frame " + activeFrameIndex);
       image.src = currentFrameDataUrl;
     } else {
-        // Ensure white background if frame has no dataUrl
+        // Ensure white background if frame has no dataUrl (e.g., new or cleared frame)
         ctx.fillStyle = "white";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
-  }, [activeFrameIndex, frames]);
+  }, [activeFrameIndex, frames, isLoadingProject]);
 
 
   const resizeCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas || !canvas.parentElement) return;
     
-    const tempCanvas = document.createElement('canvas');
-    const tempCtx = tempCanvas.getContext('2d');
-    if(tempCtx && canvas.width > 0 && canvas.height > 0){
-        tempCanvas.width = canvas.width;
-        tempCanvas.height = canvas.height;
-        tempCtx.drawImage(canvas, 0, 0);
-    }
+    // Save current drawing state if needed (complex for scaling, simplified here)
+    // For simplicity, we rely on redrawCurrentFrame to handle content after resize.
 
     canvas.width = canvas.parentElement.offsetWidth;
     canvas.height = canvas.parentElement.offsetHeight;
     
-    redrawCurrentFrame(); // Redraw after resize
-
-    if(tempCtx && tempCanvas.width > 0 && tempCanvas.height > 0){
-        const ctx = canvas.getContext('2d');
-        if(ctx) {
-            // This part needs to be smarter about scaling the old content.
-            // For now, let's just redraw the current frame based on its dataUrl (done by redrawCurrentFrame)
-            // A more complex solution would scale tempCtx content onto the new canvas.
-            // For simplicity, we rely on redrawCurrentFrame to handle it.
-        }
-    }
+    redrawCurrentFrame(); 
 
   }, [redrawCurrentFrame]); 
 
@@ -93,8 +81,11 @@ export default function Canvas() {
 
 
   useEffect(() => {
-    redrawCurrentFrame();
-  }, [activeFrameIndex, frames, redrawCurrentFrame]); 
+    // This effect ensures the canvas updates when the active frame or its content changes.
+    if (!isLoadingProject) {
+        redrawCurrentFrame();
+    }
+  }, [activeFrameIndex, frames, redrawCurrentFrame, isLoadingProject]); 
 
   const getMousePos = (e: ReactMouseEvent<HTMLCanvasElement>): { x: number; y: number } => {
     const rect = canvasRef.current!.getBoundingClientRect();
@@ -105,6 +96,7 @@ export default function Canvas() {
   };
 
   const startDrawing = (e: ReactMouseEvent<HTMLCanvasElement>) => {
+    if (isLoadingProject) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -114,27 +106,22 @@ export default function Canvas() {
     const pos = getMousePos(e);
     lastPosRef.current = pos;
 
-    // Store current canvas state for potential undo (if not handled by history push on stopDrawing)
-    // This is relevant if we want undo to work mid-stroke, but current plan is on stroke end.
-
     if (currentTool === 'brush' || currentTool === 'eraser') {
         ctx.beginPath();
-        // For brush, draw a dot. For eraser, it prepares for the path.
         if (currentTool === 'brush') {
           ctx.globalCompositeOperation = 'source-over';
           ctx.fillStyle = currentColor;
           ctx.arc(pos.x, pos.y, brushSize / 2, 0, Math.PI * 2);
           ctx.fill();
-        } else { // Eraser
+        } else { 
           ctx.globalCompositeOperation = 'destination-out'; 
-          // No initial dot for eraser to avoid immediate clear if it's just a click
         }
         ctx.closePath();
     }
   };
 
   const draw = (e: ReactMouseEvent<HTMLCanvasElement>) => {
-    if (!isDrawing) return;
+    if (!isDrawing || isLoadingProject) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -168,7 +155,7 @@ export default function Canvas() {
   };
 
   const stopDrawing = () => {
-    if (!isDrawing) return;
+    if (!isDrawing || isLoadingProject) return;
     setIsDrawing(false);
     lastPosRef.current = null;
 
@@ -182,21 +169,24 @@ export default function Canvas() {
     }
 
     const dataUrl = canvas.toDataURL('image/png');
-    // Use the context function that manages drawing history
     _updateActiveFrameDrawing(dataUrl); 
   };
   
   return (
     <div className="flex-1 flex items-center justify-center bg-muted p-2 overflow-hidden relative">
-      <canvas
-        ref={canvasRef}
-        className="bg-white border border-foreground/20 shadow-lg" 
-        onMouseDown={startDrawing}
-        onMouseMove={draw}
-        onMouseUp={stopDrawing}
-        onMouseLeave={stopDrawing} // Also stop drawing if mouse leaves canvas
-        style={{ touchAction: 'none', display: 'block', width: '100%', height: '100%' }} 
-      />
+      {isLoadingProject ? (
+        <p>Loading animation workspace...</p> // Or a spinner component
+      ) : (
+        <canvas
+          ref={canvasRef}
+          className="bg-white border border-foreground/20 shadow-lg" 
+          onMouseDown={startDrawing}
+          onMouseMove={draw}
+          onMouseUp={stopDrawing}
+          onMouseLeave={stopDrawing} 
+          style={{ touchAction: 'none', display: 'block', width: '100%', height: '100%' }} 
+        />
+      )}
     </div>
   );
 }
