@@ -126,36 +126,40 @@ export default function MeetingsPage() {
         <div className="flex justify-center py-10"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>
       ) : meetings.length > 0 ? (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {meetings.map((meeting) => (
-            <Card key={meeting.id} className="flex flex-col overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300">
-              <CardHeader className="p-4">
-                 <div className="flex items-center space-x-3 mb-2">
-                    <Avatar className="h-10 w-10 border">
-                        <AvatarImage src={meeting.hostProfile.photoURL || undefined} alt={meeting.hostProfile.displayName || "Host"} data-ai-hint="user avatar small"/>
-                        <AvatarFallback>{getInitials(meeting.hostProfile.displayName)}</AvatarFallback>
-                    </Avatar>
-                    <div>
-                        <p className="text-xs text-muted-foreground">Hosted by</p>
-                        <p className="text-sm font-medium text-foreground">{meeting.hostProfile.displayName || "Host"}</p>
-                    </div>
-                </div>
-                <CardTitle className="text-lg font-semibold line-clamp-2">{meeting.title}</CardTitle>
-              </CardHeader>
-              <CardContent className="flex-grow p-4 pt-0">
-                <div className="text-xs text-muted-foreground space-y-1">
-                  <p className="flex items-center"><CalendarDays size={14} className="mr-1.5" /> Created {formatDistanceToNowStrict(new Date(meeting.createdAt), { addSuffix: true })}</p>
-                  <p className="flex items-center"><Users size={14} className="mr-1.5" /> {meeting.participants.length} participant(s)</p>
-                </div>
-              </CardContent>
-              <CardFooter className="p-4 pt-0 border-t mt-auto">
-                <Button asChild className="w-full">
-                  <Link href={`/meetings/${meeting.id}`}>
-                    <LogIn className="mr-2 h-4 w-4" /> Join Meeting
-                  </Link>
-                </Button>
-              </CardFooter>
-            </Card>
-          ))}
+          {meetings.map((meeting) => {
+            const hostDisplayName = meeting.hostProfile?.displayName || "Host";
+            const hostPhotoURL = meeting.hostProfile?.photoURL || undefined;
+            return (
+              <Card key={meeting.id} className="flex flex-col overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300">
+                <CardHeader className="p-4">
+                   <div className="flex items-center space-x-3 mb-2">
+                      <Avatar className="h-10 w-10 border">
+                          <AvatarImage src={hostPhotoURL} alt={hostDisplayName} data-ai-hint="user avatar small"/>
+                          <AvatarFallback>{getInitials(hostDisplayName)}</AvatarFallback>
+                      </Avatar>
+                      <div>
+                          <p className="text-xs text-muted-foreground">Hosted by</p>
+                          <p className="text-sm font-medium text-foreground">{hostDisplayName}</p>
+                      </div>
+                  </div>
+                  <CardTitle className="text-lg font-semibold line-clamp-2">{meeting.title}</CardTitle>
+                </CardHeader>
+                <CardContent className="flex-grow p-4 pt-0">
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <p className="flex items-center"><CalendarDays size={14} className="mr-1.5" /> Created {formatDistanceToNowStrict(new Date(meeting.createdAt), { addSuffix: true })}</p>
+                    <p className="flex items-center"><Users size={14} className="mr-1.5" /> {meeting.participants.length} participant(s)</p>
+                  </div>
+                </CardContent>
+                <CardFooter className="p-4 pt-0 border-t mt-auto">
+                  <Button asChild className="w-full">
+                    <Link href={`/meetings/${meeting.id}`}>
+                      <LogIn className="mr-2 h-4 w-4" /> Join Meeting
+                    </Link>
+                  </Button>
+                </CardFooter>
+              </Card>
+            );
+          })}
         </div>
       ) : (
         <div className="text-center py-10 text-muted-foreground">
