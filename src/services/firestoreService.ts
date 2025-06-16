@@ -1,6 +1,6 @@
 
 import { db, auth } from '@/lib/firebase'; 
-import type { Community, Post, Comment } from '@/types/data'; // Meeting type removed
+import type { Community, Post, Comment, Meeting, MeetingParticipant } from '@/types/data';
 import type { UserProfile } from '@/contexts/AuthContext';
 import {
   collection,
@@ -13,23 +13,37 @@ import {
   where,
   Timestamp,
   onSnapshot,
+  serverTimestamp,
+  addDoc,
+  updateDoc,
+  arrayUnion,
+  arrayRemove,
 } from 'firebase/firestore';
 import { unstable_noStore as noStore } from 'next/cache';
 
 
 export async function getCurrentUserId(): Promise<string | null> {
   noStore();
+  // This function is problematic in server components if auth state isn't readily available.
+  // For now, it will return null, relying on client components or actions to get the current user.
+  // To make this work server-side reliably, you'd need a different auth mechanism (e.g., session cookies).
+  // Consider using `useAuth` in client components or passing userId from client to server actions.
+  
+  // TEMPORARY: To allow some server components to work without full auth integration,
+  // we'll try to get the user from the auth object if available. This is NOT reliable for SSR
+  // without proper session management.
+  // return auth.currentUser?.uid || null;
   return null; 
 }
 
-const processDoc = <T extends { id: string; createdAt?: string | Timestamp | Date; updatedAt?: string | Timestamp | Date; lastLogin?: string | Timestamp | Date; lastMessageAt?: string | Timestamp | Date; members?: string[]; authorAvatar?: string | null; photoURL?: string | null; bannerURL?: string | null; followersCount?: number; followingCount?: number; skills?: string[]; /* hostProfile?: any; participants?: any[]; Removed meeting fields */ }>(docSnap: any): T => {
+const processDoc = <T extends { id: string; createdAt?: string | Timestamp | Date; updatedAt?: string | Timestamp | Date; lastLogin?: string | Timestamp | Date; lastMessageAt?: string | Timestamp | Date; members?: string[]; authorAvatar?: string | null; photoURL?: string | null; bannerURL?: string | null; followersCount?: number; followingCount?: number; skills?: string[]; hostProfile?: any; participants?: MeetingParticipant[]; endedAt?: string | Timestamp | Date | null; }>(docSnap: any): T => {
   const data = docSnap.data();
   const processedData: any = {
     id: docSnap.id,
     ...data,
   };
 
-  const dateFields: (keyof T)[] = ['createdAt', 'updatedAt', 'lastLogin', 'lastMessageAt'];
+  const dateFields: (keyof T)[] = ['createdAt', 'updatedAt', 'lastLogin', 'lastMessageAt', 'endedAt'];
   dateFields.forEach(field => {
     const fieldValue = data[field];
     if (fieldValue && typeof (fieldValue as Timestamp).toDate === 'function') {
@@ -47,17 +61,17 @@ const processDoc = <T extends { id: string; createdAt?: string | Timestamp | Dat
       } catch (e) {
         processedData[field] = fieldValue; 
       }
-    } else if (fieldValue) { 
+    } else if (fieldValue && typeof fieldValue === 'object' && fieldValue.seconds && fieldValue.nanoseconds) { // Handle plain Timestamp-like objects
         try {
-            processedData[field] = new Date(fieldValue).toISOString();
+            processedData[field] = new Timestamp(fieldValue.seconds, fieldValue.nanoseconds).toDate().toISOString();
         } catch (e) {
-            processedData[field] = fieldValue; 
+            processedData[field] = null; // Or some default/error state
         }
     }
   });
 
 
-  if (data.members) {
+  if (data.members && docSnap.ref.parent.id === 'communities') {
     processedData.members = data.members;
   } else if (docSnap.ref.parent.id === 'communities' || docSnap.ref.path.includes('communities')) { 
     processedData.members = []; 
@@ -78,10 +92,35 @@ const processDoc = <T extends { id: string; createdAt?: string | Timestamp | Dat
       processedData.onboardingCompleted = typeof data.onboardingCompleted === 'boolean' ? data.onboardingCompleted : false;
   }
   
-  // Meeting specific fields removed
-  // if (docSnap.ref.parent.id === 'meetings' || docSnap.ref.path.includes('meetings')) {
-  //   // ... meeting processing logic removed ...
-  // }
+  if (docSnap.ref.parent.id === 'meetings' || docSnap.ref.path.includes('meetings')) {
+    if (data.hostProfile) {
+        processedData.hostProfile = data.hostProfile;
+    }
+    if (data.participants && Array.isArray(data.participants)) {
+        processedData.participants = data.participants.map((p: any) => {
+            let joinedAtISO = new Date(0).toISOString(); // Default to Epoch if invalid
+            if (p.joinedAt && typeof (p.joinedAt as Timestamp).toDate === 'function') {
+                joinedAtISO = (p.joinedAt as Timestamp).toDate().toISOString();
+            } else if (p.joinedAt instanceof Date) {
+                joinedAtISO = p.joinedAt.toISOString();
+            } else if (typeof p.joinedAt === 'string') {
+                try {
+                    const d = new Date(p.joinedAt);
+                    if (!isNaN(d.getTime())) joinedAtISO = d.toISOString();
+                } catch (e) { /* keep default */ }
+            } else if (p.joinedAt && typeof p.joinedAt === 'object' && p.joinedAt.seconds && p.joinedAt.nanoseconds) {
+                try {
+                    joinedAtISO = new Timestamp(p.joinedAt.seconds, p.joinedAt.nanoseconds).toDate().toISOString();
+                } catch(e) { /* keep default */ }
+            } else if (p.joinedAt) {
+                 console.warn(`Participant ${p.uid} in meeting ${docSnap.id} has an unparseable joinedAt value:`, p.joinedAt);
+            }
+            return { ...p, joinedAt: joinedAtISO };
+        });
+    } else {
+        processedData.participants = [];
+    }
+  }
 
   return processedData as T;
 };
@@ -341,6 +380,35 @@ export async function getAllUsersForNewChat(currentUserId: string, count: number
     .slice(0, count); 
 }
 
-// Meeting specific firestore services removed
-// export async function getActiveMeetings(): Promise<Meeting[]> { /* ... */ }
-// export async function getMeetingDetailsFirestore(meetingId: string): Promise<Meeting | null> { /* ... */ }
+
+// Meeting specific firestore services
+export async function getActiveMeetings(): Promise<Meeting[]> {
+  noStore();
+  const meetingsCol = collection(db, 'meetings');
+  const q = query(
+    meetingsCol,
+    where('isActive', '==', true),
+    orderBy('createdAt', 'desc')
+  );
+  try {
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(docSnap => processDoc<Meeting>(docSnap));
+  } catch (error) {
+    console.error("Error fetching active meetings:", error);
+    if ((error as any).code === 'failed-precondition') {
+        console.warn("Firestore query for active meetings failed, possibly due to a missing index. Please check your Firebase console for index creation suggestions.");
+    }
+    return [];
+  }
+}
+
+export async function getMeetingDetailsFirestore(meetingId: string): Promise<Meeting | null> {
+  noStore();
+  if (!meetingId) return null;
+  const meetingDocRef = doc(db, 'meetings', meetingId);
+  const docSnap = await getDoc(meetingDocRef);
+  if (docSnap.exists()) {
+    return processDoc<Meeting>(docSnap);
+  }
+  return null;
+}

@@ -14,7 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, User, Settings, PlusCircle, HomeIcon, Bell, MessageSquare, Bot, Compass } from 'lucide-react'; // Video icon removed
+import { LogOut, User, Settings, PlusCircle, HomeIcon, Bell, MessageSquare, Bot, Compass, Video } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { NotificationIcon } from '@/components/notifications/NotificationIcon'; 
@@ -27,17 +27,21 @@ export default function Header() {
   const navLinks = [
     { href: "/", label: "Home", icon: HomeIcon, authRequired: false },
     { href: "/communities", label: "Discover", icon: Compass, authRequired: false },
-    // { href: "/meetings", label: "Meetings", icon: Video, authRequired: true }, // Removed Meetings link
+    { href: "/meetings", label: "Meetings", icon: Video, authRequired: true },
     { href: "/posts/create", label: "Create Post", icon: PlusCircle, authRequired: true },
     { href: "/messages", label: "Messages", icon: MessageSquare, authRequired: true },
   ];
 
   const authRestrictedPages = ['/login', '/signup', '/forgot-password', '/onboarding', '/onboarding/profile-setup'];
   
-  // // Hide header on active Jitsi meeting page - no longer needed
-  // if (pathname.startsWith('/meetings/') && pathname.split('/').length > 2) {
-  //   return null;
-  // }
+  // Hide header on active meeting page if it's the 100ms room
+  if (pathname.startsWith('/meetings/') && pathname.split('/').length > 2) {
+    // Only hide if it's the actual meeting room, not the list page.
+    // We can refine this check if MeetingRoomUI takes over the whole screen.
+    // For now, let's assume the header is desired on the [meetingId] page before joining,
+    // and the MeetingRoomUI itself will be fullscreen or manage its own header.
+    // return null; // Uncomment this if the header should be fully hidden on /meetings/[id]
+  }
 
 
   if (authRestrictedPages.includes(pathname)) {
@@ -57,8 +61,8 @@ export default function Header() {
             if (link.authRequired && !user) return null;
             const isActive = (link.href === "/" && pathname === link.href) || 
                              (link.href !== "/" && pathname.startsWith(link.href) && 
-                              !(link.href === "/messages" && pathname.includes("/messages/"))
-                              // !(link.href === "/meetings" && pathname.includes("/meetings/")) // No longer needed
+                              !(link.href === "/messages" && pathname.includes("/messages/")) &&
+                              !(link.href === "/meetings" && pathname.includes("/meetings/") && pathname.split('/').length > 2) // Don't activate "Meetings" link if on a specific meeting page
                              );
 
             return (

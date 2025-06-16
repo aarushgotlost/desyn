@@ -1,0 +1,119 @@
+
+"use client";
+
+import { useEffect } from 'react';
+import {
+  HMSRoomProvider,
+  useHMSStore,
+  selectIsConnectedToRoom,
+  selectPeers,
+  selectLocalPeer,
+  HMSReactiveStore,
+} from '@100mslive/react-sdk';
+import { HMSVideoGrid, HMSVideoTile, HMSRootLayout, HMSPages } from '@100mslive/react-ui';
+import { MeetingControls } from './MeetingControls';
+import { Loader2, AlertTriangle } from 'lucide-react';
+
+const hmsManager = new HMSReactiveStore();
+const hmsActions = hmsManager.getActions();
+
+
+interface MeetingRoomUIProps {
+  authToken: string;
+  userName: string;
+  meetingTitle: string;
+  onLeaveMeeting: () => void;
+  isHost: boolean;
+}
+
+function RoomView({ onLeaveMeeting, meetingTitle, userName, isHost }: Omit<MeetingRoomUIProps, 'authToken'>) {
+  const isConnected = useHMSStore(selectIsConnectedToRoom);
+  const peers = useHMSStore(selectPeers);
+  const localPeer = useHMSStore(selectLocalPeer);
+
+  useEffect(() => {
+    const joinRoom = async () => {
+      // authToken is passed via HMSRoomProvider now, join config uses it
+      try {
+        await hmsActions.join({
+          userName: userName,
+          // authToken: authToken, // This is now handled by the provider
+        });
+      } catch (e) {
+        console.error("Error joining 100ms room:", e);
+        // Handle join error (e.g., show toast, redirect)
+      }
+    };
+
+    if (!isConnected) {
+      joinRoom();
+    }
+
+    return () => {
+      // Ensure leave is called if component unmounts while connected
+      if (isConnected) {
+        hmsActions.leave();
+      }
+    };
+  }, [isConnected, userName]); // Removed authToken from dependencies as it's via provider
+
+  if (!isConnected) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-background text-foreground">
+        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+        <p className="text-lg">Joining "{meetingTitle}"...</p>
+        <p className="text-sm text-muted-foreground">Please wait while we connect you.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-screen bg-background text-foreground">
+      <header className="p-4 border-b border-border bg-card text-card-foreground shadow-sm">
+        <h1 className="text-xl font-semibold truncate">{meetingTitle}</h1>
+      </header>
+      
+      <main className="flex-1 overflow-hidden p-2 md:p-4">
+        {/* Using HMSVideoGrid for a responsive layout of video tiles */}
+        <HMSVideoGrid
+            peers={peers}
+            maxTileCount={9} // Show up to 9 tiles, adjust as needed
+            aspectRatio={{ width: 16, height: 9 }}
+            isLocalScreenShared={false} // You'd update this based on screen share state
+        >
+            {/* You can customize individual tiles if needed, but HMSVideoGrid handles rendering */}
+        </HMSVideoGrid>
+      </main>
+
+      <MeetingControls
+        hmsActions={hmsActions}
+        onLeave={onLeaveMeeting}
+        isHost={isHost}
+        localPeer={localPeer}
+      />
+    </div>
+  );
+}
+
+export function MeetingRoomUI({ authToken, userName, meetingTitle, onLeaveMeeting, isHost }: MeetingRoomUIProps) {
+  if (!authToken) {
+     return (
+      <div className="flex flex-col items-center justify-center h-screen bg-background text-foreground p-4 text-center">
+        <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
+        <h2 className="text-xl font-semibold text-destructive">Missing Auth Token</h2>
+        <p className="text-muted-foreground">A 100ms authentication token is required to join the meeting.</p>
+        <p className="text-xs mt-2 text-muted-foreground">Please ensure a token is provided or generated.</p>
+      </div>
+    );
+  }
+  return (
+    <HMSRoomProvider actions={hmsActions} store={hmsManager.getStore()} config={{authToken, userName}}>
+        <RoomView 
+            userName={userName} 
+            meetingTitle={meetingTitle} 
+            onLeaveMeeting={onLeaveMeeting}
+            isHost={isHost}
+        />
+    </HMSRoomProvider>
+  );
+}

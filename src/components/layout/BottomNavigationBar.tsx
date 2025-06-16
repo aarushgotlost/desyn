@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { HomeIcon, PlusCircle, MessageSquare, User as UserIcon, Compass } from 'lucide-react'; // Video icon removed
+import { HomeIcon, PlusCircle, MessageSquare, User as UserIcon, Compass, Video } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -12,7 +12,7 @@ import { getInitials } from '@/lib/utils';
 const navItems = [
   { href: "/", label: "Home", icon: HomeIcon, authRequired: false },
   { href: "/communities", label: "Discover", icon: Compass, authRequired: false },
-  // { href: "/meetings", label: "Meetings", icon: Video, authRequired: true }, // Removed Meetings
+  { href: "/meetings", label: "Meetings", icon: Video, authRequired: true },
   { href: "/posts/create", label: "Create", icon: PlusCircle, authRequired: true },
   { href: "/messages", label: "Messages", icon: MessageSquare, authRequired: true },
   { href: "/profile", label: "Profile", icon: UserIcon, authRequired: true, isProfile: true }, 
@@ -29,9 +29,10 @@ export function BottomNavigationBar() {
   const authPages = ['/login', '/signup', '/forgot-password', '/onboarding', '/onboarding/profile-setup'];
   const isChatDetailPage = pathname.startsWith('/messages/') && pathname.split('/').length > 2 && pathname.split('/')[2] !== 'new';
   const isChatBotPage = pathname === '/chatbot';
-  // const isMeetingDetailPage = pathname.startsWith('/meetings/') && pathname.split('/').length > 2; // No longer needed
+  const isMeetingDetailPage = pathname.startsWith('/meetings/') && pathname.split('/').length > 2;
 
-  if (authPages.includes(pathname) || isChatDetailPage || isChatBotPage /*|| isMeetingDetailPage*/) { 
+
+  if (authPages.includes(pathname) || isChatDetailPage || isChatBotPage || isMeetingDetailPage) { 
     return null;
   }
 
@@ -44,7 +45,7 @@ export function BottomNavigationBar() {
     3: 'grid-cols-3',
     4: 'grid-cols-4',
     5: 'grid-cols-5',
-    // 6: 'grid-cols-6', // Max is 5 now
+    6: 'grid-cols-6',
   }[numCols] || `grid-cols-${numCols}`; 
 
 
@@ -57,8 +58,8 @@ export function BottomNavigationBar() {
         {itemsToRender.map(item => { 
           const isActive = (item.href === "/" && pathname === item.href) || 
                            (item.href !== "/" && pathname.startsWith(item.href) && 
-                            !(item.href === "/messages" && isChatDetailPage)
-                            // !(item.href === "/meetings" && isMeetingDetailPage) // No longer needed
+                            !(item.href === "/messages" && isChatDetailPage) &&
+                            !(item.href === "/meetings" && isMeetingDetailPage)
                            );
           
           return (
