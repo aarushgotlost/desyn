@@ -1,37 +1,31 @@
 
 "use client";
 
-import { useEffect, useState, useTransition, useRef } from 'react';
+import { useEffect, useState, useTransition, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Video, Users, ScreenShare, Mic, MicOff, VideoOff, Settings2, ArrowLeft, Loader2, UserPlus, Copy, Check, PhoneOff, Maximize, AlertTriangle } from "lucide-react";
+import { Video, Users, ScreenShare, Mic, MicOff, VideoOff, Settings2, ArrowLeft, Loader2, UserPlus, Copy, Check, PhoneOff, AlertTriangle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { getMeetingDetails } from '@/services/firestoreService';
-import { joinMeeting } from '@/actions/meetingActions';
+import { joinMeeting as joinMeetingAction } from '@/actions/meetingActions';
 import type { Meeting, MeetingParticipant } from '@/types/data';
 import { formatDistanceToNowStrict } from 'date-fns';
 import { getInitials, cn } from '@/lib/utils';
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import AgoraRTC, { type IAgoraRTCClient, type ILocalAudioTrack, type ILocalVideoTrack, type IRemoteAudioTrack, type IRemoteVideoTrack, type IAgoraRTCRemoteUser, type UID } from 'agora-rtc-sdk-ng';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
-const ParticipantVideoPlaceholder = ({ participant, isLocal = false }: { participant?: MeetingParticipant; isLocal?: boolean }) => {
-  return (
-    <div className={cn(
-      "bg-muted/70 rounded-lg flex flex-col items-center justify-center aspect-video border border-muted-foreground/20 shadow-inner relative overflow-hidden",
-      isLocal && "border-2 border-primary" // This style might be less relevant if local video is live
-    )}>
-      <Video className="h-12 w-12 text-muted-foreground opacity-30" />
-      <p className="mt-2 text-xs text-muted-foreground text-center px-2 truncate w-full absolute bottom-2 bg-black/30 text-white py-1">
-        {participant ? participant.displayName : (isLocal ? "Your Video (Preview)" : "Participant Video")}
-      </p>
-    </div>
-  );
-};
 
+const AGORA_APP_ID = process.env.NEXT_PUBLIC_AGORA_APP_ID || "";
+
+interface RemoteUserWithTracks extends IAgoraRTCRemoteUser {
+  displayName?: string;
+  photoURL?: string;
+}
 
 export default function MeetingDetailPage() {
   const params = useParams();
@@ -42,20 +36,54 @@ export default function MeetingDetailPage() {
   const { toast } = useToast();
   const [meeting, setMeeting] = useState<Meeting | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isJoining, startJoiningTransition] = useTransition();
+  const [isJoiningMeeting, startJoiningTransition] = useTransition();
   const [hasCopied, setHasCopied] = useState(false);
 
   const [isMicMuted, setIsMicMuted] = useState(false);
-  const [isCameraOff, setIsCameraOff] = useState(false); // This will be controlled by the stream now
+  const [isCameraOff, setIsCameraOff] = useState(true); // Start with camera off
   const [isScreenSharing, setIsScreenSharing] = useState(false);
 
-  const localVideoRef = useRef<HTMLVideoElement>(null);
-  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
-  const [cameraError, setCameraError] = useState<string | null>(null);
-  const [stream, setStream] = useState<MediaStream | null>(null);
+  const agoraClientRef = useRef<IAgoraRTCClient | null>(null);
+  const localAudioTrackRef = useRef<ILocalAudioTrack | null>(null);
+  const localVideoTrackRef = useRef<ILocalVideoTrack | null>(null);
+  const [remoteUsers, setRemoteUsers] = useState<RemoteUserWithTracks[]>([]);
+  const [isAgoraJoined, setIsAgoraJoined] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
 
+  const localVideoContainerRef = useRef<HTMLDivElement>(null);
+
+
+  const cleanupAgora = useCallback(async () => {
+    if (localAudioTrackRef.current) {
+      localAudioTrackRef.current.stop();
+      localAudioTrackRef.current.close();
+      localAudioTrackRef.current = null;
+    }
+    if (localVideoTrackRef.current) {
+      localVideoTrackRef.current.stop();
+      localVideoTrackRef.current.close();
+      localVideoTrackRef.current = null;
+    }
+    if (agoraClientRef.current && isAgoraJoined) {
+      await agoraClientRef.current.leave();
+      setIsAgoraJoined(false);
+      console.log("Left Agora channel");
+    }
+    setRemoteUsers([]);
+    setIsCameraOff(true);
+    setIsMicMuted(false);
+  }, [isAgoraJoined]);
 
   useEffect(() => {
+    if (!AGORA_APP_ID || AGORA_APP_ID === "YOUR_AGORA_APP_ID") {
+        toast({
+            title: "Agora Configuration Missing",
+            description: "Please provide a valid Agora App ID in your environment variables to use meeting features.",
+            variant: "destructive",
+            duration: 10000,
+        });
+    }
+
     if (!meetingId) {
         router.push('/meetings');
         return;
@@ -78,64 +106,101 @@ export default function MeetingDetailPage() {
       }
     }
     fetchMeeting();
-  }, [meetingId, router, toast]);
-
-  useEffect(() => {
-    const currentUserIsParticipant = user && meeting && meeting.participantUids.includes(user.uid);
-
-    const getCameraStream = async () => {
-      if (typeof navigator !== "undefined" && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        setCameraError(null);
-        try {
-          const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-          setStream(mediaStream);
-          setHasCameraPermission(true);
-          setIsCameraOff(false); // Camera is on by default when stream is acquired
-          if (localVideoRef.current) {
-            localVideoRef.current.srcObject = mediaStream;
-          }
-        } catch (error: any) {
-          console.warn('Camera/Mic access denied or unavailable:', error);
-          setHasCameraPermission(false);
-          setIsCameraOff(true);
-          if (error.name === "NotAllowedError" || error.name === "PermissionDeniedError") {
-            setCameraError("Camera access was denied. Please enable it in your browser settings.");
-            toast({
-              variant: 'destructive',
-              title: 'Camera Access Denied',
-              description: 'Please enable camera permissions in your browser settings to use video.',
-            });
-          } else {
-            setCameraError(`Error accessing camera: ${error.message}`);
-             toast({
-              variant: 'destructive',
-              title: 'Camera Error',
-              description: `Could not access camera: ${error.message}`,
-            });
-          }
-        }
-      } else {
-        setHasCameraPermission(false);
-        setIsCameraOff(true);
-        setCameraError("Your browser does not support camera access (getUserMedia API).");
-      }
-    };
-
-    if (currentUserIsParticipant && meeting?.isActive && hasCameraPermission === null) { // Only request if status unknown
-      getCameraStream();
+    
+    // Initialize Agora client
+    if (!agoraClientRef.current && AGORA_APP_ID && AGORA_APP_ID !== "YOUR_AGORA_APP_ID") {
+        agoraClientRef.current = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
     }
-
-    // Cleanup function to stop the stream when component unmounts or dependencies change
+    
     return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-        if (localVideoRef.current) {
-            localVideoRef.current.srcObject = null;
-        }
-        setStream(null);
+      cleanupAgora();
+    };
+  }, [meetingId, router, toast, cleanupAgora]);
+
+
+  const joinAgoraChannel = useCallback(async () => {
+    if (!agoraClientRef.current || !user || !meetingId || isAgoraJoined || !AGORA_APP_ID || AGORA_APP_ID === "YOUR_AGORA_APP_ID") return;
+    
+    setIsPublishing(true);
+    try {
+      console.log("Joining Agora channel:", meetingId, "as user:", user.uid);
+      // Using UID as number for Agora, ensure your UIDs can be cast to numbers if needed, or use string UIDs if Agora SDK version supports.
+      // Current Agora SDK NG generally supports string UIDs.
+      await agoraClientRef.current.join(AGORA_APP_ID, meetingId, null, user.uid);
+      setIsAgoraJoined(true);
+      toast({ title: "Joined video call" });
+      console.log("Successfully joined Agora channel");
+
+      // Create and publish local tracks
+      [localAudioTrackRef.current, localVideoTrackRef.current] = await AgoraRTC.createMicrophoneAndCameraTracks();
+      
+      if (localVideoTrackRef.current && localVideoContainerRef.current) {
+        localVideoTrackRef.current.play(localVideoContainerRef.current);
+        setIsCameraOff(false);
+      }
+      if (localAudioTrackRef.current) {
+        setIsMicMuted(false);
+      }
+      
+      await agoraClientRef.current.publish([localAudioTrackRef.current!, localVideoTrackRef.current!]);
+      console.log("Published local tracks");
+
+    } catch (error) {
+      console.error("Failed to join Agora channel or publish tracks", error);
+      toast({ title: "Video Call Error", description: `Could not join or publish: ${(error as Error).message}`, variant: "destructive" });
+      await cleanupAgora();
+    } finally {
+      setIsPublishing(false);
+    }
+  }, [user, meetingId, isAgoraJoined, cleanupAgora, toast]);
+
+  // Handle Agora events
+  useEffect(() => {
+    const client = agoraClientRef.current;
+    if (!client || !isAgoraJoined) return;
+
+    const handleUserPublished = async (remoteUser: IAgoraRTCRemoteUser, mediaType: 'audio' | 'video') => {
+      console.log("Remote user published:", remoteUser.uid, mediaType);
+      await client.subscribe(remoteUser, mediaType);
+      console.log("Subscribed to remote user:", remoteUser.uid, mediaType);
+      
+      if (mediaType === 'video' && remoteUser.videoTrack) {
+          const userToUpdate = meeting?.participants.find(p => p.uid === remoteUser.uid.toString());
+          setRemoteUsers(prev => {
+              const existing = prev.find(u => u.uid === remoteUser.uid);
+              if (existing) {
+                  return prev.map(u => u.uid === remoteUser.uid ? {...remoteUser, displayName: userToUpdate?.displayName, photoURL: userToUpdate?.photoURL } : u);
+              }
+              return [...prev, {...remoteUser, displayName: userToUpdate?.displayName, photoURL: userToUpdate?.photoURL }];
+          });
+      }
+      if (mediaType === 'audio' && remoteUser.audioTrack) {
+        remoteUser.audioTrack.play();
       }
     };
-  }, [user, meeting, hasCameraPermission]); // Re-run if user, meeting, or permission status intent changes
+
+    const handleUserUnpublished = (remoteUser: IAgoraRTCRemoteUser, mediaType: 'audio' | 'video') => {
+      console.log("Remote user unpublished:", remoteUser.uid, mediaType);
+      if (mediaType === 'video') {
+         setRemoteUsers(prev => prev.filter(u => u.uid !== remoteUser.uid));
+      }
+    };
+    
+    const handleUserLeft = (remoteUser: IAgoraRTCRemoteUser) => {
+        console.log("Remote user left:", remoteUser.uid);
+        setRemoteUsers(prev => prev.filter(u => u.uid !== remoteUser.uid));
+    };
+
+    client.on("user-published", handleUserPublished);
+    client.on("user-unpublished", handleUserUnpublished);
+    client.on("user-left", handleUserLeft);
+
+    return () => {
+      client.off("user-published", handleUserPublished);
+      client.off("user-unpublished", handleUserUnpublished);
+      client.off("user-left", handleUserLeft);
+    };
+  }, [isAgoraJoined, meeting?.participants]);
 
 
   const handleJoinMeeting = () => {
@@ -144,12 +209,15 @@ export default function MeetingDetailPage() {
       return;
     }
     startJoiningTransition(async () => {
-      const result = await joinMeeting(meeting.id, { uid: user.uid, displayName: userProfile.displayName, photoURL: userProfile.photoURL });
+      const result = await joinMeetingAction(meeting.id, { uid: user.uid, displayName: userProfile.displayName, photoURL: userProfile.photoURL });
       if (result.success) {
         toast({ title: "Joined Meeting!", description: result.message });
         const updatedMeeting = await getMeetingDetails(meeting.id);
         if (updatedMeeting) setMeeting(updatedMeeting);
-        setHasCameraPermission(null); // Re-trigger camera check on join
+        // Attempt to join Agora channel after successfully joining meeting in Firestore
+        if (AGORA_APP_ID && AGORA_APP_ID !== "YOUR_AGORA_APP_ID") {
+            joinAgoraChannel();
+        }
       } else {
         toast({ title: "Error Joining Meeting", description: result.message, variant: "destructive" });
       }
@@ -167,37 +235,47 @@ export default function MeetingDetailPage() {
     });
   };
 
-  const toggleCamera = () => {
-    if (stream) {
-      stream.getVideoTracks().forEach(track => {
-        track.enabled = !track.enabled;
-        setIsCameraOff(!track.enabled);
-      });
-    } else if (!isCameraOff && hasCameraPermission !== false) { // Try to get stream if camera is "on" but no stream
-        setHasCameraPermission(null); // This will re-trigger the useEffect to get stream
+  const toggleCamera = async () => {
+    if (!localVideoTrackRef.current) { // Try to initialize if not already
+      if (!isAgoraJoined || !AGORA_APP_ID || AGORA_APP_ID === "YOUR_AGORA_APP_ID") {
+        toast({ title: "Not in call", description: "Join the call to use your camera.", variant: "destructive"});
+        return;
+      }
+      try {
+        setIsPublishing(true);
+        localVideoTrackRef.current = await AgoraRTC.createCameraVideoTrack();
+        if (localVideoContainerRef.current) {
+            localVideoTrackRef.current.play(localVideoContainerRef.current);
+        }
+        await agoraClientRef.current?.publish([localVideoTrackRef.current]);
+        setIsCameraOff(false);
+      } catch (error) {
+        toast({ title: "Camera Error", description: `Could not start camera: ${(error as Error).message}`, variant: "destructive"});
+        return;
+      } finally {
+        setIsPublishing(false);
+      }
+    } else {
+      await localVideoTrackRef.current.setEnabled(!localVideoTrackRef.current.enabled);
+      setIsCameraOff(!localVideoTrackRef.current.enabled);
     }
   };
 
-  const toggleMic = () => {
-    if (stream) {
-        stream.getAudioTracks().forEach(track => {
-            track.enabled = !track.enabled;
-            setIsMicMuted(!track.enabled);
-        });
+  const toggleMic = async () => {
+    if (!localAudioTrackRef.current) {
+         toast({ title: "Not in call", description: "Join the call to use your microphone.", variant: "destructive"});
+         return;
     }
+    await localAudioTrackRef.current.setEnabled(!localAudioTrackRef.current.enabled);
+    setIsMicMuted(!localAudioTrackRef.current.enabled);
   };
   
-  const handleLeaveMeeting = () => {
-    // In a real app, this would also involve signaling to other participants and server-side cleanup
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
-    }
-    setStream(null);
-    setIsCameraOff(true); 
-    // router.push('/meetings'); // Or update state to show a "left meeting" screen
-    toast({title: "You left the meeting."});
-    // For now, we'll just simulate leaving by stopping camera and disabling controls
-    // A more robust solution would update participant status in Firestore.
+  const handleLeaveMeeting = async () => {
+    await cleanupAgora();
+    toast({title: "You left the video call."});
+    // Potentially update Firestore status or navigate away
+    // For now, just leaves Agora and cleans up tracks
+    // router.push('/meetings'); // Optional: navigate away after leaving
   };
 
 
@@ -223,10 +301,18 @@ export default function MeetingDetailPage() {
   }
   
   const currentUserIsParticipant = user && meeting.participantUids.includes(user.uid);
-  const remoteParticipants = meeting.participants.filter(p => p.uid !== user?.uid);
 
   return (
     <div className="container mx-auto py-6 sm:py-8 space-y-6 sm:space-y-8">
+      {(!AGORA_APP_ID || AGORA_APP_ID === "YOUR_AGORA_APP_ID") && (
+         <Alert variant="destructive" className="mb-4">
+            <AlertTriangle className="h-5 w-5" />
+            <AlertTitle>Agora App ID Missing</AlertTitle>
+            <AlertDescription>
+              Video call functionality is disabled. Please configure <code className="font-mono bg-muted px-1 py-0.5 rounded">NEXT_PUBLIC_AGORA_APP_ID</code> in your <code className="font-mono bg-muted px-1 py-0.5 rounded">.env</code> file.
+            </AlertDescription>
+          </Alert>
+      )}
       <Card className="shadow-xl">
         <CardHeader className="border-b">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-2">
@@ -245,9 +331,15 @@ export default function MeetingDetailPage() {
                 {hasCopied ? 'Copied!' : 'Copy Link'}
               </Button>
               {!currentUserIsParticipant && meeting.isActive && (
-                <Button onClick={handleJoinMeeting} disabled={isJoining} size="sm" className="w-full sm:w-auto">
-                  {isJoining ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
+                <Button onClick={handleJoinMeeting} disabled={isJoiningMeeting || !AGORA_APP_ID || AGORA_APP_ID === "YOUR_AGORA_APP_ID"} size="sm" className="w-full sm:w-auto">
+                  {isJoiningMeeting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
                   Join Meeting
+                </Button>
+              )}
+              {currentUserIsParticipant && meeting.isActive && !isAgoraJoined && (
+                <Button onClick={joinAgoraChannel} disabled={isPublishing || !AGORA_APP_ID || AGORA_APP_ID === "YOUR_AGORA_APP_ID"} size="sm" className="w-full sm:w-auto bg-green-600 hover:bg-green-700">
+                    {isPublishing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Video className="mr-2 h-4 w-4" />}
+                    Join Video Call
                 </Button>
               )}
             </div>
@@ -256,24 +348,15 @@ export default function MeetingDetailPage() {
         <CardContent className="pt-6 space-y-6">
           <div className="grid md:grid-cols-12 gap-4">
             <div className="md:col-span-9 space-y-4">
-              {currentUserIsParticipant && (
+              {/* Local Video */}
+              {currentUserIsParticipant && isAgoraJoined && (
                 <div className="mb-4">
                   <h3 className="text-sm font-medium text-muted-foreground mb-1">Your Camera</h3>
-                  <div className="aspect-video bg-black rounded-lg shadow-md relative">
-                    <video ref={localVideoRef} className="w-full h-full object-cover rounded-md" autoPlay muted playsInline />
-                    {(hasCameraPermission === false || isCameraOff) && (
+                  <div ref={localVideoContainerRef} className="aspect-video bg-black rounded-lg shadow-md relative">
+                    {isCameraOff && (
                         <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 rounded-md">
                             <VideoOff className="h-12 w-12 text-muted-foreground mb-2" />
-                            <p className="text-muted-foreground text-sm">
-                                {cameraError ? "Camera Error" : (hasCameraPermission === false ? "Camera permission denied" : "Camera is off")}
-                            </p>
-                            {cameraError && <p className="text-xs text-destructive px-2 text-center max-w-xs">{cameraError}</p>}
-                        </div>
-                    )}
-                    {hasCameraPermission === null && !cameraError && (
-                         <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 rounded-md">
-                            <Loader2 className="h-12 w-12 text-primary animate-spin mb-2" />
-                            <p className="text-muted-foreground text-sm">Accessing camera...</p>
+                            <p className="text-muted-foreground text-sm">Camera is off</p>
                         </div>
                     )}
                     <p className="absolute bottom-2 left-2 text-xs bg-black/50 text-white px-2 py-1 rounded">
@@ -283,39 +366,64 @@ export default function MeetingDetailPage() {
                 </div>
               )}
 
-              {remoteParticipants.length > 0 && (
+              {/* Remote Users' Videos */}
+              {remoteUsers.length > 0 && (
                 <div>
                   <h3 className="text-sm font-medium text-muted-foreground mb-2">Participants</h3>
                   <div className={cn(
                     "grid gap-2",
-                    remoteParticipants.length === 1 ? "grid-cols-1" :
-                    remoteParticipants.length === 2 ? "grid-cols-1 sm:grid-cols-2" :
-                    remoteParticipants.length === 3 ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-3" :
-                    "grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3"
+                    remoteUsers.length === 1 ? "grid-cols-1" :
+                    remoteUsers.length === 2 ? "grid-cols-1 sm:grid-cols-2" :
+                    remoteUsers.length === 3 ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-3" :
+                    "grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3" // Max 3 per row for larger participant counts
                   )}>
-                    {remoteParticipants.slice(0,6).map(p => (
-                      <ParticipantVideoPlaceholder key={p.uid} participant={p} />
+                    {remoteUsers.map(remoteU => (
+                      <div key={remoteU.uid} id={`remote-user-${remoteU.uid}`} className="aspect-video bg-muted/70 rounded-lg flex flex-col items-center justify-center border border-muted-foreground/20 shadow-inner relative overflow-hidden">
+                         {!remoteU.hasVideo && (
+                            <>
+                            <Avatar className="h-16 w-16 mb-2">
+                                <AvatarImage src={remoteU.photoURL || undefined} alt={remoteU.displayName || 'User'} data-ai-hint="remote participant avatar"/>
+                                <AvatarFallback>{getInitials(remoteU.displayName)}</AvatarFallback>
+                            </Avatar>
+                            <VideoOff className="h-8 w-8 text-muted-foreground opacity-50" />
+                            </>
+                        )}
+                        <p className="mt-2 text-xs text-muted-foreground text-center px-2 truncate w-full absolute bottom-2 bg-black/30 text-white py-1">
+                          {remoteU.displayName || `User ${remoteU.uid}`}
+                        </p>
+                        {/* Agora SDK will attach video stream here if hasVideo is true */}
+                        <script dangerouslySetInnerHTML={{ __html: `
+                          const videoTrack_${remoteU.uid} = agoraClientRef.current?.remoteUsers.find(u => u.uid === '${remoteU.uid}')?.videoTrack;
+                          if (videoTrack_${remoteU.uid} && document.getElementById('remote-user-${remoteU.uid}')) {
+                            videoTrack_${remoteU.uid}.play(document.getElementById('remote-user-${remoteU.uid}'));
+                          }
+                        `}} />
+                      </div>
                     ))}
                   </div>
-                   {remoteParticipants.length > 6 && (
-                      <p className="text-xs text-muted-foreground text-center mt-2">+{remoteParticipants.length - 6} more participants not shown in grid</p>
-                  )}
                 </div>
               )}
-              {remoteParticipants.length === 0 && currentUserIsParticipant && (
+               {isAgoraJoined && remoteUsers.length === 0 && (
                   <div className="h-64 bg-muted rounded-lg flex flex-col items-center justify-center border shadow-inner p-4">
                     <Users className="h-16 w-16 sm:h-24 sm:w-24 text-muted-foreground opacity-50" />
-                    <p className="mt-4 text-muted-foreground text-base sm:text-lg text-center">Waiting for others to join...</p>
+                    <p className="mt-4 text-muted-foreground text-base sm:text-lg text-center">Waiting for others to join the video call...</p>
+                  </div>
+              )}
+              {!isAgoraJoined && currentUserIsParticipant && (
+                 <div className="h-64 bg-muted rounded-lg flex flex-col items-center justify-center border shadow-inner p-4">
+                    <Video className="h-16 w-16 sm:h-24 sm:w-24 text-primary opacity-80" />
+                    <p className="mt-4 text-primary/90 text-base sm:text-lg text-center">Click "Join Video Call" above to start/join the call.</p>
                   </div>
               )}
               {!currentUserIsParticipant && (
                  <div className="h-64 bg-muted rounded-lg flex flex-col items-center justify-center border shadow-inner p-4">
                     <Video className="h-16 w-16 sm:h-24 sm:w-24 text-muted-foreground opacity-50" />
-                    <p className="mt-4 text-muted-foreground text-base sm:text-lg text-center">Join the meeting to see participants.</p>
+                    <p className="mt-4 text-muted-foreground text-base sm:text-lg text-center">Join the meeting to participate in the video call.</p>
                   </div>
               )}
             </div>
 
+            {/* Sidebar for participants list and chat */}
             <div className="md:col-span-3 space-y-4">
               <Card>
                 <CardHeader className="p-3">
@@ -349,7 +457,8 @@ export default function MeetingDetailPage() {
           </div>
         </CardContent>
 
-        {meeting.isActive && currentUserIsParticipant && (
+        {/* Call Controls Footer */}
+        {meeting.isActive && currentUserIsParticipant && isAgoraJoined && (
           <CardFooter className="border-t p-3 sm:p-4 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3">
              <Button 
                 variant={isMicMuted ? "destructive" : "outline"} 
@@ -357,7 +466,7 @@ export default function MeetingDetailPage() {
                 className="h-10 w-10 sm:h-12 sm:w-12" 
                 title={isMicMuted ? "Unmute Microphone" : "Mute Microphone"} 
                 onClick={toggleMic}
-                disabled={!stream}
+                disabled={!localAudioTrackRef.current || isPublishing}
              >
                 {isMicMuted ? <MicOff className="h-5 w-5 sm:h-6 sm:w-6" /> : <Mic className="h-5 w-5 sm:h-6 sm:w-6" />}
              </Button>
@@ -367,7 +476,7 @@ export default function MeetingDetailPage() {
                 className="h-10 w-10 sm:h-12 sm:w-12" 
                 title={isCameraOff ? "Turn Camera On" : "Turn Camera Off"}
                 onClick={toggleCamera}
-                disabled={hasCameraPermission === false}
+                disabled={isPublishing} // Can attempt to publish if no track yet
              >
                 {isCameraOff ? <VideoOff className="h-5 w-5 sm:h-6 sm:w-6" /> : <Video className="h-5 w-5 sm:h-6 sm:w-6" />}
              </Button>
@@ -375,7 +484,7 @@ export default function MeetingDetailPage() {
                 variant={isScreenSharing ? "default" : "outline"} 
                 size="icon" 
                 className="h-10 w-10 sm:h-12 sm:w-12" 
-                title={isScreenSharing ? "Stop Sharing Screen" : "Share Screen"}
+                title={isScreenSharing ? "Stop Sharing Screen" : "Share Screen (Placeholder)"}
                 onClick={() => {
                     setIsScreenSharing(!isScreenSharing);
                     toast({title: "Screen Sharing (Placeholder)", description: isScreenSharing ? "Screen sharing stopped." : "Screen sharing started."});
@@ -384,9 +493,9 @@ export default function MeetingDetailPage() {
             >
                 <ScreenShare className="h-5 w-5 sm:h-6 sm:w-6" />
             </Button>
-            <Button variant="destructive" size="lg" className="h-10 px-4 sm:h-12 sm:px-6" title="Leave Meeting" onClick={handleLeaveMeeting}>
+            <Button variant="destructive" size="lg" className="h-10 px-4 sm:h-12 sm:px-6" title="Leave Video Call" onClick={handleLeaveMeeting}>
                 <PhoneOff className="h-5 w-5 sm:h-6 sm:w-6 mr-0 sm:mr-2" />
-                <span className="hidden sm:inline">Leave</span>
+                <span className="hidden sm:inline">Leave Call</span>
             </Button>
             <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-12 sm:w-12" title="Meeting Settings (Placeholder)" disabled>
               <Settings2 className="h-5 w-5 sm:h-6 sm:w-6" />
@@ -402,9 +511,42 @@ export default function MeetingDetailPage() {
        <Button variant="outline" size="sm" onClick={() => router.push('/meetings')} className="sm:hidden w-full mt-4">
           <ArrowLeft className="mr-2 h-4 w-4" /> All Meetings
         </Button>
+        {/* Script tag for playing remote video tracks dynamically */}
+        {remoteUsers.map(remoteU => (
+          remoteU.hasVideo && remoteU.videoTrack && (
+            <script key={`script-${remoteU.uid}`} dangerouslySetInnerHTML={{ __html: `
+              (()=>{
+                const videoContainer = document.getElementById('remote-user-${remoteU.uid}');
+                if (videoContainer && !videoContainer.querySelector('video')) { // Check if video element already exists
+                  const agoraClient = window.agoraClientInstance; // Assuming you expose the client globally for this hack
+                  if (agoraClient) {
+                    const user = agoraClient.remoteUsers.find(u => u.uid === '${remoteU.uid}');
+                    if (user && user.videoTrack && user.hasVideo) {
+                        console.log('Playing remote video for ${remoteU.uid} in container:', videoContainer);
+                        user.videoTrack.play(videoContainer);
+                    }
+                  }
+                }
+              })();
+            `}} />
+          )
+        ))}
+        <script dangerouslySetInnerHTML={{__html: `
+            window.agoraClientInstance = agoraClientRef.current; // Expose client for inline scripts (hacky for prototype)
+        `}}/>
     </div>
   );
 }
-
-
     
+// Helper to ensure the video track is played in its container
+// This is tricky with React's rendering. A more robust solution might involve
+// creating video elements dynamically and managing them in state.
+// For now, this tries to ensure video plays if the element exists.
+// This is a workaround and might need refinement for a production app.
+if (typeof window !== 'undefined') {
+  // This is a placeholder for a more robust dynamic video element creation strategy
+  // if the direct `remoteUser.videoTrack.play(containerElement)` inside React render flow has issues.
+  // We are attempting to play directly in the JSX for now, but a mutation observer or other
+  // techniques might be needed if that fails due to timing.
+}
+
