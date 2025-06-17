@@ -1,0 +1,152 @@
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper function: Check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Users collection:
+    // - Anyone can create their own user profile (on signup).
+    // - Only the authenticated user can read/update their own profile.
+    // - Secure fcmTokens field.
+    match /users/{userId} {
+      allow read: if isAuthenticated(); // Allow reading other profiles for display purposes
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      allow update: if isAuthenticated() && request.auth.uid == userId;
+      allow delete: if isAuthenticated() && request.auth.uid == userId; // User can delete their own account data
+
+      // Subcollections for followers/following
+      match /followers/{followerId} {
+        allow read: if isAuthenticated();
+        allow create, delete: if isAuthenticated() && (request.auth.uid == followerId || request.auth.uid == userId);
+      }
+      match /following/{followedId} {
+        allow read: if isAuthenticated();
+        allow create, delete: if isAuthenticated() && (request.auth.uid == followedId || request.auth.uid == userId);
+      }
+    }
+
+    // Posts collection:
+    // - Authenticated users can create posts.
+    // - Anyone can read posts.
+    // - Only the author can update/delete their posts.
+    match /posts/{postId} {
+      allow read: if true; // Posts are public
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.authorId;
+      allow update: if isAuthenticated() && request.auth.uid == resource.data.authorId;
+      allow delete: if isAuthenticated() && request.auth.uid == resource.data.authorId;
+
+      // Comments subcollection:
+      // - Authenticated users can add comments.
+      // - Anyone can read comments.
+      // - Only comment author can update/delete (if needed, often not implemented).
+      match /comments/{commentId} {
+        allow read: if true;
+        allow create: if isAuthenticated() && request.auth.uid == request.resource.data.authorId;
+        // allow update, delete: if isAuthenticated() && request.auth.uid == resource.data.authorId;
+      }
+
+      // Likes subcollection:
+      // - Authenticated users can like/unlike (create/delete their like doc).
+      match /likes/{userId} {
+        allow read: if true;
+        allow create, delete: if isAuthenticated() && request.auth.uid == userId;
+      }
+    }
+
+    // Communities collection:
+    // - Authenticated users can create communities.
+    // - Anyone can read community details.
+    // - Only the creator can update/delete (or implement specific admin roles).
+    // - Members subcollection could be used if needed, or 'members' array in community doc.
+    match /communities/{communityId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.createdBy;
+      // For updates, more granular control might be needed (e.g., only creator or admins)
+      allow update: if isAuthenticated() && request.auth.uid == resource.data.createdBy;
+      allow delete: if isAuthenticated() && request.auth.uid == resource.data.createdBy;
+
+      // Community messages subcollection
+      match /messages/{messageId} {
+        allow read: if isAuthenticated(); // Or check if user is part of community: request.auth.uid in resource.data.members
+        allow create: if isAuthenticated() && request.auth.uid == request.resource.data.senderId;
+                          // && request.auth.uid in get(/databases/$(database)/documents/communities/$(communityId)).data.members; // Ensure sender is a member
+      }
+    }
+
+    // Direct Chats collection
+    match /chats/{chatId} {
+      allow read, write: if isAuthenticated() && request.auth.uid in resource.data.participantUids;
+
+      match /messages/{messageId} {
+         allow read, create: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantUids;
+         allow update, delete: if isAuthenticated() && request.auth.uid == resource.data.senderId
+                                  && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantUids;
+      }
+    }
+
+    // Notifications collection
+    match /notifications/{notificationId} {
+      allow read, update, delete: if isAuthenticated() && request.auth.uid == resource.data.userId;
+      allow create: if isAuthenticated(); // Or restrict to server-side/trusted clients
+    }
+
+    // Tearix 2D Canvases
+    match /canvases/{canvasId} {
+      // Helper function to check if the user is an allowed user for the canvas
+      function isAllowedUser() {
+        return request.auth.uid in resource.data._allowedUsers;
+      }
+
+      // Helper function to check if the user is the owner of the canvas
+      function isOwner() {
+        return request.auth.uid == resource.data._ownerId;
+      }
+
+      // Read: Allowed if UID is in _allowedUsers
+      allow read: if isAuthenticated() && isAllowedUser();
+
+      // Create:
+      // - User must be authenticated.
+      // - OwnerId must be the user creating it.
+      // - User's UID must be in the initial _allowedUsers list.
+      // - _allowedUsers list must initially contain only the owner.
+      // - Title must be a non-empty string.
+      // - _createdAt and _updatedAt should be set to server timestamps by the client.
+      allow create: if isAuthenticated() &&
+                       request.resource.data._ownerId == request.auth.uid &&
+                       request.auth.uid in request.resource.data._allowedUsers &&
+                       request.resource.data._allowedUsers.size() == 1 &&
+                       request.resource.data._title is string &&
+                       request.resource.data._title.size() > 0 &&
+                       request.resource.data._createdAt == request.time && // Approximate check for server timestamp
+                       request.resource.data._updatedAt == request.time;  // Approximate check for server timestamp
+
+
+      // Update:
+      // - User must be an allowed user.
+      // - _ownerId and _createdAt cannot be changed after creation.
+      // - _allowedUsers array changes are handled *exclusively* by the 'addFriendToCanvas' Cloud Function,
+      //   so direct client modification of _allowedUsers is not permitted unless it's by the owner and no actual change happens to the list for other fields update.
+      // - _title and _thumbnailUrl can be updated by any allowed user.
+      // - _updatedAt must be set to server timestamp.
+      allow update: if isAuthenticated() && isAllowedUser() &&
+                       request.resource.data._ownerId == resource.data._ownerId &&
+                       request.resource.data._createdAt == resource.data._createdAt &&
+                       request.resource.data._updatedAt == request.time && // Ensure _updatedAt is being set to server time
+                       (isOwner() || request.resource.data._allowedUsers == resource.data._allowedUsers); // Non-owners cannot change _allowedUsers
+
+      // Delete: Only the owner can delete
+      allow delete: if isAuthenticated() && isOwner();
+
+      // Note: Frame data for canvases would likely be in a subcollection or separate top-level collection
+      // with rules referencing the parent canvas's _allowedUsers. E.g.:
+      // match /canvasFrames/{frameId} where frame document contains canvasId_
+      // allow read, write: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/canvases/$(resource.data.canvasId_)).data._allowedUsers;
+    }
+  }
+}

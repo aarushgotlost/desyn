@@ -40,3 +40,15 @@ export interface Comment {
 }
 
 // UserProfile is defined in AuthContext.tsx
+
+
+// Tearix 2D Canvas Project
+export interface CanvasProject {
+  id: string;
+  _title: string;
+  _ownerId: string;
+  _createdAt: string; // ISO string, or Firebase Timestamp for server-side representation
+  _updatedAt: string; // ISO string, or Firebase Timestamp
+  _allowedUsers: string[]; // Array of UIDs
+  _thumbnailUrl?: string | null; // Optional: for canvas preview
+}

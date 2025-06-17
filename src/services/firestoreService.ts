@@ -1,6 +1,6 @@
 
-import { db, auth } from '@/lib/firebase';
-import type { Community, Post, Comment } from '@/types/data';
+import { db, auth, app } from '@/lib/firebase';
+import type { Community, Post, Comment, CanvasProject } from '@/types/data';
 import type { UserProfile } from '@/contexts/AuthContext';
 import {
   collection,
@@ -18,7 +18,9 @@ import {
   updateDoc,
   arrayUnion,
   arrayRemove,
+  writeBatch,
 } from 'firebase/firestore';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { unstable_noStore as noStore } from 'next/cache';
 
 
@@ -36,14 +38,14 @@ export async function getCurrentUserId(): Promise<string | null> {
   return null;
 }
 
-const processDoc = <T extends { id: string; createdAt?: string | Timestamp | Date; updatedAt?: string | Timestamp | Date; lastLogin?: string | Timestamp | Date; lastMessageAt?: string | Timestamp | Date; members?: string[]; authorAvatar?: string | null; photoURL?: string | null; bannerURL?: string | null; followersCount?: number; followingCount?: number; skills?: string[]; likes?: number; commentsCount?: number; memberCount?: number; }>(docSnap: any): T => {
+const processDoc = <T extends { id: string; createdAt?: string | Timestamp | Date; updatedAt?: string | Timestamp | Date; lastLogin?: string | Timestamp | Date; lastMessageAt?: string | Timestamp | Date; members?: string[]; authorAvatar?: string | null; photoURL?: string | null; bannerURL?: string | null; followersCount?: number; followingCount?: number; skills?: string[]; likes?: number; commentsCount?: number; memberCount?: number; _createdAt?: string | Timestamp | Date; _updatedAt?: string | Timestamp | Date; }>(docSnap: any): T => {
   const data = docSnap.data();
   const processedData: any = {
     id: docSnap.id,
     ...data,
   };
 
-  const dateFields: (keyof T)[] = ['createdAt', 'updatedAt', 'lastLogin', 'lastMessageAt'];
+  const dateFields: (keyof T)[] = ['createdAt', 'updatedAt', 'lastLogin', 'lastMessageAt', '_createdAt', '_updatedAt'];
   dateFields.forEach(field => {
     const fieldValue = data[field];
     if (fieldValue && typeof (fieldValue as Timestamp).toDate === 'function') {
@@ -414,4 +416,89 @@ export async function getAllUsersForNewChat(currentUserId: string, count: number
     console.error("Error fetching all users for new chat:", error);
     return [];
   }
+}
+
+// Tearix 2D Canvas Functions
+export async function createCanvasProject(title: string, ownerId: string): Promise<string> {
+  if (!title.trim()) {
+    throw new Error("Canvas title cannot be empty.");
+  }
+  if (!ownerId) {
+    throw new Error("Owner ID is required to create a canvas.");
+  }
+
+  const canvasesColRef = collection(db, 'canvases');
+  const newCanvasData = {
+    _title: title.trim(),
+    _ownerId: ownerId,
+    _allowedUsers: [ownerId], // Initially, only the owner is allowed
+    _createdAt: serverTimestamp(),
+    _updatedAt: serverTimestamp(),
+    _thumbnailUrl: null, // Placeholder for thumbnail
+  };
+
+  const canvasDocRef = await addDoc(canvasesColRef, newCanvasData);
+  return canvasDocRef.id;
+}
+
+export async function getUserCanvases(userId: string): Promise<CanvasProject[]> {
+  noStore();
+  if (!userId) return [];
+
+  const canvasesColRef = collection(db, 'canvases');
+  const q = query(
+    canvasesColRef,
+    where('_allowedUsers', 'array-contains', userId),
+    orderBy('_updatedAt', 'desc')
+  );
+
+  try {
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(docSnap => processDoc<CanvasProject>(docSnap));
+  } catch (error) {
+    console.error(`Error fetching canvases for user ${userId}:`, error);
+    return [];
+  }
+}
+
+export async function getCanvasDetails(canvasId: string): Promise<CanvasProject | null> {
+  noStore();
+  if (!canvasId) return null;
+  const canvasDocRef = doc(db, 'canvases', canvasId);
+  try {
+    const docSnap = await getDoc(canvasDocRef);
+    if (docSnap.exists()) {
+      return processDoc<CanvasProject>(docSnap);
+    }
+    return null;
+  } catch (error) {
+    console.error(`Error fetching canvas details for ${canvasId}:`, error);
+    return null;
+  }
+}
+
+// Client-side function to call the 'addFriendToCanvas' Cloud Function
+const functions = getFunctions(app); // 'app' should be your initialized Firebase app instance
+
+export const callAddFriendToCanvas = httpsCallable<{ canvasId: string; friendUid: string }, { success: boolean; message: string }>(
+  functions,
+  'addFriendToCanvas'
+);
+
+// Function to find a user by their email (example, might need more robust implementation or use UIDs directly)
+export async function findUserByEmail(email: string): Promise<UserProfile | null> {
+    noStore();
+    if (!email) return null;
+    const usersRef = collection(db, 'users');
+    const q = query(usersRef, where('email', '==', email), limit(1));
+    try {
+        const querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+            return processDoc<UserProfile>(querySnapshot.docs[0]);
+        }
+        return null;
+    } catch (error) {
+        console.error(`Error finding user by email ${email}:`, error);
+        return null;
+    }
 }
