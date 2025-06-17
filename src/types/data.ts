@@ -41,4 +41,21 @@ export interface Comment {
 
 // UserProfile is defined in AuthContext.tsx
 
-// Tearix 2D Animation Project Data types removed
+export interface AnimationFrame {
+  id: string;
+  frameNumber: number;
+  imageDataUrl: string; // For simplicity, this will be a text input for now
+  updatedAt: string; // ISO string
+}
+
+export interface AnimationProject {
+  id: string;
+  title: string;
+  ownerId: string;
+  ownerName: string;
+  createdAt: string; // ISO string
+  updatedAt: string; // ISO string
+  allowedUsers: string[]; // Array of UIDs
+  collaborators?: { uid: string; email?: string | null; displayName?: string | null; photoURL?: string | null }[]; // Store more collaborator info
+  thumbnailUrl?: string | null; // Optional: for project preview
+}

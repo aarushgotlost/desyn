@@ -1,6 +1,7 @@
 
 import { db, auth, app } from '@/lib/firebase';
-import type { Community, Post, Comment } from '@/types/data';
+import type { Community, Post, Comment, AnimationProject, AnimationFrame } from '@/types/data';
+import type { UserProfile } from '@/contexts/AuthContext';
 import {
   collection,
   getDocs,
@@ -430,4 +431,146 @@ export async function findUserByEmail(email: string): Promise<UserProfile | null
     }
 }
 
-// --- Tearix 2D Animation Functions Removed ---
+
+// --- Animation Project Functions ---
+
+export async function createAnimationProject(title: string, ownerId: string, ownerName: string): Promise<string> {
+  const animationProjectsCol = collection(db, 'animationProjects');
+  const newProjectData = {
+    title,
+    ownerId,
+    ownerName,
+    allowedUsers: [ownerId],
+    collaborators: [{ uid: ownerId, displayName: ownerName, email: auth.currentUser?.email || null, photoURL: auth.currentUser?.photoURL || null }],
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    thumbnailUrl: null,
+  };
+  const docRef = await addDoc(animationProjectsCol, newProjectData);
+  
+  // Create a default first frame
+  const framesCol = collection(db, 'animationProjects', docRef.id, 'frames');
+  await addDoc(framesCol, {
+    frameNumber: 1,
+    imageDataUrl: '', // Empty data for the first frame
+    updatedAt: serverTimestamp(),
+  });
+
+  return docRef.id;
+}
+
+export async function getAnimationProjectDetails(projectId: string): Promise<AnimationProject | null> {
+  noStore();
+  const projectDocRef = doc(db, 'animationProjects', projectId);
+  const docSnap = await getDoc(projectDocRef);
+  if (docSnap.exists()) {
+    const project = processDoc<AnimationProject>(docSnap);
+    // Fetch collaborator details for display (optional, could be done client-side too)
+    if (project.allowedUsers && project.allowedUsers.length > 0) {
+        const collaboratorProfiles = await Promise.all(
+            project.allowedUsers.map(async (uid) => {
+                const userProfile = await getUserProfile(uid);
+                return {
+                    uid,
+                    displayName: userProfile?.displayName || 'Unknown User',
+                    email: userProfile?.email || null,
+                    photoURL: userProfile?.photoURL || null,
+                };
+            })
+        );
+        project.collaborators = collaboratorProfiles;
+    }
+    return project;
+  }
+  return null;
+}
+
+export async function getUserAnimationProjects(userId: string): Promise<AnimationProject[]> {
+  noStore();
+  const animationProjectsCol = collection(db, 'animationProjects');
+  const q = query(
+    animationProjectsCol,
+    where('allowedUsers', 'array-contains', userId),
+    orderBy('updatedAt', 'desc')
+  );
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(docSnap => processDoc<AnimationProject>(docSnap));
+}
+
+// Realtime listener for project details
+export function getAnimationProjectDetailsRealtime(
+  projectId: string,
+  callback: (project: AnimationProject | null) => void
+): () => void {
+  const projectDocRef = doc(db, 'animationProjects', projectId);
+  return onSnapshot(projectDocRef, async (docSnap) => {
+    if (docSnap.exists()) {
+      const project = processDoc<AnimationProject>(docSnap);
+       if (project.allowedUsers && project.allowedUsers.length > 0) {
+            const collaboratorProfiles = await Promise.all(
+                project.allowedUsers.map(async (uid) => {
+                    const userProfile = await getUserProfile(uid);
+                    return {
+                        uid,
+                        displayName: userProfile?.displayName || 'Unknown User',
+                        email: userProfile?.email || null,
+                        photoURL: userProfile?.photoURL || null,
+                    };
+                })
+            );
+            project.collaborators = collaboratorProfiles;
+        }
+      callback(project);
+    } else {
+      callback(null);
+    }
+  });
+}
+
+
+export async function addFrameToAnimationProject(projectId: string, frameNumber: number): Promise<string> {
+  const framesCol = collection(db, 'animationProjects', projectId, 'frames');
+  const newFrameData = {
+    frameNumber,
+    imageDataUrl: '', // Default empty data
+    updatedAt: serverTimestamp(),
+  };
+  const docRef = await addDoc(framesCol, newFrameData);
+  await updateDoc(doc(db, 'animationProjects', projectId), { updatedAt: serverTimestamp() });
+  return docRef.id;
+}
+
+export async function updateFrameData(projectId: string, frameId: string, imageDataUrl: string): Promise<void> {
+  const frameDocRef = doc(db, 'animationProjects', projectId, 'frames', frameId);
+  await updateDoc(frameDocRef, {
+    imageDataUrl,
+    updatedAt: serverTimestamp(),
+  });
+  await updateDoc(doc(db, 'animationProjects', projectId), { updatedAt: serverTimestamp() });
+}
+
+export async function deleteFrameFromAnimationProject(projectId: string, frameId: string): Promise<void> {
+  const frameDocRef = doc(db, 'animationProjects', projectId, 'frames', frameId);
+  await deleteDoc(frameDocRef);
+  await updateDoc(doc(db, 'animationProjects', projectId), { updatedAt: serverTimestamp() });
+}
+
+
+// Realtime listener for frames
+export function getAnimationFramesRealtime(
+  projectId: string,
+  callback: (frames: AnimationFrame[]) => void
+): () => void {
+  const framesCol = collection(db, 'animationProjects', projectId, 'frames');
+  const q = query(framesCol, orderBy('frameNumber', 'asc'));
+  return onSnapshot(q, (snapshot) => {
+    const frames = snapshot.docs.map(docSnap => processDoc<AnimationFrame>(docSnap));
+    callback(frames);
+  });
+}
+
+
+// Firebase callable function invoker
+const functions = getFunctions(app);
+
+export const addCollaboratorToAnimationProject = httpsCallable<{ projectId: string; collaboratorEmail: string }, { success: boolean; message: string }>(functions, 'addFriendToAnimationProject');
