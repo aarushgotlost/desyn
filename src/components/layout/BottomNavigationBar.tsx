@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { HomeIcon, PlusCircle, MessageSquare, User as UserIcon, Compass, Clapperboard } from 'lucide-react'; 
+import { HomeIcon, PlusCircle, MessageSquare, User as UserIcon, Compass } from 'lucide-react'; 
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -12,7 +12,7 @@ import { getInitials } from '@/lib/utils';
 const navItems = [
   { href: "/", label: "Home", icon: HomeIcon, authRequired: false },
   { href: "/communities", label: "Discover", icon: Compass, authRequired: false },
-  { href: "/animation", label: "Tearix2D", icon: Clapperboard, authRequired: true },
+  // { href: "/animation", label: "Tearix2D", icon: Clapperboard, authRequired: true }, // Removed
   { href: "/posts/create", label: "Create", icon: PlusCircle, authRequired: true },
   { href: "/messages", label: "Messages", icon: MessageSquare, authRequired: true },
   { href: "/profile", label: "Profile", icon: UserIcon, authRequired: true, isProfile: true }, 
@@ -60,7 +60,7 @@ export function BottomNavigationBar() {
                             !(item.href === "/messages" && isChatDetailPage) &&
                             !(item.href === "/animation" && isAnimationEditorPage) // Ensure /animation highlights correctly but not its children for the icon
                            );
-          if (item.href === "/animation" && isAnimationEditorPage) isActive = true; // Keep active for child pages
+          // if (item.href === "/animation" && isAnimationEditorPage) isActive = true; // Keep active for child pages - This line is no longer needed.
           
           return (
             <Link

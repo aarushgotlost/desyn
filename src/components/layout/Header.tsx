@@ -14,7 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, User, Settings, PlusCircle, HomeIcon, Bell, MessageSquare, Bot, Compass, Clapperboard } from 'lucide-react'; 
+import { LogOut, User, Settings, PlusCircle, HomeIcon, Bell, MessageSquare, Bot, Compass } from 'lucide-react'; 
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { NotificationIcon } from '@/components/notifications/NotificationIcon'; 
@@ -27,7 +27,7 @@ export default function Header() {
   const navLinks = [
     { href: "/", label: "Home", icon: HomeIcon, authRequired: false },
     { href: "/communities", label: "Discover", icon: Compass, authRequired: false },
-    { href: "/animation", label: "Tearix2D", icon: Clapperboard, authRequired: true },
+    // { href: "/animation", label: "Tearix2D", icon: Clapperboard, authRequired: true }, // Removed
     { href: "/posts/create", label: "Create Post", icon: PlusCircle, authRequired: true },
     { href: "/messages", label: "Messages", icon: MessageSquare, authRequired: true },
   ];
