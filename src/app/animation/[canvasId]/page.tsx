@@ -11,7 +11,7 @@ import type { UserProfile } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, UserPlus, ArrowLeft, Clapperboard, Users, Mail, AlertTriangle } from 'lucide-react';
+import { Loader2, UserPlus, ArrowLeft, Clapperboard, Users, Mail, AlertTriangle, Square } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getInitials } from '@/lib/utils';
@@ -50,9 +50,16 @@ export default function CanvasPage() {
           } else {
             setCanvas(canvasDetails);
             // Fetch profiles for allowed users
-            const profiles = await Promise.all(
-              canvasDetails._allowedUsers.map(uid => findUserByEmail(uid).catch(() => null)) // Simplistic; better to use getUserProfile
-            );
+            const profilesPromises = canvasDetails._allowedUsers.map(async (uid) => {
+              const profile = await getUserProfile(uid); // Assuming getUserProfile fetches by UID
+              if (profile) {
+                return profile;
+              } else if (uid === canvasDetails._ownerId) { // Fallback for owner if profile fetch fails
+                return { uid: uid, displayName: "Owner (You)", email: user.email };
+              }
+              return null;
+            });
+            const profiles = await Promise.all(profilesPromises);
             setAllowedUsersProfiles(profiles.filter(p => p) as UserProfile[]);
           }
         } else {
@@ -102,7 +109,17 @@ export default function CanvasPage() {
         setFriendEmail('');
         // Refresh canvas details to show new collaborator
         const updatedCanvas = await getCanvasDetails(canvasId);
-        if (updatedCanvas) setCanvas(updatedCanvas); // TODO: This needs to re-fetch profiles too
+        if (updatedCanvas) {
+          setCanvas(updatedCanvas);
+          const profilesPromises = updatedCanvas._allowedUsers.map(async (uid) => {
+              const profile = await getUserProfile(uid);
+              if (profile) return profile;
+              if (uid === updatedCanvas._ownerId && user?.uid === uid) return { uid: uid, displayName: "Owner (You)", email: user.email };
+              return null;
+            });
+          const profiles = await Promise.all(profilesPromises);
+          setAllowedUsersProfiles(profiles.filter(p => p) as UserProfile[]);
+        }
       } else {
         toast({ title: "Failed to Add", description: result.data.message, variant: "destructive" });
       }
@@ -138,7 +155,7 @@ export default function CanvasPage() {
   }
   
   if (!canvas) {
-     return ( // Should be caught by error state, but as a fallback
+     return (
       <div className="flex flex-col items-center justify-center h-[calc(100vh-12rem)] text-center">
         <Clapperboard className="w-16 h-16 text-muted-foreground mb-4 opacity-50" />
         <h2 className="text-2xl font-semibold mb-3">Canvas Not Found</h2>
@@ -168,14 +185,16 @@ export default function CanvasPage() {
             <Clapperboard className="mr-3 w-7 h-7 text-primary" /> {canvas._title}
           </CardTitle>
           <CardDescription>
-            Owned by: {canvas._ownerId === user?.uid ? "You" : "Another user"} | Last updated: {new Date(canvas._updatedAt).toLocaleDateString()}
+            Owned by: {isOwner ? "You" : allowedUsersProfiles.find(p=>p.uid === canvas._ownerId)?.displayName || "Another user"} | Last updated: {new Date(canvas._updatedAt).toLocaleDateString()}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-center text-muted-foreground py-12 text-lg">
-            ✨ Animation Canvas Area - Editor Coming Soon! ✨
-          </p>
           {/* Placeholder for actual animation editor */}
+          <div className="aspect-video bg-muted/30 border border-dashed border-muted-foreground/20 rounded-lg flex flex-col items-center justify-center text-center p-8">
+            <Square className="w-16 h-16 text-muted-foreground opacity-50 mb-4" />
+            <h3 className="text-xl font-semibold text-muted-foreground">Animation Canvas Area</h3>
+            <p className="text-sm text-muted-foreground">Editor and tools coming soon!</p>
+          </div>
         </CardContent>
       </Card>
 
@@ -217,25 +236,55 @@ export default function CanvasPage() {
             {allowedUsersProfiles.length > 0 ? (
                 <ul className="space-y-3">
                     {allowedUsersProfiles.map(profile => (
-                        <li key={profile.uid} className="flex items-center space-x-3 p-2 border-b last:border-b-0">
-                            <Avatar className="h-9 w-9">
-                                <AvatarImage src={profile.photoURL || undefined} alt={profile.displayName || "User"} data-ai-hint="collaborator avatar small"/>
-                                <AvatarFallback>{getInitials(profile.displayName)}</AvatarFallback>
-                            </Avatar>
-                            <div>
-                                <p className="text-sm font-medium text-foreground">{profile.displayName || "Unknown User"}</p>
-                                <p className="text-xs text-muted-foreground">{profile.email || profile.uid === canvas._ownerId ? "(Owner)" : "(Collaborator)"}</p>
-                            </div>
-                        </li>
+                        profile && (
+                            <li key={profile.uid} className="flex items-center space-x-3 p-2 border-b last:border-b-0">
+                                <Avatar className="h-9 w-9">
+                                    <AvatarImage src={profile.photoURL || undefined} alt={profile.displayName || "User"} data-ai-hint="collaborator avatar small"/>
+                                    <AvatarFallback>{getInitials(profile.displayName)}</AvatarFallback>
+                                </Avatar>
+                                <div>
+                                    <p className="text-sm font-medium text-foreground">{profile.displayName || "Unknown User"}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                        {profile.uid === canvas._ownerId ? "(Owner)" : "(Collaborator)"}
+                                        {profile.email && ` - ${profile.email}`}
+                                    </p>
+                                </div>
+                            </li>
+                        )
                     ))}
                 </ul>
             ) : (
-                <p className="text-sm text-muted-foreground">No collaborators yet.</p>
+                <p className="text-sm text-muted-foreground">No collaborators yet (except the owner).</p>
             )}
         </CardContent>
       </Card>
-
-
     </div>
   );
 }
+
+// Helper function (can be moved to a service or utils if used elsewhere)
+async function getUserProfile(uid: string): Promise<UserProfile | null> {
+    if (!uid) return null;
+    const userDocRef = doc(db, 'users', uid);
+    try {
+        const docSnap = await getDoc(userDocRef);
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            // Basic processing, can be expanded
+            return {
+                uid: docSnap.id,
+                displayName: data.displayName || null,
+                email: data.email || null,
+                photoURL: data.photoURL || null,
+                onboardingCompleted: data.onboardingCompleted || false,
+                // Add other fields as needed from your UserProfile type
+            } as UserProfile;
+        }
+        return null;
+    } catch (error) {
+        console.error(`Error fetching profile for user ${uid}:`, error);
+        return null;
+    }
+}
+
+    
