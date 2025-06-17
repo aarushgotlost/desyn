@@ -1,6 +1,6 @@
 
 import { db, auth, app } from '@/lib/firebase';
-import type { Community, Post, Comment, CanvasProject } from '@/types/data';
+import type { Community, Post, Comment } from '@/types/data'; // Removed CanvasProject
 import type { UserProfile } from '@/contexts/AuthContext';
 import {
   collection,
@@ -20,32 +20,23 @@ import {
   arrayRemove,
   writeBatch,
 } from 'firebase/firestore';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+// Removed getFunctions, httpsCallable as addFriendToCanvas is removed
 import { unstable_noStore as noStore } from 'next/cache';
 
 
 export async function getCurrentUserId(): Promise<string | null> {
   noStore();
-  // This function is problematic in server components if auth state isn't readily available.
-  // For now, it will return null, relying on client components or actions to get the current user.
-  // To make this work server-side reliably, you'd need a different auth mechanism (e.g., session cookies).
-  // Consider using `useAuth` in client components or passing userId from client to server actions.
-
-  // TEMPORARY: To allow some server components to work without full auth integration,
-  // we'll try to get the user from the auth object if available. This is NOT reliable for SSR
-  // without proper session management.
-  // return auth.currentUser?.uid || null;
   return null;
 }
 
-const processDoc = <T extends { id: string; createdAt?: string | Timestamp | Date; updatedAt?: string | Timestamp | Date; lastLogin?: string | Timestamp | Date; lastMessageAt?: string | Timestamp | Date; members?: string[]; authorAvatar?: string | null; photoURL?: string | null; bannerURL?: string | null; followersCount?: number; followingCount?: number; skills?: string[]; likes?: number; commentsCount?: number; memberCount?: number; _createdAt?: string | Timestamp | Date; _updatedAt?: string | Timestamp | Date; }>(docSnap: any): T => {
+const processDoc = <T extends { id: string; createdAt?: string | Timestamp | Date; updatedAt?: string | Timestamp | Date; lastLogin?: string | Timestamp | Date; lastMessageAt?: string | Timestamp | Date; members?: string[]; authorAvatar?: string | null; photoURL?: string | null; bannerURL?: string | null; followersCount?: number; followingCount?: number; skills?: string[]; likes?: number; commentsCount?: number; memberCount?: number; }>(docSnap: any): T => {
   const data = docSnap.data();
   const processedData: any = {
     id: docSnap.id,
     ...data,
   };
 
-  const dateFields: (keyof T)[] = ['createdAt', 'updatedAt', 'lastLogin', 'lastMessageAt', '_createdAt', '_updatedAt'];
+  const dateFields: (keyof T)[] = ['createdAt', 'updatedAt', 'lastLogin', 'lastMessageAt']; // Removed _createdAt, _updatedAt
   dateFields.forEach(field => {
     const fieldValue = data[field];
     if (fieldValue && typeof (fieldValue as Timestamp).toDate === 'function') {
@@ -55,15 +46,15 @@ const processDoc = <T extends { id: string; createdAt?: string | Timestamp | Dat
     } else if (typeof fieldValue === 'string') {
       try {
             const d = new Date(fieldValue);
-            if (!isNaN(d.getTime())) { // Check if date is valid
+            if (!isNaN(d.getTime())) { 
               processedData[field] = d.toISOString();
             } else {
-              processedData[field] = fieldValue; // Keep original if invalid
+              processedData[field] = fieldValue; 
             }
       } catch (e) {
-        processedData[field] = fieldValue; // Fallback
+        processedData[field] = fieldValue; 
       }
-    } else if (fieldValue && typeof fieldValue === 'object' && fieldValue.seconds && fieldValue.nanoseconds) { // Handle plain Timestamp-like objects
+    } else if (fieldValue && typeof fieldValue === 'object' && fieldValue.seconds && fieldValue.nanoseconds) { 
         try {
             processedData[field] = new Timestamp(fieldValue.seconds, fieldValue.nanoseconds).toDate().toISOString();
         } catch (e) {
@@ -94,14 +85,14 @@ const processDoc = <T extends { id: string; createdAt?: string | Timestamp | Dat
       processedData.onboardingCompleted = typeof data.onboardingCompleted === 'boolean' ? data.onboardingCompleted : false;
   }
 
-  // Ensure common numeric fields are numbers or default to 0
+  
   if ('likes' in data) {
     processedData.likes = typeof data.likes === 'number' ? data.likes : 0;
   }
   if ('commentsCount' in data) {
     processedData.commentsCount = typeof data.commentsCount === 'number' ? data.commentsCount : 0;
   }
-  if ('memberCount' in data && docSnap.ref.parent.id === 'communities') { // memberCount relevant for communities
+  if ('memberCount' in data && docSnap.ref.parent.id === 'communities') { 
     processedData.memberCount = typeof data.memberCount === 'number' ? data.memberCount : 0;
   }
 
@@ -418,74 +409,10 @@ export async function getAllUsersForNewChat(currentUserId: string, count: number
   }
 }
 
-// Tearix 2D Canvas Functions
-export async function createCanvasProject(title: string, ownerId: string): Promise<string> {
-  if (!title.trim()) {
-    throw new Error("Canvas title cannot be empty.");
-  }
-  if (!ownerId) {
-    throw new Error("Owner ID is required to create a canvas.");
-  }
-
-  const canvasesColRef = collection(db, 'canvases');
-  const newCanvasData = {
-    _title: title.trim(),
-    _ownerId: ownerId,
-    _allowedUsers: [ownerId], // Initially, only the owner is allowed
-    _createdAt: serverTimestamp(),
-    _updatedAt: serverTimestamp(),
-    _thumbnailUrl: null, // Placeholder for thumbnail
-  };
-
-  const canvasDocRef = await addDoc(canvasesColRef, newCanvasData);
-  return canvasDocRef.id;
-}
-
-export async function getUserCanvases(userId: string): Promise<CanvasProject[]> {
-  noStore();
-  if (!userId) return [];
-
-  const canvasesColRef = collection(db, 'canvases');
-  const q = query(
-    canvasesColRef,
-    where('_allowedUsers', 'array-contains', userId),
-    orderBy('_updatedAt', 'desc')
-  );
-
-  try {
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(docSnap => processDoc<CanvasProject>(docSnap));
-  } catch (error) {
-    console.error(`Error fetching canvases for user ${userId}:`, error);
-    return [];
-  }
-}
-
-export async function getCanvasDetails(canvasId: string): Promise<CanvasProject | null> {
-  noStore();
-  if (!canvasId) return null;
-  const canvasDocRef = doc(db, 'canvases', canvasId);
-  try {
-    const docSnap = await getDoc(canvasDocRef);
-    if (docSnap.exists()) {
-      return processDoc<CanvasProject>(docSnap);
-    }
-    return null;
-  } catch (error) {
-    console.error(`Error fetching canvas details for ${canvasId}:`, error);
-    return null;
-  }
-}
-
-// Client-side function to call the 'addFriendToCanvas' Cloud Function
-const functions = getFunctions(app); // 'app' should be your initialized Firebase app instance
-
-export const callAddFriendToCanvas = httpsCallable<{ canvasId: string; friendUid: string }, { success: boolean; message: string }>(
-  functions,
-  'addFriendToCanvas'
-);
+// Tearix 2D Canvas Functions removed
 
 // Function to find a user by their email (example, might need more robust implementation or use UIDs directly)
+// Kept this function as it might be useful for other features, e.g. inviting users.
 export async function findUserByEmail(email: string): Promise<UserProfile | null> {
     noStore();
     if (!email) return null;

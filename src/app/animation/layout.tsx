@@ -1,11 +1,7 @@
-
+// This layout has been emptied as the Tearix2D animation feature was removed.
+// This file and its parent directory (/src/app/animation) can be deleted.
 import type { ReactNode } from 'react';
 
-export default function AnimationLayout({ children }: { children: ReactNode }) {
-  // This layout can be expanded with specific UI for the animation section if needed.
-  return (
-    <div className="h-full">
-      {children}
-    </div>
-  );
+export default function AnimationLayoutPlaceholder({ children }: { children: ReactNode }) {
+  return <>{children}</>; // Return children to avoid breaking structure if directory isn't deleted immediately
 }
