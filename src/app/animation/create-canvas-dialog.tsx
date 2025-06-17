@@ -1,5 +1,4 @@
-// This component has been emptied as the Tearix2D animation feature was removed.
-// This file and its parent directory (/src/app/animation) can be deleted.
+// This component was part of the Tearix 2D animation feature, which has been removed.
 export function CreateCanvasDialogPlaceholder() {
   return null;
 }

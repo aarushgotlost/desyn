@@ -41,37 +41,4 @@ export interface Comment {
 
 // UserProfile is defined in AuthContext.tsx
 
-// Tearix 2D Animation Project Data
-export interface AnimationFrameData {
-  id: string; // Unique ID for the frame (e.g., frame-timestamp-random)
-  projectId: string; // Link back to the parent project
-  frameNumber: number; // Sequential frame number (0-based for array index)
-  dataUrl: string | null; // Store canvas drawing for this frame as a data URL (single layer for now)
-  // layers: AnimationLayerData[]; // Future: for multi-layer support
-  thumbnailUrl?: string | null; // Optional: A small dataURL or path to a generated thumbnail
-  createdAt: string; // ISO string, Firestore serverTimestamp on creation
-  updatedAt: string; // ISO string, Firestore serverTimestamp on update
-}
-
-export interface AnimationProject {
-  id: string;
-  title: string;
-  ownerId: string;
-  createdAt: string; // ISO string
-  updatedAt: string; // ISO string
-  allowedUsers: string[]; // UIDs of users who can access
-  fps: number;
-  width: number; // Canvas width
-  height: number; // Canvas height
-  thumbnailUrl?: string | null; // Project-level thumbnail (e.g., first frame)
-  totalFrames: number; // Denormalized count for quick display, updated with each frame add/delete
-  // backgroundColor: string; // Default canvas background color
-}
-
-// Interface for collaborators displayed in UI
-export interface CollaboratorProfile {
-    uid: string;
-    displayName: string | null;
-    photoURL?: string | null;
-    email?: string | null; // Email might be useful for display
-}
+// Tearix 2D Animation Project Data types removed
