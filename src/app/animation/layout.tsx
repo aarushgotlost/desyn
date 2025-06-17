@@ -1,7 +1,21 @@
-// This layout has been emptied as the Tearix2D animation feature was removed.
-// This file and its parent directory (/src/app/animation) can be deleted.
-import type { ReactNode } from 'react';
 
-export default function AnimationLayoutPlaceholder({ children }: { children: ReactNode }) {
-  return <>{children}</>; // Return children to avoid breaking structure if directory isn't deleted immediately
+"use client";
+import type { ReactNode } from 'react';
+import { AnimationProvider } from '@/context/AnimationContext';
+import { useParams } from 'next/navigation';
+
+export default function AnimationProjectLayout({ children }: { children: ReactNode }) {
+  const params = useParams();
+  // Ensure projectId is a string or null, not string[] or undefined
+  const projectId = typeof params.projectId === 'string' ? params.projectId : null;
+  
+  return (
+    // Keying the provider by projectId ensures it re-initializes when navigating between different projects.
+    // This is crucial if the main page for [projectId] doesn't unmount/remount itself.
+    <AnimationProvider key={projectId} projectId={projectId}>
+      <div className="flex flex-col h-[calc(100vh-4rem)] overflow-hidden"> {/* Adjust 4rem based on actual header height */}
+        {children}
+      </div>
+    </AnimationProvider>
+  );
 }

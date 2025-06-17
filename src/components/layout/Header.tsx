@@ -14,7 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, User, Settings, PlusCircle, HomeIcon, Bell, MessageSquare, Bot, Compass } from 'lucide-react'; 
+import { LogOut, User, Settings, PlusCircle, HomeIcon, Bell, MessageSquare, Bot, Compass, Clapperboard } from 'lucide-react'; 
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { NotificationIcon } from '@/components/notifications/NotificationIcon'; 
@@ -27,7 +27,7 @@ export default function Header() {
   const navLinks = [
     { href: "/", label: "Home", icon: HomeIcon, authRequired: false },
     { href: "/communities", label: "Discover", icon: Compass, authRequired: false },
-    // { href: "/animation", label: "Tearix 2D", icon: Clapperboard, authRequired: true }, // Removed Tearix2D
+    { href: "/animation", label: "Tearix 2D", icon: Clapperboard, authRequired: true },
     { href: "/posts/create", label: "Create Post", icon: PlusCircle, authRequired: true },
     { href: "/messages", label: "Messages", icon: MessageSquare, authRequired: true },
   ];
@@ -51,7 +51,8 @@ export default function Header() {
             if (link.authRequired && !user) return null;
             const isActive = (link.href === "/" && pathname === link.href) || 
                              (link.href !== "/" && pathname.startsWith(link.href) && 
-                              !(link.href === "/messages" && pathname.includes("/messages/")) 
+                              !(link.href === "/messages" && pathname.includes("/messages/")) && // Ensure /messages doesn't make /messages/123 active
+                              !(link.href === "/animation" && pathname.includes("/animation/"))   // Ensure /animation doesn't make /animation/abc active
                              );
             
             return (
