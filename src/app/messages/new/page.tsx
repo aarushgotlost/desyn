@@ -40,7 +40,6 @@ export default function NewMessagePage() {
         setUsers(allUsers); 
         setFilteredUsers(allUsers);
       } catch (error) {
-        // console.error("Error fetching users:", error); // Avoid console logs
         toast({ title: "Error", description: "Could not load users.", variant: "destructive" });
       } finally {
         setIsLoadingUsers(false);
@@ -84,7 +83,6 @@ export default function NewMessagePage() {
       );
       router.push(`/messages/${chatId}`);
     } catch (error: any) {
-      // console.error("Error creating or getting chat:", error); // Avoid console logs
       toast({ title: "Error", description: error.message || "Could not start chat.", variant: "destructive"});
     } finally {
       setIsCreatingChat(null);
