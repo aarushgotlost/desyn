@@ -16,7 +16,8 @@ import {
   serverTimestamp,
   Timestamp,
   writeBatch,
-  getDoc, 
+  getDoc,
+  limit,
 } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
 
@@ -33,34 +34,30 @@ export async function getOrCreateDirectChat(
   otherUserProfile: UserProfile
 ): Promise<string> {
   const chatsRef = collection(db, 'chats');
-  // Query for existing chats involving both users
+  const sortedParticipantUids = [currentUserProfile.uid, otherUserProfile.uid].sort();
+
+  // More direct query for an existing chat between these two users
   const q = query(
     chatsRef,
-    where('participantUids', 'array-contains', currentUserProfile.uid),
+    where('participantUids', '==', sortedParticipantUids),
+    limit(1) // Expect at most one such chat
   );
 
   const querySnapshot = await getDocs(q);
-  let existingChat: ChatSession | null = null;
 
-  querySnapshot.forEach(docSnap => {
-    const chat = docSnap.data() as ChatSession;
-    if (chat.participantUids.includes(otherUserProfile.uid) && chat.participantUids.length === 2) {
-      existingChat = { ...chat, id: docSnap.id };
-    }
-  });
-
-
-  if (existingChat) {
-    return existingChat.id;
+  if (!querySnapshot.empty) {
+    // Existing chat found
+    const existingChatDoc = querySnapshot.docs[0];
+    return existingChatDoc.id;
   }
 
-  // Create a new chat
+  // No existing chat, create a new one
   const currentUserParticipant = createParticipant(currentUserProfile);
   const otherUserParticipant = createParticipant(otherUserProfile);
 
   const newChatData: Omit<ChatSession, 'id'> = {
     participants: [currentUserParticipant, otherUserParticipant],
-    participantUids: [currentUserProfile.uid, otherUserProfile.uid].sort(), // Sort for consistent querying
+    participantUids: sortedParticipantUids, // Already sorted
     createdAt: serverTimestamp() as Timestamp,
     updatedAt: serverTimestamp() as Timestamp,
     lastMessageText: 'Chat started.',
@@ -69,6 +66,12 @@ export async function getOrCreateDirectChat(
   };
 
   const chatDocRef = await addDoc(chatsRef, newChatData);
+  
+  // Revalidate paths that might display chat lists or previews
+  revalidatePath('/messages');
+  // If individual chat pages were server-rendered and might need revalidation, add:
+  // revalidatePath(`/messages/${chatDocRef.id}`);
+  
   return chatDocRef.id;
 }
 
@@ -94,7 +97,7 @@ export async function sendMessage(
     senderAvatar?: string | null;
     text: string;
     // createdAt will be added with serverTimestamp
-  } = { 
+  } = {
     chatId,
     senderId: senderProfile.uid,
     senderName: senderProfile.displayName,
@@ -104,7 +107,7 @@ export async function sendMessage(
 
   const batch = writeBatch(db);
 
-  const messageDocRef = doc(messagesColRef); 
+  const messageDocRef = doc(messagesColRef);
   batch.set(messageDocRef, { ...newMessage, createdAt: serverTimestamp() });
 
   batch.update(chatDocRef, {
@@ -115,7 +118,7 @@ export async function sendMessage(
   });
 
   await batch.commit();
-  
+
   revalidatePath(`/messages/${chatId}`);
   revalidatePath('/messages');
 
@@ -126,7 +129,7 @@ export async function sendMessage(
       const chatData = chatSnap.data() as ChatSession;
       // Ensure senderProfile.displayName is not null for the notification actor.
       // It's already checked above, but good to be defensive.
-      const actorDisplayName = senderProfile.displayName || 'Someone'; 
+      const actorDisplayName = senderProfile.displayName || 'Someone';
       const actor: NotificationActor = {
         id: senderProfile.uid,
         displayName: actorDisplayName,
@@ -150,5 +153,3 @@ export async function sendMessage(
     console.error("Error creating notification for new message:", error);
   }
 }
-
-    
