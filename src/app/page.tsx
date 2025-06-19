@@ -46,21 +46,23 @@ export default async function HomePage() {
                       </Avatar>
                     </Link>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center space-x-2">
-                        <p className="text-sm font-semibold text-foreground truncate">
-                          <Link href={`/profile/${post.authorId}`} className="hover:text-primary transition-colors">{post.authorName}</Link>
-                        </p>
+                      <div className="flex items-center justify-between"> {/* Applied justify-between */}
+                        <div> {/* Wrapper for name and details */}
+                          <p className="text-sm font-semibold text-foreground truncate">
+                            <Link href={`/profile/${post.authorId}`} className="hover:text-primary transition-colors">{post.authorName}</Link>
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {post.communityId && post.communityName && (
+                                <>Posted in <Link href={`/communities/${post.communityId}`} className="text-primary/90 hover:text-primary font-medium">{post.communityName}</Link> &bull; </>
+                            )}
+                            {formatDistanceToNowStrict(postCreatedAt, { addSuffix: true })}
+                          </p>
+                        </div>
                         <FollowButtonClient 
                             targetUserId={post.authorId} 
                             targetUserProfile={{ displayName: post.authorName }}
-                          />
+                        />
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        {post.communityId && post.communityName && (
-                            <>Posted in <Link href={`/communities/${post.communityId}`} className="text-primary/90 hover:text-primary font-medium">{post.communityName}</Link> &bull; </>
-                        )}
-                        {formatDistanceToNowStrict(postCreatedAt, { addSuffix: true })}
-                      </p>
                     </div>
                     {currentUserId === post.authorId && (
                       <div className="ml-auto flex-shrink-0">
