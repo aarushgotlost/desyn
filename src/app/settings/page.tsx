@@ -9,7 +9,7 @@ import { User, Palette, Shield, LogOut, SendToBack, CheckCircle, XCircle, AlertT
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext"; 
 import { cn } from "@/lib/utils"; 
-import { messaging, VAPID_KEY } from '@/lib/firebase'; // Import VAPID_KEY from firebase.ts
+import { messaging, VAPID_KEY } from '@/lib/firebase'; 
 import { getToken } from 'firebase/messaging';
 import { useState, useEffect, useTransition } from 'react';
 import { useToast } from "@/hooks/use-toast";
@@ -39,8 +39,6 @@ export default function SettingsPage() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // VAPID_KEY is now imported from @/lib/firebase
-
   useEffect(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
       setNotificationPermission(Notification.permission);
@@ -60,9 +58,7 @@ export default function SettingsPage() {
       return;
     }
 
-    // VAPID_KEY check is no longer strictly needed here if it's always defined in firebase.ts
-    // but good for robustness if it could somehow be undefined/placeholder
-    if (!VAPID_KEY || VAPID_KEY === "YOUR_PUBLIC_VAPID_KEY_HERE") { 
+    if (!VAPID_KEY || VAPID_KEY === "YOUR_PUBLIC_VAPID_KEY_HERE" || VAPID_KEY === "BIhYhqAuf9hWPjsk5sDSk5kBZZK-6btzuXdPjvtDVcEGz81Mk6pPKayslVX394sGLPUshvM_IkXsTFsrffwqjL0_PLACEHOLDER") { 
        toast({
         title: "VAPID Key Missing",
         description: "The VAPID key is not configured correctly in the application.",
@@ -82,9 +78,6 @@ export default function SettingsPage() {
         const currentToken = await getToken(messaging, { vapidKey: VAPID_KEY });
         if (currentToken) {
           setFcmToken(currentToken);
-          // TODO: Here you would typically send this token to your server to associate with the user
-          // For this app, user profile update with token is handled in profile setup.
-          // This settings page token display is more for testing/info.
           toast({
             title: "Push Notifications Enabled!",
             description: "You will now receive push notifications.",
@@ -137,7 +130,6 @@ export default function SettingsPage() {
       }
 
       try {
-        // Step 1: Delete Firestore data via Server Action
         const firestoreDeleteResult = await deleteUserAccountAndBasicData(user.uid);
         if (!firestoreDeleteResult.success) {
           toast({ title: "Error Deleting Data", description: firestoreDeleteResult.message, variant: "destructive" });
@@ -147,11 +139,9 @@ export default function SettingsPage() {
         }
         toast({ title: "User Data Cleared", description: "Associated user data has been removed.", variant: "default" });
 
-        // Step 2: Delete Firebase Auth user account (client-side)
         await deleteCurrentUserAccount();
         
         toast({ title: "Account Deleted", description: "Your account has been permanently deleted." });
-        // AuthContext's onAuthStateChanged will handle logout and redirect.
       } catch (error: any) {
         toast({ title: "Account Deletion Failed", description: error.message, variant: "destructive" });
       } finally {
@@ -181,7 +171,7 @@ export default function SettingsPage() {
           <div>
             <h3 className="font-medium mb-1">Profile Information</h3>
             <p className="text-sm text-muted-foreground mb-2">Control your public profile details.</p>
-            <Link href="/onboarding/profile-setup" className={cn(buttonVariants({ variant: "outline" }))}>
+            <Link href="/onboarding/profile-setup" className={cn(buttonVariants({ variant: "outline" }), "w-full sm:w-auto")}>
               Edit Profile
             </Link>
           </div>
@@ -189,7 +179,7 @@ export default function SettingsPage() {
           <div>
             <h3 className="font-medium mb-1">Change Password</h3>
             <p className="text-sm text-muted-foreground mb-2">Update your account password for better security.</p>
-            <Link href="/forgot-password" className={cn(buttonVariants({ variant: "outline" }))}>
+            <Link href="/forgot-password" className={cn(buttonVariants({ variant: "outline" }), "w-full sm:w-auto")}>
                 Change Password
             </Link>
           </div>
@@ -234,6 +224,7 @@ export default function SettingsPage() {
               onClick={handleEnablePushNotifications}
               disabled={notificationPermission === 'granted' || isRequestingToken || notificationPermission === 'loading'}
               variant={notificationPermission === 'granted' ? "ghost" : "default"}
+              className="w-full sm:w-auto"
             >
               {isRequestingToken ? "Requesting..." : notificationPermission === 'granted' ? "Enabled" : "Enable Push Notifications"}
             </Button>
@@ -269,12 +260,12 @@ export default function SettingsPage() {
         </CardHeader>
         <CardContent className="space-y-6">
             <div className="space-y-2">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                     <div>
                         <h4 className="font-medium">Password</h4>
                         <p className="text-sm text-muted-foreground">Change your account password.</p>
                     </div>
-                     <Link href="/forgot-password" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
+                     <Link href="/forgot-password" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "w-full sm:w-auto")}>
                         <Lock className="mr-2 h-4 w-4" /> Change Password
                     </Link>
                 </div>
@@ -286,7 +277,7 @@ export default function SettingsPage() {
                  <div className="flex space-x-2 pt-1">
                     <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
                       <AlertDialogTrigger asChild>
-                        <Button variant="destructive" size="sm" disabled={loading || isDeleting}>
+                        <Button variant="destructive" size="sm" disabled={loading || isDeleting} className="w-full sm:w-auto">
                           {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
                           Delete Account
                         </Button>
@@ -301,7 +292,7 @@ export default function SettingsPage() {
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
-                          <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+                          <AlertDialogCancel disabled={isDeleting || isPending}>Cancel</AlertDialogCancel>
                           <AlertDialogAction
                             onClick={handleDeleteAccountConfirm}
                             disabled={isDeleting || isPending}
@@ -329,5 +320,4 @@ export default function SettingsPage() {
     </div>
   );
 }
-
     
