@@ -245,17 +245,19 @@ export async function getDiscoverableUsers(currentUserId: string | null, count: 
         q = query(
             usersCol,
             where('onboardingCompleted', '==', true),
-            where('uid', '!=', currentUserId), 
-            orderBy('uid'), 
+            where('uid', '!=', currentUserId),
+            // orderBy('uid'), // Removed to simplify query for indexing
             limit(count)
         );
     } else {
+        // This query might also need an index on (onboardingCompleted, displayName) if not auto-created
         q = query(usersCol, where('onboardingCompleted', '==', true), orderBy('displayName', 'asc'), limit(count));
     }
 
     try {
         const snapshot = await getDocs(q);
         let users = snapshot.docs.map(docSnap => processDoc<UserProfile>(docSnap));
+        // Client-side sort by displayName if not ordered by it in the query (especially for the currentUserId case)
         if (currentUserId) {
             users.sort((a, b) => (a.displayName || '').localeCompare(b.displayName || ''));
         }
@@ -396,9 +398,9 @@ export async function getAllUsersForNewChat(currentUserId: string, count: number
   const usersCol = collection(db, 'users');
   const q = query(
     usersCol,
-    where('uid', '!=', currentUserId), 
-    where('onboardingCompleted', '==', true), 
-    orderBy('uid'), 
+    where('onboardingCompleted', '==', true),
+    where('uid', '!=', currentUserId),
+    // orderBy('uid'), // Removed to simplify query for indexing
     limit(count)
   );
 
@@ -406,7 +408,7 @@ export async function getAllUsersForNewChat(currentUserId: string, count: number
     const snapshot = await getDocs(q);
     return snapshot.docs
       .map(docSnap => processDoc<UserProfile>(docSnap))
-      .sort((a, b) => (a.displayName || '').localeCompare(b.displayName || ''))
+      .sort((a, b) => (a.displayName || '').localeCompare(b.displayName || '')) // Sort client-side
       .slice(0, count);
   } catch (error) {
     console.error("Error fetching all users for new chat:", error);
@@ -438,3 +440,4 @@ export async function findUserByEmail(email: string): Promise<UserProfile | null
 // Firebase callable function invoker for animation (Removed)
 // const functions = getFunctions(app);
 // export const addCollaboratorToAnimationProject = httpsCallable... (Removed)
+
