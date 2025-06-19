@@ -47,13 +47,13 @@ export default async function HomePage() {
                     </Link>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center space-x-2">
-                        <p className="text-sm font-semibold text-foreground truncate">
-                          <Link href={`/profile/${post.authorId}`} className="hover:text-primary transition-colors">{post.authorName}</Link>
-                        </p>
                         <FollowButtonClient 
                             targetUserId={post.authorId} 
                             targetUserProfile={{ displayName: post.authorName }}
                           />
+                        <p className="text-sm font-semibold text-foreground truncate">
+                          <Link href={`/profile/${post.authorId}`} className="hover:text-primary transition-colors">{post.authorName}</Link>
+                        </p>
                       </div>
                       <p className="text-xs text-muted-foreground">
                         {post.communityId && post.communityName && (
