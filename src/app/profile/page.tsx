@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Image from "next/image";
 import Link from "next/link";
-import { Edit3, Mail, Users, FileText, CalendarDays, Loader2, ThumbsUp, MessageCircle as MessageIcon, Palette } from "lucide-react"; // Added Palette
+import { Edit3, Mail, Users, FileText, CalendarDays, Loader2, ThumbsUp, MessageCircle, Palette } from "lucide-react";
 import { useAuth, type UserProfile as UserProfileType } from "@/contexts/AuthContext"; 
 import { useRouter } from "next/navigation"; 
 import { useState, useEffect } from "react"; 
@@ -110,12 +110,12 @@ export default function ProfilePage() {
     );
   }
   
-  const { displayName, email, photoURL, bannerURL, bio, skills, createdAt, followersCount, followingCount } = displayedProfile; // Changed techStack to skills
+  const { displayName, email, photoURL, bannerURL, bio, skills, createdAt, followersCount, followingCount } = displayedProfile;
   const joinedDate = createdAt ? new Date(createdAt) : null; 
 
   return (
     <div className="space-y-8">
-      <Card className="overflow-hidden shadow-xl bg-card">
+      <Card className="overflow-hidden shadow-xl bg-card border rounded-xl">
         <div className="relative h-40 md:h-56">
           {bannerURL ? (
             <Image 
@@ -196,29 +196,42 @@ export default function ProfilePage() {
           ) : userPosts.length > 0 ? userPosts.map(post => {
             const postCreatedAt = post.createdAt ? new Date(post.createdAt) : new Date();
             return (
-              <Card key={post.id} className="shadow-sm hover:shadow-md transition-shadow duration-200 ease-in-out bg-card">
-                <CardContent className="p-4 relative">
-                   <div className="absolute top-1 right-1 z-10">
-                    <PostCardOptionsMenu post={post} />
+              <Card key={post.id} className="shadow-md hover:shadow-lg transition-shadow duration-300 ease-in-out group bg-card border rounded-lg">
+                <CardContent className="p-4">
+                  <div className="flex justify-between items-start mb-2">
+                    <Link href={`/posts/${post.id}`} className="flex-grow min-w-0">
+                      <h3 className="text-base sm:text-lg font-semibold group-hover:text-primary transition-colors line-clamp-2 font-headline leading-tight">
+                        {post.title}
+                      </h3>
+                    </Link>
+                    <div className="flex-shrink-0 ml-2">
+                      <PostCardOptionsMenu post={post} />
+                    </div>
                   </div>
-                  <Link href={`/posts/${post.id}`}>
-                    <h3 className="text-lg font-semibold hover:text-primary transition-colors mb-1 line-clamp-2 font-headline pr-8">{post.title}</h3>
-                  </Link>
-                  <p className="text-xs text-muted-foreground mb-3">
+                  <p className="text-xs text-muted-foreground mb-2">
                     {post.communityId && post.communityName ? (
-                      <>Posted in <Link href={`/communities/${post.communityId}`} className="text-primary/90 hover:text-primary font-medium">{post.communityName}</Link> &bull; </>
-                    ) : "General Post &bull; "}
+                      <>In <Link href={`/communities/${post.communityId}`} className="text-primary/90 hover:text-primary font-medium">{post.communityName}</Link> &bull; </>
+                    ) : "General &bull; "}
                      {formatDistanceToNowStrict(postCreatedAt, {addSuffix: true})}
                   </p>
                   {post.description && (
-                    <p className="text-sm text-foreground/80 mb-3 line-clamp-2">
-                      {post.description}
-                    </p>
+                    <Link href={`/posts/${post.id}`}>
+                        <p className="text-sm text-foreground/70 mb-3 line-clamp-2 group-hover:text-primary/70 transition-colors">
+                        {post.description}
+                        </p>
+                    </Link>
                   )}
-                  <div className="flex items-center gap-3 text-muted-foreground">
+                  {post.tags && post.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1 mb-3">
+                          {post.tags.slice(0, 3).map(tag => (
+                              <Badge key={tag} variant="secondary" className="text-xs px-1.5 py-0.5">{tag}</Badge>
+                          ))}
+                      </div>
+                  )}
+                  <div className="flex items-center gap-3 text-muted-foreground border-t pt-3 mt-3">
                     <LikeButton postId={post.id} initialLikesCount={post.likes || 0} size="sm" showText={false} />
                     <Link href={`/posts/${post.id}#comments`} className="flex items-center text-xs hover:text-primary transition-colors">
-                        <MessageIcon size={14} className="mr-1"/>
+                        <MessageCircle size={14} className="mr-1"/>
                         <span>{post.commentsCount || 0}</span>
                     </Link>
                   </div>
@@ -235,7 +248,7 @@ export default function ProfilePage() {
            ) : joinedCommunities.length > 0 ? (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {joinedCommunities.map(community => (
-                <Card key={community.id} className="shadow-sm hover:shadow-md transition-shadow duration-200 ease-in-out bg-card">
+                <Card key={community.id} className="shadow-sm hover:shadow-md transition-shadow duration-200 ease-in-out bg-card border rounded-lg">
                     <CardContent className="p-4 flex items-center space-x-3">
                     <Image src={community.iconURL || "https://placehold.co/40x40.png"} alt={`${community.name} community icon`} width={40} height={40} className="rounded-md object-cover" data-ai-hint="community logo small"/>
                     <div>
