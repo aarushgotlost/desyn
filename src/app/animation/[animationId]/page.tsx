@@ -249,8 +249,8 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
 
     return (
         <TooltipProvider>
-        <div className="flex flex-col h-[calc(100vh-8rem)] overflow-hidden gap-4 p-0 md:p-4">
-            <header className="flex flex-col sm:flex-row items-center justify-between gap-4 flex-shrink-0 px-4 pt-4 md:px-0 md:pt-0">
+        <div className="flex flex-col h-[calc(100vh-8rem)] gap-4 p-4">
+            <header className="flex flex-col sm:flex-row items-center justify-between gap-4 flex-shrink-0">
                 <div className="flex items-center gap-4">
                     <Button variant="outline" size="sm" asChild>
                         <Link href="/animation">
@@ -271,8 +271,8 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                 </div>
             </header>
 
-            <div className="flex-grow flex flex-col md:flex-row gap-4 overflow-hidden">
-                <Card className="w-full md:w-64 flex-shrink-0 p-4 flex flex-col gap-6 overflow-y-auto">
+            <div className="flex-grow flex flex-col md:flex-row gap-4 min-h-0">
+                <Card className="w-full md:w-64 flex-shrink-0 p-4 flex flex-col gap-6 overflow-y-auto h-auto md:h-full">
                     <h2 className="text-lg font-semibold border-b pb-2">Tools</h2>
                     <div className="grid grid-cols-2 gap-2">
                         <Tooltip>
@@ -302,7 +302,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                     </div>
                 </Card>
 
-                <div className="flex-grow flex items-center justify-center bg-muted rounded-lg overflow-hidden border">
+                <div className="flex-grow flex items-center justify-center bg-muted rounded-lg border p-2 relative min-h-[300px] md:min-h-0">
                     <canvas
                         ref={canvasRef}
                         width={animation.width}
@@ -311,8 +311,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                         onMouseUp={finishDrawing}
                         onMouseLeave={finishDrawing}
                         onMouseMove={draw}
-                        className="bg-white shadow-lg cursor-crosshair"
-                        style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                        className="bg-white shadow-lg cursor-crosshair max-w-full max-h-full object-contain"
                     />
                 </div>
             </div>
