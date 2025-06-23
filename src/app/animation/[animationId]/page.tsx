@@ -312,7 +312,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                         onMouseUp={finishDrawing}
                         onMouseLeave={finishDrawing}
                         onMouseMove={draw}
-                        className="bg-white shadow-lg cursor-crosshair max-w-full max-h-full"
+                        className="block bg-white shadow-lg cursor-crosshair max-w-full max-h-full"
                     />
                 </div>
             </div>
