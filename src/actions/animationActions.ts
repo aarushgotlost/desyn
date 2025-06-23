@@ -1,4 +1,3 @@
-
 'use server';
 
 import { db } from '@/lib/firebase';
@@ -12,7 +11,6 @@ import {
   query,
   where,
   getDocs,
-  orderBy,
   Timestamp,
 } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
@@ -67,11 +65,14 @@ export async function getUserAnimations(userId: string): Promise<AnimationProjec
     try {
         const q = query(
             collection(db, 'animations'),
-            where('collaborators', 'array-contains', userId),
-            orderBy('updatedAt', 'desc')
+            where('collaborators', 'array-contains', userId)
         );
         const snapshot = await getDocs(q);
-        return snapshot.docs.map(processAnimationDoc);
+        const animations = snapshot.docs.map(processAnimationDoc);
+        // Sort the animations by updatedAt date in descending order on the server
+        // This avoids needing a composite index in Firestore
+        animations.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+        return animations;
     } catch (error) {
         console.error("Error fetching user animations:", error);
         return [];
