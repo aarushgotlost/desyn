@@ -1,20 +1,53 @@
 
+"use client";
+
+import { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { getCurrentUserId } from "@/services/firestoreService";
 import { getUserAnimations } from "@/actions/animationActions";
 import type { AnimationProject } from "@/types/data";
-import { Clapperboard, Film } from "lucide-react";
+import { Clapperboard, Film, Loader2 } from "lucide-react";
 import Link from "next/link";
 import Image from 'next/image';
 import { formatDistanceToNowStrict } from 'date-fns';
 import { CreateAnimationButton } from "@/components/animation/CreateAnimationButton";
-import { unstable_noStore as noStore } from 'next/cache';
 
-export default async function AnimationDashboardPage() {
-    noStore();
-    const userId = await getCurrentUserId();
-    if (!userId) {
+export default function AnimationDashboardPage() {
+    const { user, loading: authLoading } = useAuth();
+    const [animations, setAnimations] = useState<AnimationProject[]>([]);
+    const [isLoadingData, setIsLoadingData] = useState(true);
+
+    useEffect(() => {
+        if (authLoading) {
+            return; // Wait for auth state to be resolved
+        }
+
+        if (!user) {
+            // Not logged in, no need to fetch data. The render part will handle the redirect/message.
+            setIsLoadingData(false);
+            return;
+        }
+
+        async function fetchAnimations() {
+            setIsLoadingData(true);
+            const userAnimations = await getUserAnimations(user.uid);
+            setAnimations(userAnimations);
+            setIsLoadingData(false);
+        }
+
+        fetchAnimations();
+    }, [user, authLoading]);
+
+    if (authLoading || (isLoadingData && user)) {
+        return (
+            <div className="flex justify-center items-center h-[calc(100vh-10rem)]">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            </div>
+        );
+    }
+
+    if (!user) {
         return (
             <div className="text-center py-10">
                 <h1 className="text-2xl font-bold">Please log in</h1>
@@ -23,7 +56,6 @@ export default async function AnimationDashboardPage() {
             </div>
         );
     }
-    const animations = await getUserAnimations(userId);
 
     return (
         <div className="space-y-8">
