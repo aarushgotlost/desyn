@@ -42,40 +42,43 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
     const isDrawingRef = useRef(false);
     const playbackFrameRef = useRef<number>(0);
     
-    // Use a ref to hold the latest animation data to prevent dependency loops in drawing functions
+    // Ref to hold the latest animation data to prevent state dependency loops
     const animationRef = useRef<AnimationProject | null>(null);
     useEffect(() => {
         animationRef.current = animation;
     }, [animation]);
 
-
     const drawFrameOnCanvas = useCallback((frameIndex: number) => {
         const anim = animationRef.current;
-        if (!contextRef.current || !canvasRef.current) return;
+        const canvas = canvasRef.current;
+        const context = contextRef.current;
+
+        if (!context || !canvas) return;
         
         // Always clear canvas first
-        contextRef.current.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+        context.clearRect(0, 0, canvas.width, canvas.height);
 
         const frameDataUrl = anim?.frames[frameIndex];
         if (!anim || !frameDataUrl) {
-            // If no animation or frame data exists, we leave the canvas blank.
-            return;
+            return; // Leave canvas blank if no frame data
         }
 
         const image = new Image();
         image.src = frameDataUrl;
         image.onload = () => {
+            // Check context still exists in case of rapid component unmount
             if (contextRef.current) {
                 contextRef.current.drawImage(image, 0, 0);
             }
         };
         image.onerror = () => {
-             // If image fails to load, canvas is already cleared, which is desired.
              console.error("Failed to load frame image for drawing.");
         };
     }, []);
 
-    // Fetch initial data and set canvas dimensions ONCE.
+    // --- EFFECT HOOKS RE-ARCHITECTED ---
+
+    // 1. Effect for fetching initial data
     useEffect(() => {
         if (authLoading) return;
         if (!user) {
@@ -83,22 +86,17 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
             return;
         }
 
+        setIsLoading(true);
         getAnimationDetails(animationId).then(data => {
             if (data && data.collaborators.includes(user.uid)) {
+                // If there are no frames, create an initial blank one.
                 if (data.frames.length === 0) {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = data.width;
-                    canvas.height = data.height;
-                    const blankFrame = canvas.toDataURL();
+                    const tempCanvas = document.createElement('canvas');
+                    tempCanvas.width = data.width;
+                    tempCanvas.height = data.height;
+                    const blankFrame = tempCanvas.toDataURL();
                     data.frames = [blankFrame];
                 }
-
-                const canvas = canvasRef.current;
-                if (canvas) {
-                    canvas.width = data.width;
-                    canvas.height = data.height;
-                }
-
                 setAnimation(data);
             } else if (data) {
                 toast({ title: "Unauthorized", description: "You do not have access to this animation.", variant: "destructive" });
@@ -106,36 +104,59 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
             } else {
                 notFound();
             }
-            setIsLoading(false);
-        });
+        }).finally(() => setIsLoading(false));
     }, [animationId, user, authLoading, router, toast]);
 
-    // Setup canvas context - Runs once on mount
+    // 2. Effect for setting up canvas, runs ONLY ONCE when animation data is first loaded.
     useEffect(() => {
         const canvas = canvasRef.current;
-        if (canvas) {
+        // Only setup if we have animation data and the canvas ref exists.
+        if (animation && canvas && !contextRef.current) {
+            canvas.width = animation.width;
+            canvas.height = animation.height;
+
             const context = canvas.getContext('2d', { willReadFrequently: true });
             if (context) {
                 context.lineCap = 'round';
                 context.lineJoin = 'round';
                 contextRef.current = context;
+
+                // Draw the very first frame after setup is complete.
+                drawFrameOnCanvas(0);
             }
         }
-    }, []);
+    }, [animation, drawFrameOnCanvas]);
 
-    // ** CRITICAL FIX **
-    // This effect now ONLY runs when the frame index changes. It no longer depends on the `animation`
-    // state, which prevents the canvas from being cleared unexpectedly during other state updates.
+
+    // 3. Effect for drawing a new frame, runs ONLY when the frame index changes.
     useEffect(() => {
-        if (animationRef.current) {
+        // Only draw if the canvas has been set up.
+        if (contextRef.current) {
             drawFrameOnCanvas(currentFrameIndex);
         }
     }, [currentFrameIndex, drawFrameOnCanvas]);
 
-    // Handle autosave
+    // --- END OF EFFECT HOOKS RE-ARCHITECTURE ---
+
+    // Function to commit the current visual state of the canvas to the animation state
+    const commitCurrentCanvasToState = useCallback(() => {
+        const canvas = canvasRef.current;
+        const anim = animationRef.current;
+        if (!canvas || !anim) return;
+
+        const currentCanvasImage = canvas.toDataURL();
+        // Avoid unnecessary state updates if nothing changed
+        if (anim.frames[currentFrameIndex] !== currentCanvasImage) {
+            const newFrames = [...anim.frames];
+            newFrames[currentFrameIndex] = currentCanvasImage;
+            setAnimation(prev => prev ? { ...prev, frames: newFrames } : null);
+        }
+    }, [currentFrameIndex]);
+
     const handleSave = useCallback(async (dataToSave: AnimationProject) => {
         if (!dataToSave || !user) return;
         
+        // Before saving, ensure the latest drawing is in the state object
         const canvas = canvasRef.current;
         if (!canvas) return;
 
@@ -143,7 +164,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         const frames = [...dataToSave.frames];
         frames[currentFrameIndex] = currentCanvasImage;
 
-        const thumbnail = frames[0] || null; // Always use first frame for thumbnail consistency
+        const thumbnail = frames[0] || null;
         
         await updateAnimationData(dataToSave.id, { frames, fps: dataToSave.fps, thumbnail });
     }, [user, currentFrameIndex]);
@@ -151,12 +172,10 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
     const { isSaving, forceSave } = useAutosave(animation, handleSave, 10000);
 
     const handleManualSave = async () => {
-        if (!animation) return;
         await forceSave();
         toast({ title: "Project Saved", description: "Your changes have been saved." });
     };
-
-    // Drawing functions
+    
     const startDrawing = useCallback(({ nativeEvent }: React.MouseEvent<HTMLCanvasElement>) => {
         if (!contextRef.current || isPlaying) return;
         const { offsetX, offsetY } = nativeEvent;
@@ -182,9 +201,10 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         contextRef.current.stroke();
     }, []);
 
-    // Frame management functions
     const addFrame = () => {
         if (isPlaying) return;
+        commitCurrentCanvasToState(); // Save current work before adding a new frame
+
         const anim = animationRef.current;
         if (!anim) return;
         
@@ -194,21 +214,26 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         const blankFrame = canvas.toDataURL();
         
         const newFrames = [...anim.frames];
-        newFrames.splice(currentFrameIndex + 1, 0, blankFrame);
+        const newFrameIndex = currentFrameIndex + 1;
+        newFrames.splice(newFrameIndex, 0, blankFrame);
         
         setAnimation({ ...anim, frames: newFrames });
-        setCurrentFrameIndex(currentFrameIndex + 1);
+        setCurrentFrameIndex(newFrameIndex);
     };
 
     const duplicateFrame = (index: number) => {
         if (isPlaying) return;
+        commitCurrentCanvasToState(); // Save current work first
+
         const anim = animationRef.current;
         if (!anim) return;
         const frameToCopy = anim.frames[index];
         const newFrames = [...anim.frames];
-        newFrames.splice(index + 1, 0, frameToCopy);
+        const newFrameIndex = index + 1;
+        newFrames.splice(newFrameIndex, 0, frameToCopy);
+
         setAnimation({ ...anim, frames: newFrames });
-        setCurrentFrameIndex(index + 1);
+        setCurrentFrameIndex(newFrameIndex);
     };
 
     const deleteFrame = (index: number) => {
@@ -220,10 +245,10 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         }
         const newFrames = anim.frames.filter((_, i) => i !== index);
         setAnimation({ ...anim, frames: newFrames });
-        setCurrentFrameIndex(Math.max(0, Math.min(index, newFrames.length - 1)));
+        // Adjust currentFrameIndex safely
+        setCurrentFrameIndex(prev => Math.max(0, Math.min(prev, newFrames.length - 1)));
     };
 
-    // Playback effect
     useEffect(() => {
         let animationFrameId: number;
         if (isPlaying) {
@@ -257,13 +282,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
             // After stopping, revert canvas to the currently selected frame in the timeline
             drawFrameOnCanvas(currentFrameIndex); 
         } else {
-            // Before playing, ensure current canvas state is saved to avoid losing work
-            const canvas = canvasRef.current;
-            const anim = animationRef.current;
-            if (canvas && anim) {
-                 const currentCanvasImage = canvas.toDataURL();
-                 anim.frames[currentFrameIndex] = currentCanvasImage;
-            }
+            commitCurrentCanvasToState(); // Save any uncommitted drawing before playing
             playbackFrameRef.current = currentFrameIndex;
             setIsPlaying(true);
         }
@@ -278,18 +297,10 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
     const handleSelectFrame = (index: number) => {
         if (isPlaying || index === currentFrameIndex) return;
         
-        const canvas = canvasRef.current;
-        const anim = animationRef.current;
-        if(canvas && anim) {
-            const currentCanvasImage = canvas.toDataURL();
-            const newFrames = [...anim.frames];
-            // Only update state if the canvas has actually changed
-            if (newFrames[currentFrameIndex] !== currentCanvasImage) {
-                 newFrames[currentFrameIndex] = currentCanvasImage;
-                 setAnimation({ ...anim, frames: newFrames });
-            }
-        }
-
+        // Save any work on the current frame before switching
+        commitCurrentCanvasToState();
+        
+        // Then, switch to the new frame. The useEffect will handle drawing it.
         setCurrentFrameIndex(index);
     }
 
