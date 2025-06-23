@@ -21,7 +21,8 @@ import Link from 'next/link';
 type Tool = 'brush' | 'eraser';
 
 export default function AnimationEditorPage({ params }: { params: { animationId: string } }) {
-    const { animationId } = use(params);
+    const resolvedParams = use(params);
+    const { animationId } = resolvedParams;
     const { user, loading: authLoading } = useAuth();
     const router = useRouter();
     const { toast } = useToast();
@@ -240,7 +241,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
 
     if (isLoading || authLoading) {
         return (
-            <div className="flex justify-center items-center h-[calc(100vh-10rem)]">
+            <div className="flex justify-center items-center h-full">
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
             </div>
         );
@@ -249,7 +250,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
 
     return (
         <TooltipProvider>
-        <div className="flex flex-col h-[calc(100vh-8rem)] gap-4 p-4">
+        <div className="flex flex-col h-full gap-4">
             <header className="flex flex-col sm:flex-row items-center justify-between gap-4 flex-shrink-0">
                 <div className="flex items-center gap-4">
                     <Button variant="outline" size="sm" asChild>
@@ -311,7 +312,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                         onMouseUp={finishDrawing}
                         onMouseLeave={finishDrawing}
                         onMouseMove={draw}
-                        className="bg-white shadow-lg cursor-crosshair max-w-full max-h-full object-contain"
+                        className="bg-white shadow-lg cursor-crosshair max-w-full max-h-full"
                     />
                 </div>
             </div>
