@@ -70,7 +70,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         });
     }, [animationId, user, authLoading, router, toast]);
 
-    // Setup canvas context
+    // Setup canvas context - Runs once on mount
     useEffect(() => {
         const canvas = canvasRef.current;
         if (canvas) {
@@ -81,7 +81,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                 contextRef.current = context;
             }
         }
-    }, [animation]);
+    }, []);
 
     const drawFrame = useCallback((frameIndex: number) => {
         if (!animation || !contextRef.current || !canvasRef.current || !animation.frames[frameIndex]) return;
@@ -120,36 +120,35 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         toast({ title: "Project Saved", description: "Your changes have been saved." });
     };
 
+    // Refactored drawing functions for reliability
     const startDrawing = ({ nativeEvent }: React.MouseEvent<HTMLCanvasElement>) => {
+        if (!contextRef.current) return;
         const { offsetX, offsetY } = nativeEvent;
-        if (contextRef.current) {
-            contextRef.current.beginPath();
-            contextRef.current.moveTo(offsetX, offsetY);
-            isDrawingRef.current = true;
-        }
+
+        isDrawingRef.current = true;
+        contextRef.current.globalCompositeOperation = selectedTool === 'eraser' ? 'destination-out' : 'source-over';
+        contextRef.current.strokeStyle = brushColor;
+        contextRef.current.lineWidth = brushSize;
+        contextRef.current.beginPath();
+        contextRef.current.moveTo(offsetX, offsetY);
     };
 
     const finishDrawing = () => {
-        if (contextRef.current) {
-            contextRef.current.closePath();
-            isDrawingRef.current = false;
-            const canvas = canvasRef.current;
-            if (canvas && animation) {
-                const newFrames = [...animation.frames];
-                newFrames[currentFrameIndex] = canvas.toDataURL();
-                setAnimation({ ...animation, frames: newFrames });
-            }
+        if (!contextRef.current) return;
+        isDrawingRef.current = false;
+        contextRef.current.closePath();
+        
+        const canvas = canvasRef.current;
+        if (canvas && animation) {
+            const newFrames = [...animation.frames];
+            newFrames[currentFrameIndex] = canvas.toDataURL();
+            setAnimation({ ...animation, frames: newFrames });
         }
     };
 
     const draw = ({ nativeEvent }: React.MouseEvent<HTMLCanvasElement>) => {
         if (!isDrawingRef.current || !contextRef.current) return;
         const { offsetX, offsetY } = nativeEvent;
-        contextRef.current.globalCompositeOperation = selectedTool === 'eraser' ? 'destination-out' : 'source-over';
-        if (selectedTool === 'brush') {
-            contextRef.current.strokeStyle = brushColor;
-        }
-        contextRef.current.lineWidth = brushSize;
         contextRef.current.lineTo(offsetX, offsetY);
         contextRef.current.stroke();
     };
