@@ -49,7 +49,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
     }, [animation]);
 
 
-    // Fetch initial data
+    // Fetch initial data and set canvas dimensions ONCE.
     useEffect(() => {
         if (authLoading) return;
         if (!user) {
@@ -66,6 +66,15 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                     const blankFrame = canvas.toDataURL();
                     data.frames = [blankFrame];
                 }
+
+                // **THE FIX**: Set canvas dimensions directly on the DOM element.
+                // This prevents React from resetting the canvas on every re-render.
+                const canvas = canvasRef.current;
+                if (canvas) {
+                    canvas.width = data.width;
+                    canvas.height = data.height;
+                }
+
                 setAnimation(data);
             } else if (data) {
                 toast({ title: "Unauthorized", description: "You do not have access to this animation.", variant: "destructive" });
@@ -108,12 +117,15 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                 contextRef.current.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
              }
         };
-    }, []); // This callback is stable now
+    }, []); // This callback is stable
 
     // Effect to load a frame onto the canvas ONLY when the frame index changes.
     useEffect(() => {
-        drawFrameOnCanvas(currentFrameIndex);
-    }, [currentFrameIndex, drawFrameOnCanvas]);
+        // We need to ensure animation data is loaded before trying to draw a frame.
+        if (animation) {
+          drawFrameOnCanvas(currentFrameIndex);
+        }
+    }, [currentFrameIndex, animation, drawFrameOnCanvas]);
 
     // Handle autosave
     const handleSave = useCallback(async (data: AnimationProject) => {
@@ -299,8 +311,6 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                 <div className="flex-grow grid place-items-center bg-muted rounded-lg border p-2 relative min-h-[300px] md:min-h-0">
                     <canvas
                         ref={canvasRef}
-                        width={animation.width}
-                        height={animation.height}
                         onMouseDown={startDrawing}
                         onMouseUp={finishDrawing}
                         onMouseLeave={finishDrawing}
