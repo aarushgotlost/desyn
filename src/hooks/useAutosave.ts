@@ -1,5 +1,5 @@
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 
 export function useAutosave<T>(
   data: T | null,
@@ -9,7 +9,9 @@ export function useAutosave<T>(
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const latestDataRef = useRef<T | null>(data);
   const latestOnSaveRef = useRef(onSave);
-  const isSavingRef = useRef(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const isSavingRef = useRef(isSaving);
+  isSavingRef.current = isSaving;
 
   useEffect(() => {
     latestDataRef.current = data;
@@ -29,14 +31,14 @@ export function useAutosave<T>(
       timeoutRef.current = null;
     }
 
-    isSavingRef.current = true;
+    setIsSaving(true);
 
     try {
       await latestOnSaveRef.current(latestDataRef.current);
     } catch (error) {
       console.error("Autosave failed:", error);
     } finally {
-        isSavingRef.current = false;
+        setIsSaving(false);
     }
   }, []);
 
@@ -66,5 +68,5 @@ export function useAutosave<T>(
       }
   }, [save]);
 
-  return { forceSave: save };
+  return { isSaving, forceSave: save };
 }

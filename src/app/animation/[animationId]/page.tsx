@@ -12,7 +12,7 @@ import { Slider } from "@/components/ui/slider";
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { Loader2, ArrowLeft, Brush, Eraser, Play, Pause, PlusSquare, Trash2, Copy } from 'lucide-react';
+import { Loader2, ArrowLeft, Brush, Eraser, Play, Pause, PlusSquare, Trash2, Copy, Save } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { useAutosave } from '@/hooks/useAutosave';
 import { cn } from '@/lib/utils';
@@ -28,7 +28,6 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
 
     const [animation, setAnimation] = useState<AnimationProject | null>(null);
     const [isLoading, setIsLoading] = useState(true);
-    const [isSaving, setIsSaving] = useState(false);
 
     // Editor state
     const [selectedTool, setSelectedTool] = useState<Tool>('brush');
@@ -114,14 +113,18 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
     // Autosave logic
     const handleSave = useCallback(async (data: AnimationProject) => {
         if (!data || !user) return;
-        setIsSaving(true);
         // Also update thumbnail with the current frame
         const thumbnail = data.frames[currentFrameIndex] || null;
         await updateAnimationData(data.id, { frames: data.frames, fps: data.fps, thumbnail });
-        setIsSaving(false);
     }, [user, currentFrameIndex]);
     
-    useAutosave(animation, handleSave, 10000); // Autosave every 10 seconds
+    const { isSaving, forceSave } = useAutosave(animation, handleSave, 10000); // Autosave every 10 seconds
+
+    const handleManualSave = async () => {
+        if (!animation) return;
+        await forceSave();
+        toast({ title: "Project Saved", description: "Your changes have been saved." });
+    };
 
     // Drawing handlers
     const startDrawing = ({ nativeEvent }: React.MouseEvent<HTMLCanvasElement>) => {
@@ -247,7 +250,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
     return (
         <TooltipProvider>
         <div className="flex flex-col h-[calc(100vh-8rem)] overflow-hidden gap-4 p-0 md:p-4">
-            <header className="flex items-center justify-between flex-shrink-0 px-4 pt-4 md:px-0 md:pt-0">
+            <header className="flex flex-col sm:flex-row items-center justify-between gap-4 flex-shrink-0 px-4 pt-4 md:px-0 md:pt-0">
                 <div className="flex items-center gap-4">
                     <Button variant="outline" size="sm" asChild>
                         <Link href="/animation">
@@ -256,9 +259,15 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                     </Button>
                     <h1 className="text-xl font-bold truncate">{animation.name}</h1>
                 </div>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
-                    <span>{isSaving ? "Saving..." : "Changes saved"}</span>
+                <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+                        <span>{isSaving ? "Saving..." : "Changes saved"}</span>
+                    </div>
+                     <Button onClick={handleManualSave} disabled={isSaving}>
+                        {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                        Save All
+                    </Button>
                 </div>
             </header>
 
