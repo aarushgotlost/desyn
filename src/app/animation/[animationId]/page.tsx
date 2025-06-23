@@ -41,6 +41,13 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
     const contextRef = useRef<CanvasRenderingContext2D | null>(null);
     const isDrawingRef = useRef(false);
     const playbackFrameRef = useRef<number>(0);
+    
+    // Use a ref to hold the latest animation data to prevent dependency loops in drawing functions
+    const animationRef = useRef<AnimationProject | null>(animation);
+    useEffect(() => {
+        animationRef.current = animation;
+    }, [animation]);
+
 
     // Fetch initial data
     useEffect(() => {
@@ -83,10 +90,11 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         }
     }, []);
 
-    const drawFrame = useCallback((frameIndex: number) => {
-        if (!animation || !contextRef.current || !canvasRef.current || !animation.frames[frameIndex]) return;
-        const frameDataUrl = animation.frames[frameIndex];
-
+    const drawFrameOnCanvas = useCallback((frameIndex: number) => {
+        const anim = animationRef.current;
+        if (!anim || !contextRef.current || !canvasRef.current || !anim.frames[frameIndex]) return;
+        
+        const frameDataUrl = anim.frames[frameIndex];
         const image = new Image();
         image.src = frameDataUrl;
         image.onload = () => {
@@ -100,12 +108,14 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                 contextRef.current.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
              }
         };
-    }, [animation]);
-    
-    useEffect(() => {
-        drawFrame(currentFrameIndex);
-    }, [currentFrameIndex, animation, drawFrame]);
+    }, []); // This callback is stable now
 
+    // Effect to load a frame onto the canvas ONLY when the frame index changes.
+    useEffect(() => {
+        drawFrameOnCanvas(currentFrameIndex);
+    }, [currentFrameIndex, drawFrameOnCanvas]);
+
+    // Handle autosave
     const handleSave = useCallback(async (data: AnimationProject) => {
         if (!data || !user) return;
         const thumbnail = data.frames[currentFrameIndex] || null;
@@ -120,8 +130,8 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         toast({ title: "Project Saved", description: "Your changes have been saved." });
     };
 
-    // Refactored drawing functions for reliability
-    const startDrawing = ({ nativeEvent }: React.MouseEvent<HTMLCanvasElement>) => {
+    // Drawing functions
+    const startDrawing = useCallback(({ nativeEvent }: React.MouseEvent<HTMLCanvasElement>) => {
         if (!contextRef.current) return;
         const { offsetX, offsetY } = nativeEvent;
 
@@ -131,89 +141,96 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         contextRef.current.lineWidth = brushSize;
         contextRef.current.beginPath();
         contextRef.current.moveTo(offsetX, offsetY);
-    };
+    }, [brushColor, brushSize, selectedTool]);
 
-    const finishDrawing = () => {
-        if (!contextRef.current) return;
+    const finishDrawing = useCallback(() => {
+        if (!isDrawingRef.current || !contextRef.current) return;
         isDrawingRef.current = false;
         contextRef.current.closePath();
         
         const canvas = canvasRef.current;
-        if (canvas && animation) {
-            const newFrames = [...animation.frames];
+        const anim = animationRef.current;
+        if (canvas && anim) {
+            const newFrames = [...anim.frames];
             newFrames[currentFrameIndex] = canvas.toDataURL();
-            setAnimation({ ...animation, frames: newFrames });
+            setAnimation({ ...anim, frames: newFrames });
         }
-    };
+    }, [currentFrameIndex]);
 
-    const draw = ({ nativeEvent }: React.MouseEvent<HTMLCanvasElement>) => {
+    const draw = useCallback(({ nativeEvent }: React.MouseEvent<HTMLCanvasElement>) => {
         if (!isDrawingRef.current || !contextRef.current) return;
         const { offsetX, offsetY } = nativeEvent;
         contextRef.current.lineTo(offsetX, offsetY);
         contextRef.current.stroke();
-    };
+    }, []);
 
+    // Frame management functions
     const addFrame = () => {
-        if (!animation) return;
+        const anim = animationRef.current;
+        if (!anim) return;
         const canvas = document.createElement('canvas');
-        canvas.width = animation.width;
-        canvas.height = animation.height;
+        canvas.width = anim.width;
+        canvas.height = anim.height;
         const blankFrame = canvas.toDataURL();
-        const newFrames = [...animation.frames];
+        const newFrames = [...anim.frames];
         newFrames.splice(currentFrameIndex + 1, 0, blankFrame);
-        setAnimation({ ...animation, frames: newFrames });
+        setAnimation({ ...anim, frames: newFrames });
         setCurrentFrameIndex(currentFrameIndex + 1);
     };
 
     const duplicateFrame = (index: number) => {
-        if (!animation) return;
-        const frameToCopy = animation.frames[index];
-        const newFrames = [...animation.frames];
+        const anim = animationRef.current;
+        if (!anim) return;
+        const frameToCopy = anim.frames[index];
+        const newFrames = [...anim.frames];
         newFrames.splice(index + 1, 0, frameToCopy);
-        setAnimation({ ...animation, frames: newFrames });
+        setAnimation({ ...anim, frames: newFrames });
         setCurrentFrameIndex(index + 1);
     };
 
     const deleteFrame = (index: number) => {
-        if (!animation || animation.frames.length <= 1) {
+        const anim = animationRef.current;
+        if (!anim || anim.frames.length <= 1) {
             toast({ title: "Cannot Delete", description: "You must have at least one frame.", variant: "destructive" });
             return;
         }
-        const newFrames = animation.frames.filter((_, i) => i !== index);
-        setAnimation({ ...animation, frames: newFrames });
+        const newFrames = anim.frames.filter((_, i) => i !== index);
+        setAnimation({ ...anim, frames: newFrames });
         setCurrentFrameIndex(Math.max(0, Math.min(index, newFrames.length - 1)));
     };
 
+    // Playback effect
     useEffect(() => {
         let animationFrameId: number;
-        if (isPlaying && animation && animation.frames.length > 0) {
-            const fpsInterval = 1000 / animation.fps;
-            let then = Date.now();
-            
-            const animate = () => {
-                animationFrameId = requestAnimationFrame(animate);
-                const now = Date.now();
-                const elapsed = now - then;
+        if (isPlaying) {
+            const anim = animationRef.current;
+            if (anim && anim.frames.length > 0) {
+                const fpsInterval = 1000 / anim.fps;
+                let then = Date.now();
+                
+                const animate = () => {
+                    animationFrameId = requestAnimationFrame(animate);
+                    const now = Date.now();
+                    const elapsed = now - then;
 
-                if (elapsed > fpsInterval) {
-                    then = now - (elapsed % fpsInterval);
-                    playbackFrameRef.current = (playbackFrameRef.current + 1) % animation.frames.length;
-                    drawFrame(playbackFrameRef.current);
-                }
-            };
-            animate();
-        } else {
-            drawFrame(currentFrameIndex);
+                    if (elapsed > fpsInterval) {
+                        then = now - (elapsed % fpsInterval);
+                        playbackFrameRef.current = (playbackFrameRef.current + 1) % anim.frames.length;
+                        drawFrameOnCanvas(playbackFrameRef.current);
+                    }
+                };
+                animate();
+            }
         }
         return () => {
             cancelAnimationFrame(animationFrameId);
         };
-    }, [isPlaying, animation, drawFrame, currentFrameIndex]);
+    }, [isPlaying, drawFrameOnCanvas]);
 
     const togglePlay = () => {
         if (isPlaying) {
             setIsPlaying(false);
-            drawFrame(currentFrameIndex);
+            drawFrameOnCanvas(currentFrameIndex); // Revert to the selected frame
         } else {
             playbackFrameRef.current = currentFrameIndex;
             setIsPlaying(true);
