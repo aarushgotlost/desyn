@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, use } from 'react';
 import { getAnimationDetails, updateAnimationData } from "@/actions/animationActions";
 import type { AnimationProject } from "@/types/data";
 import { useAuth } from '@/contexts/AuthContext';
@@ -21,6 +21,7 @@ import Link from 'next/link';
 type Tool = 'brush' | 'eraser';
 
 export default function AnimationEditorPage({ params }: { params: { animationId: string } }) {
+    const { animationId } = use(params);
     const { user, loading: authLoading } = useAuth();
     const router = useRouter();
     const { toast } = useToast();
@@ -50,7 +51,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
             return;
         }
 
-        getAnimationDetails(params.animationId).then(data => {
+        getAnimationDetails(animationId).then(data => {
             if (data && data.collaborators.includes(user.uid)) {
                 // If there are no frames, create an initial blank frame
                 if (data.frames.length === 0) {
@@ -70,7 +71,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
             }
             setIsLoading(false);
         });
-    }, [params.animationId, user, authLoading, router, toast]);
+    }, [animationId, user, authLoading, router, toast]);
 
     // Setup canvas context
     useEffect(() => {
@@ -356,5 +357,3 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         </TooltipProvider>
     );
 }
-
-    
