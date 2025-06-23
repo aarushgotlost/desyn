@@ -402,3 +402,5 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         </div>
     );
 }
+
+    
