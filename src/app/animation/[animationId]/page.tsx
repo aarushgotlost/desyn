@@ -49,56 +49,6 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
     }, [animation]);
 
 
-    // Fetch initial data and set canvas dimensions ONCE.
-    useEffect(() => {
-        if (authLoading) return;
-        if (!user) {
-            router.push('/login');
-            return;
-        }
-
-        getAnimationDetails(animationId).then(data => {
-            if (data && data.collaborators.includes(user.uid)) {
-                if (data.frames.length === 0) {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = data.width;
-                    canvas.height = data.height;
-                    const blankFrame = canvas.toDataURL();
-                    data.frames = [blankFrame];
-                }
-
-                // **THE FIX**: Set canvas dimensions directly on the DOM element.
-                // This prevents React from resetting the canvas on every re-render.
-                const canvas = canvasRef.current;
-                if (canvas) {
-                    canvas.width = data.width;
-                    canvas.height = data.height;
-                }
-
-                setAnimation(data);
-            } else if (data) {
-                toast({ title: "Unauthorized", description: "You do not have access to this animation.", variant: "destructive" });
-                router.push('/animation');
-            } else {
-                notFound();
-            }
-            setIsLoading(false);
-        });
-    }, [animationId, user, authLoading, router, toast]);
-
-    // Setup canvas context - Runs once on mount
-    useEffect(() => {
-        const canvas = canvasRef.current;
-        if (canvas) {
-            const context = canvas.getContext('2d', { willReadFrequently: true });
-            if (context) {
-                context.lineCap = 'round';
-                context.lineJoin = 'round';
-                contextRef.current = context;
-            }
-        }
-    }, []);
-
     const drawFrameOnCanvas = useCallback((frameIndex: number) => {
         const anim = animationRef.current;
         if (!anim || !contextRef.current || !canvasRef.current || !anim.frames[frameIndex]) return;
@@ -117,21 +67,81 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                 contextRef.current.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
              }
         };
-    }, []); // This callback is stable
+    }, []); // This callback is stable because it uses refs and has no dependencies.
+
+    // Fetch initial data and set canvas dimensions ONCE.
+    useEffect(() => {
+        if (authLoading) return;
+        if (!user) {
+            router.push('/login');
+            return;
+        }
+
+        getAnimationDetails(animationId).then(data => {
+            if (data && data.collaborators.includes(user.uid)) {
+                if (data.frames.length === 0) {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = data.width;
+                    canvas.height = data.height;
+                    const blankFrame = canvas.toDataURL();
+                    data.frames = [blankFrame];
+                }
+
+                const canvas = canvasRef.current;
+                if (canvas) {
+                    canvas.width = data.width;
+                    canvas.height = data.height;
+                }
+
+                setAnimation(data);
+                // Perform the initial draw right after setting the animation data
+                drawFrameOnCanvas(0);
+            } else if (data) {
+                toast({ title: "Unauthorized", description: "You do not have access to this animation.", variant: "destructive" });
+                router.push('/animation');
+            } else {
+                notFound();
+            }
+            setIsLoading(false);
+        });
+    }, [animationId, user, authLoading, router, toast, drawFrameOnCanvas]);
+
+    // Setup canvas context - Runs once on mount
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (canvas) {
+            const context = canvas.getContext('2d', { willReadFrequently: true });
+            if (context) {
+                context.lineCap = 'round';
+                context.lineJoin = 'round';
+                contextRef.current = context;
+            }
+        }
+    }, []);
 
     // Effect to load a frame onto the canvas ONLY when the frame index changes.
+    // This no longer depends on `animation`, breaking the re-render loop.
     useEffect(() => {
-        // We need to ensure animation data is loaded before trying to draw a frame.
-        if (animation) {
+        if (animation) { // Guard to ensure data is loaded
           drawFrameOnCanvas(currentFrameIndex);
         }
-    }, [currentFrameIndex, animation, drawFrameOnCanvas]);
+    }, [currentFrameIndex, drawFrameOnCanvas, animation]); // Keep animation here to handle the very first load
 
     // Handle autosave
-    const handleSave = useCallback(async (data: AnimationProject) => {
-        if (!data || !user) return;
-        const thumbnail = data.frames[currentFrameIndex] || null;
-        await updateAnimationData(data.id, { frames: data.frames, fps: data.fps, thumbnail });
+    const handleSave = useCallback(async (dataToSave: AnimationProject) => {
+        if (!dataToSave || !user) return;
+        
+        // Before saving, capture the current state of the canvas
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        const currentCanvasImage = canvas.toDataURL();
+        const frames = [...dataToSave.frames];
+        frames[currentFrameIndex] = currentCanvasImage;
+
+        const thumbnail = frames[currentFrameIndex] || null;
+        
+        await updateAnimationData(dataToSave.id, { frames, fps: dataToSave.fps, thumbnail });
     }, [user, currentFrameIndex]);
     
     const { isSaving, forceSave } = useAutosave(animation, handleSave, 10000);
@@ -144,7 +154,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
 
     // Drawing functions
     const startDrawing = useCallback(({ nativeEvent }: React.MouseEvent<HTMLCanvasElement>) => {
-        if (!contextRef.current) return;
+        if (!contextRef.current || isPlaying) return;
         const { offsetX, offsetY } = nativeEvent;
 
         isDrawingRef.current = true;
@@ -153,21 +163,17 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         contextRef.current.lineWidth = brushSize;
         contextRef.current.beginPath();
         contextRef.current.moveTo(offsetX, offsetY);
-    }, [brushColor, brushSize, selectedTool]);
+    }, [brushColor, brushSize, selectedTool, isPlaying]);
 
     const finishDrawing = useCallback(() => {
         if (!isDrawingRef.current || !contextRef.current) return;
         isDrawingRef.current = false;
         contextRef.current.closePath();
         
-        const canvas = canvasRef.current;
-        const anim = animationRef.current;
-        if (canvas && anim) {
-            const newFrames = [...anim.frames];
-            newFrames[currentFrameIndex] = canvas.toDataURL();
-            setAnimation({ ...anim, frames: newFrames });
-        }
-    }, [currentFrameIndex]);
+        // IMPORTANT: Instead of updating state here, we just leave the drawing on the canvas.
+        // The autosave/manual save will pick up the changes from the canvas directly.
+        // This stops the re-render loop.
+    }, []);
 
     const draw = useCallback(({ nativeEvent }: React.MouseEvent<HTMLCanvasElement>) => {
         if (!isDrawingRef.current || !contextRef.current) return;
@@ -178,6 +184,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
 
     // Frame management functions
     const addFrame = () => {
+        if (isPlaying) return;
         const anim = animationRef.current;
         if (!anim) return;
         const canvas = document.createElement('canvas');
@@ -191,6 +198,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
     };
 
     const duplicateFrame = (index: number) => {
+        if (isPlaying) return;
         const anim = animationRef.current;
         if (!anim) return;
         const frameToCopy = anim.frames[index];
@@ -201,6 +209,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
     };
 
     const deleteFrame = (index: number) => {
+        if (isPlaying) return;
         const anim = animationRef.current;
         if (!anim || anim.frames.length <= 1) {
             toast({ title: "Cannot Delete", description: "You must have at least one frame.", variant: "destructive" });
@@ -248,12 +257,31 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
             setIsPlaying(true);
         }
     };
-
+    
     const handleFpsChange = (value: number[]) => {
         if (animation) {
             setAnimation({ ...animation, fps: value[0] });
         }
     };
+
+    const handleSelectFrame = (index: number) => {
+        if (isPlaying) return;
+        
+        // Before switching, save the current canvas state to the frames array in React state
+        const canvas = canvasRef.current;
+        const anim = animationRef.current;
+        if(canvas && anim) {
+            const currentCanvasImage = canvas.toDataURL();
+            const newFrames = [...anim.frames];
+            if (newFrames[currentFrameIndex] !== currentCanvasImage) {
+                 newFrames[currentFrameIndex] = currentCanvasImage;
+                 setAnimation({ ...anim, frames: newFrames });
+            }
+        }
+
+        setCurrentFrameIndex(index);
+    }
+
 
     if (isLoading || authLoading) {
         return (
@@ -329,8 +357,8 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                         <div className="flex-grow flex items-center gap-2 overflow-x-auto p-2 bg-muted rounded-lg border">
                             {animation.frames.map((frame, index) => (
                                 <div
-                                    key={index}
-                                    onClick={() => setCurrentFrameIndex(index)}
+                                    key={`${index}-${frame.slice(-10)}`} // Add part of dataURL to key to force re-render on change
+                                    onClick={() => handleSelectFrame(index)}
                                     className={cn(
                                         "relative group flex-shrink-0 p-1 rounded-md border-2 cursor-pointer bg-white hover:border-primary/50",
                                         currentFrameIndex === index ? "border-primary" : "border-transparent"
@@ -352,3 +380,5 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         </div>
     );
 }
+
+    
