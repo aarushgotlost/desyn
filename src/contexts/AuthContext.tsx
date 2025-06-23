@@ -15,6 +15,9 @@ import {
   updateProfile as updateFirebaseUserProfile,
   sendEmailVerification,
   deleteUser as deleteFirebaseAuthUser,
+  updatePassword,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, serverTimestamp, collection, addDoc, DocumentReference, query, where, getDocs, updateDoc, Timestamp, arrayUnion } from 'firebase/firestore'; // Added arrayUnion
 import { useRouter } from 'next/navigation';
@@ -78,6 +81,7 @@ interface AuthContextType {
   createCommunity: (data: CreateCommunityData) => Promise<string>;
   createPost: (data: CreatePostData) => Promise<string>;
   deleteCurrentUserAccount: () => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -427,6 +431,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       throw error;
     } 
   };
+  
+  const changePassword = async (currentPassword: string, newPassword: string) => {
+    if (!user || !user.email) throw new Error("User not authenticated or email missing.");
+    
+    try {
+      const credential = EmailAuthProvider.credential(user.email, currentPassword);
+      // Re-authenticate the user
+      await reauthenticateWithCredential(user, credential);
+      
+      // If re-authentication is successful, update the password
+      await updatePassword(user, newPassword);
+      
+    } catch (error: any) {
+      console.error("Error changing password:", error);
+      if (error.code === 'auth/wrong-password') {
+        throw new Error("The current password you entered is incorrect.");
+      }
+      if (error.code === 'auth/requires-recent-login') {
+         throw new Error("This operation is sensitive and requires recent authentication. Please log in again before retrying this request.");
+      }
+      throw error;
+    }
+  };
 
 
   return (
@@ -442,7 +469,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       updateCurrentProfile,
       createCommunity,
       createPost,
-      deleteCurrentUserAccount
+      deleteCurrentUserAccount,
+      changePassword,
     }}>
       {children}
     </AuthContext.Provider>

@@ -38,6 +38,8 @@ export default function SettingsPage() {
   const [isRequestingToken, setIsRequestingToken] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  
+  const isPasswordProvider = user?.providerData.some(p => p.providerId === 'password');
 
   useEffect(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
@@ -175,14 +177,6 @@ export default function SettingsPage() {
               Edit Profile
             </Link>
           </div>
-          <Separator />
-          <div>
-            <h3 className="font-medium mb-1">Change Password</h3>
-            <p className="text-sm text-muted-foreground mb-2">Update your account password for better security.</p>
-            <Link href="/forgot-password" className={cn(buttonVariants({ variant: "outline" }), "w-full sm:w-auto")}>
-                Change Password
-            </Link>
-          </div>
         </CardContent>
       </Card>
 
@@ -259,17 +253,24 @@ export default function SettingsPage() {
           <CardDescription>Manage your account security and privacy settings.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-            <div className="space-y-2">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                    <div>
-                        <h4 className="font-medium">Password</h4>
-                        <p className="text-sm text-muted-foreground">Change your account password.</p>
-                    </div>
-                     <Link href="/forgot-password" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "w-full sm:w-auto")}>
-                        <Lock className="mr-2 h-4 w-4" /> Change Password
-                    </Link>
-                </div>
-            </div>
+            {isPasswordProvider ? (
+              <div className="space-y-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <div>
+                          <h4 className="font-medium">Password</h4>
+                          <p className="text-sm text-muted-foreground">Change your account password.</p>
+                      </div>
+                       <Link href="/settings/change-password" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "w-full sm:w-auto")}>
+                          <Lock className="mr-2 h-4 w-4" /> Change Password
+                      </Link>
+                  </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                 <h4 className="font-medium">Password</h4>
+                 <p className="text-sm text-muted-foreground">You signed in with a provider (e.g., Google) and do not have a separate password on Desyn to change.</p>
+              </div>
+            )}
             <Separator />
             <div className="space-y-2">
                 <h4 className="font-medium">Account Deletion</h4>
