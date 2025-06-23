@@ -9,8 +9,8 @@ import { notFound, useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
-import { Card, CardContent } from "@/components/ui/card';
-import { Label } from "@/components/ui/label';
+import { Card, CardContent } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
 import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Loader2, ArrowLeft, Brush, Eraser, Play, Pause, PlusSquare, Trash2, Copy } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
@@ -118,7 +118,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         const thumbnail = data.frames[currentFrameIndex] || null;
         await updateAnimationData(data.id, { frames: data.frames, fps: data.fps, thumbnail });
         setIsSaving(false);
-    }, [toast, user, currentFrameIndex]);
+    }, [user, currentFrameIndex]);
     
     useAutosave(animation, handleSave, 10000); // Autosave every 10 seconds
 
@@ -280,7 +280,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                     </div>
                     <div className="space-y-2">
                         <Label>Color</Label>
-                        <Input type="color" value={brushColor} onChange={(e) => setBrushColor(e.target.value)} className="p-1" disabled={selectedTool==='eraser'}/>
+                        <Input type="color" value={brushColor} onChange={(e) => setBrushColor(e.target.value)} className="p-1" disabled={selectedTool === 'eraser'}/>
                     </div>
                     <div className="space-y-2">
                         <Label>Brush Size: {brushSize}</Label>
@@ -356,3 +356,5 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         </TooltipProvider>
     );
 }
+
+    
