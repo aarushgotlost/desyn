@@ -43,7 +43,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
     const playbackFrameRef = useRef<number>(0);
     
     // Use a ref to hold the latest animation data to prevent dependency loops in drawing functions
-    const animationRef = useRef<AnimationProject | null>(animation);
+    const animationRef = useRef<AnimationProject | null>(null);
     useEffect(() => {
         animationRef.current = animation;
     }, [animation]);
@@ -51,23 +51,29 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
 
     const drawFrameOnCanvas = useCallback((frameIndex: number) => {
         const anim = animationRef.current;
-        if (!anim || !contextRef.current || !canvasRef.current || !anim.frames[frameIndex]) return;
+        if (!contextRef.current || !canvasRef.current) return;
         
-        const frameDataUrl = anim.frames[frameIndex];
+        // Always clear canvas first
+        contextRef.current.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+
+        const frameDataUrl = anim?.frames[frameIndex];
+        if (!anim || !frameDataUrl) {
+            // If no animation or frame data exists, we leave the canvas blank.
+            return;
+        }
+
         const image = new Image();
         image.src = frameDataUrl;
         image.onload = () => {
-            if (contextRef.current && canvasRef.current) {
-                contextRef.current.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+            if (contextRef.current) {
                 contextRef.current.drawImage(image, 0, 0);
             }
         };
         image.onerror = () => {
-             if (contextRef.current && canvasRef.current) {
-                contextRef.current.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-             }
+             // If image fails to load, canvas is already cleared, which is desired.
+             console.error("Failed to load frame image for drawing.");
         };
-    }, []); // This callback is stable because it uses refs and has no dependencies.
+    }, []);
 
     // Fetch initial data and set canvas dimensions ONCE.
     useEffect(() => {
@@ -94,8 +100,6 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                 }
 
                 setAnimation(data);
-                // Perform the initial draw right after setting the animation data
-                drawFrameOnCanvas(0);
             } else if (data) {
                 toast({ title: "Unauthorized", description: "You do not have access to this animation.", variant: "destructive" });
                 router.push('/animation');
@@ -104,7 +108,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
             }
             setIsLoading(false);
         });
-    }, [animationId, user, authLoading, router, toast, drawFrameOnCanvas]);
+    }, [animationId, user, authLoading, router, toast]);
 
     // Setup canvas context - Runs once on mount
     useEffect(() => {
@@ -119,19 +123,19 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         }
     }, []);
 
-    // Effect to load a frame onto the canvas ONLY when the frame index changes.
-    // This no longer depends on `animation`, breaking the re-render loop.
+    // ** CRITICAL FIX **
+    // This effect now ONLY runs when the frame index changes. It no longer depends on the `animation`
+    // state, which prevents the canvas from being cleared unexpectedly during other state updates.
     useEffect(() => {
-        if (animation) { // Guard to ensure data is loaded
-          drawFrameOnCanvas(currentFrameIndex);
+        if (animationRef.current) {
+            drawFrameOnCanvas(currentFrameIndex);
         }
-    }, [currentFrameIndex, drawFrameOnCanvas, animation]); // Keep animation here to handle the very first load
+    }, [currentFrameIndex, drawFrameOnCanvas]);
 
     // Handle autosave
     const handleSave = useCallback(async (dataToSave: AnimationProject) => {
         if (!dataToSave || !user) return;
         
-        // Before saving, capture the current state of the canvas
         const canvas = canvasRef.current;
         if (!canvas) return;
 
@@ -139,7 +143,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         const frames = [...dataToSave.frames];
         frames[currentFrameIndex] = currentCanvasImage;
 
-        const thumbnail = frames[currentFrameIndex] || null;
+        const thumbnail = frames[0] || null; // Always use first frame for thumbnail consistency
         
         await updateAnimationData(dataToSave.id, { frames, fps: dataToSave.fps, thumbnail });
     }, [user, currentFrameIndex]);
@@ -169,10 +173,6 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         if (!isDrawingRef.current || !contextRef.current) return;
         isDrawingRef.current = false;
         contextRef.current.closePath();
-        
-        // IMPORTANT: Instead of updating state here, we just leave the drawing on the canvas.
-        // The autosave/manual save will pick up the changes from the canvas directly.
-        // This stops the re-render loop.
     }, []);
 
     const draw = useCallback(({ nativeEvent }: React.MouseEvent<HTMLCanvasElement>) => {
@@ -187,12 +187,15 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         if (isPlaying) return;
         const anim = animationRef.current;
         if (!anim) return;
+        
         const canvas = document.createElement('canvas');
         canvas.width = anim.width;
         canvas.height = anim.height;
         const blankFrame = canvas.toDataURL();
+        
         const newFrames = [...anim.frames];
         newFrames.splice(currentFrameIndex + 1, 0, blankFrame);
+        
         setAnimation({ ...anim, frames: newFrames });
         setCurrentFrameIndex(currentFrameIndex + 1);
     };
@@ -251,8 +254,16 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
     const togglePlay = () => {
         if (isPlaying) {
             setIsPlaying(false);
-            drawFrameOnCanvas(currentFrameIndex); // Revert to the selected frame
+            // After stopping, revert canvas to the currently selected frame in the timeline
+            drawFrameOnCanvas(currentFrameIndex); 
         } else {
+            // Before playing, ensure current canvas state is saved to avoid losing work
+            const canvas = canvasRef.current;
+            const anim = animationRef.current;
+            if (canvas && anim) {
+                 const currentCanvasImage = canvas.toDataURL();
+                 anim.frames[currentFrameIndex] = currentCanvasImage;
+            }
             playbackFrameRef.current = currentFrameIndex;
             setIsPlaying(true);
         }
@@ -265,14 +276,14 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
     };
 
     const handleSelectFrame = (index: number) => {
-        if (isPlaying) return;
+        if (isPlaying || index === currentFrameIndex) return;
         
-        // Before switching, save the current canvas state to the frames array in React state
         const canvas = canvasRef.current;
         const anim = animationRef.current;
         if(canvas && anim) {
             const currentCanvasImage = canvas.toDataURL();
             const newFrames = [...anim.frames];
+            // Only update state if the canvas has actually changed
             if (newFrames[currentFrameIndex] !== currentCanvasImage) {
                  newFrames[currentFrameIndex] = currentCanvasImage;
                  setAnimation({ ...anim, frames: newFrames });
@@ -357,7 +368,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                         <div className="flex-grow flex items-center gap-2 overflow-x-auto p-2 bg-muted rounded-lg border">
                             {animation.frames.map((frame, index) => (
                                 <div
-                                    key={`${index}-${frame.slice(-10)}`} // Add part of dataURL to key to force re-render on change
+                                    key={`${index}-${frame.slice(-10)}`}
                                     onClick={() => handleSelectFrame(index)}
                                     className={cn(
                                         "relative group flex-shrink-0 p-1 rounded-md border-2 cursor-pointer bg-white hover:border-primary/50",
@@ -380,5 +391,3 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         </div>
     );
 }
-
-    
