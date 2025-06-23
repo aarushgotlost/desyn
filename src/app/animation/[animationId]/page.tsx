@@ -303,7 +303,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                     </div>
                 </Card>
 
-                <div className="flex-grow flex items-center justify-center bg-muted rounded-lg border p-2 relative min-h-[300px] md:min-h-0">
+                <div className="flex-grow grid place-items-center bg-muted rounded-lg border p-2 relative min-h-[300px] md:min-h-0">
                     <canvas
                         ref={canvasRef}
                         width={animation.width}
