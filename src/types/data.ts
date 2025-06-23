@@ -12,7 +12,7 @@ export interface Community {
 }
 
 export interface Post {
-  id: string;
+  id:string;
   title: string;
   communityId?: string | null;
   communityName?: string | null;
@@ -41,4 +41,16 @@ export interface Comment {
 
 // UserProfile is defined in AuthContext.tsx
 
-// AnimationFrame and AnimationProject types removed as the feature is removed.
+export interface AnimationProject {
+  id: string;
+  name: string;
+  ownerId: string;
+  collaborators: string[];
+  createdAt: string; // ISO string
+  updatedAt: string; // ISO string
+  thumbnail?: string | null;
+  width: number;
+  height: number;
+  fps: number;
+  // Frame data will be added in the next phase
+}
