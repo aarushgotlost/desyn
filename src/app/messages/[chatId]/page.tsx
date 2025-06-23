@@ -30,7 +30,7 @@ export default function ChatPage({ params }: { params: { chatId: string } }) {
   const chatContentRef = useRef<HTMLDivElement>(null);
   const initialLoadDoneRef = useRef(false);
 
-  const resolvedParams = use(params as unknown as Promise<{ chatId: string }>);
+  const resolvedParams = use(params);
   const chatId = resolvedParams.chatId; 
 
   useEffect(() => {
