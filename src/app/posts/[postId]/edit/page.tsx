@@ -10,9 +10,9 @@ import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useAuth } from '@/contexts/AuthContext';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, use } from 'react';
 import NextImage from 'next/image'; 
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { getPostDetails } from '@/services/firestoreService'; 
@@ -50,11 +50,13 @@ const editPostFormSchema = z.object({
 
 type EditPostFormInputs = z.infer<typeof editPostFormSchema>;
 
-export default function EditPostPage() {
+export default function EditPostPage({ params }: { params: { postId: string } }) {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
-  const params = useParams();
-  const postId = params.postId as string;
+  
+  const resolvedParams = use(params);
+  const { postId } = resolvedParams;
+
   const { toast } = useToast();
   
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -322,7 +324,7 @@ export default function EditPostPage() {
                       <Trash2 className="mr-2 h-4 w-4" /> Remove Current Image
                     </Button>
                   )}
-                  <FormDescription>Upload a new image to replace the current one, or remove it (max {MAX_FILE_SIZE_MB}MB).</FormDescription>
+                  <FormDescription>Upload a new image to replace the current one, or remove it (max ${MAX_FILE_SIZE_MB}MB).</FormDescription>
                   {/* Displaying Zod's schema error or custom file error for the 'newPostImageFile' field */}
                   <FormField control={form.control} name="newPostImageFile" render={() => imageFileError ? <FormMessage>{imageFileError}</FormMessage> : <FormMessage />} />
 
@@ -362,4 +364,3 @@ export default function EditPostPage() {
     </div>
   );
 }
-
