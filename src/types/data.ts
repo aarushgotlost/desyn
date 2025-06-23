@@ -52,5 +52,5 @@ export interface AnimationProject {
   width: number;
   height: number;
   fps: number;
-  // Frame data will be added in the next phase
+  frames: string[];
 }

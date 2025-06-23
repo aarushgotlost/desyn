@@ -26,6 +26,7 @@ const processAnimationDoc = (doc: any): AnimationProject => {
         ...data,
         createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
         updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate().toISOString() : new Date().toISOString(),
+        frames: data.frames || [],
     } as AnimationProject;
 }
 
@@ -46,7 +47,7 @@ export async function createAnimationProject(
       width: 1280,
       height: 720,
       fps: 24,
-      frames: [], // Empty for now, will be populated in the editor
+      frames: [],
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     };
@@ -66,7 +67,7 @@ export async function getUserAnimations(userId: string): Promise<AnimationProjec
     try {
         const q = query(
             collection(db, 'animations'),
-            where('ownerId', '==', userId),
+            where('collaborators', 'array-contains', userId),
             orderBy('updatedAt', 'desc')
         );
         const snapshot = await getDocs(q);
@@ -90,4 +91,29 @@ export async function getAnimationDetails(animationId: string): Promise<Animatio
         console.error("Error fetching animation details:", error);
         return null;
     }
+}
+
+export async function updateAnimationData(
+  animationId: string,
+  payload: Partial<Pick<AnimationProject, 'frames' | 'thumbnail' | 'fps'>>
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const projectRef = doc(db, 'animations', animationId);
+    
+    // Create a new object for the update payload to avoid modifying the original payload
+    const updatePayload: { [key: string]: any } = {
+        ...payload,
+        updatedAt: serverTimestamp(),
+    };
+    
+    await updateDoc(projectRef, updatePayload);
+    
+    revalidatePath(`/animation/${animationId}`);
+    revalidatePath('/animation');
+    
+    return { success: true, message: 'Project updated.' };
+  } catch (error: any) {
+    console.error("Error updating animation data:", error);
+    return { success: false, message: error.message || 'Could not update project.' };
+  }
 }
