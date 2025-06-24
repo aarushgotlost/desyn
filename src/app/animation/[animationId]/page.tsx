@@ -11,14 +11,14 @@ import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from "@/components/ui/label";
-import { Loader2, ArrowLeft, Paintbrush, Eraser, Play, Pause, PlusSquare, Trash2, Copy, Save, Palette, PenTool, Feather, Minus, Pencil as PencilIcon, SprayCan } from 'lucide-react';
+import { Loader2, ArrowLeft, Paintbrush, Eraser, Play, Pause, PlusSquare, Trash2, Copy, Save, Palette, PenTool, Feather, Minus, Pencil as PencilIcon, SprayCan, Highlighter, Baseline } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { useAutosave } from '@/hooks/useAutosave';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 
 type Tool = 'brush' | 'eraser';
-type BrushTexture = 'solid' | 'pencil' | 'spray' | 'ink' | 'charcoal';
+type BrushTexture = 'solid' | 'pencil' | 'spray' | 'ink' | 'charcoal' | 'marker' | 'calligraphy';
 
 const brushTextures = [
   { name: 'solid' as BrushTexture, icon: Minus, label: 'Solid' },
@@ -26,6 +26,8 @@ const brushTextures = [
   { name: 'spray' as BrushTexture, icon: SprayCan, label: 'Spray' },
   { name: 'ink' as BrushTexture, icon: PenTool, label: 'Ink' },
   { name: 'charcoal' as BrushTexture, icon: Feather, label: 'Charcoal' },
+  { name: 'marker' as BrushTexture, icon: Highlighter, label: 'Marker' },
+  { name: 'calligraphy' as BrushTexture, icon: Baseline, label: 'Calligraphy' },
 ];
 
 
@@ -267,6 +269,30 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                     context.lineWidth = Math.random() * (brushSize * 0.8);
                     context.stroke();
                 }
+                break;
+            case 'marker':
+                context.globalAlpha = 0.6; // Semi-transparent
+                context.beginPath();
+                context.moveTo(lastPointRef.current.x, lastPointRef.current.y);
+                context.lineTo(x, y);
+                context.strokeStyle = brushColor;
+                context.lineWidth = brushSize;
+                context.stroke();
+                context.globalAlpha = 1.0; // Reset alpha
+                break;
+            case 'calligraphy':
+                const dx = x - lastPointRef.current.x;
+                const dy = y - lastPointRef.current.y;
+                const angle = Math.atan2(dy, dx);
+                // Vary width based on angle to simulate a broad-nib pen
+                const width = Math.abs(Math.sin(angle * 2)) * brushSize + (brushSize * 0.2); 
+
+                context.beginPath();
+                context.moveTo(lastPointRef.current.x, lastPointRef.current.y);
+                context.lineTo(x, y);
+                context.strokeStyle = brushColor;
+                context.lineWidth = width;
+                context.stroke();
                 break;
             case 'solid':
             default:
