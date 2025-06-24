@@ -52,9 +52,12 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
     const drawFrameOnCanvas = useCallback((frameIndex: number) => {
         const anim = animationRef.current;
         const canvas = canvasRef.current;
-        const context = contextRef.current;
 
-        if (!context || !canvas || !anim) return;
+        if (!canvas || !anim) return;
+
+        // Ensure context is available
+        const context = canvas.getContext('2d', { willReadFrequently: true });
+        if (!context) return;
         
         // Always clear canvas first
         context.clearRect(0, 0, canvas.width, canvas.height);
@@ -67,8 +70,10 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         const image = new Image();
         image.src = frameDataUrl;
         image.onload = () => {
-            if (contextRef.current) {
-                contextRef.current.drawImage(image, 0, 0);
+            // Re-check context in case component unmounted
+            const currentContext = canvas.getContext('2d');
+            if (currentContext) {
+                 currentContext.drawImage(image, 0, 0);
             }
         };
         image.onerror = () => {
@@ -90,6 +95,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         getAnimationDetails(animationId).then(data => {
             if (data && data.collaborators.includes(user.uid)) {
                 if (data.frames.length === 0) {
+                    // Create a blank frame if project is new
                     const tempCanvas = document.createElement('canvas');
                     tempCanvas.width = data.width;
                     tempCanvas.height = data.height;
@@ -106,7 +112,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         }).finally(() => setIsLoading(false));
     }, [animationId, user, authLoading, router, toast]);
 
-    // 2. Effect for setting up canvas, runs ONLY ONCE when animation data is first loaded.
+    // 2. Effect for setting up canvas and context, runs ONLY ONCE when animation data is first loaded.
     useEffect(() => {
         const canvas = canvasRef.current;
         if (animation && canvas && !contextRef.current) {
@@ -117,19 +123,19 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
             if (context) {
                 context.lineCap = 'round';
                 context.lineJoin = 'round';
-                contextRef.current = context;
-                drawFrameOnCanvas(0);
+                contextRef.current = context; // Set context ref once
+                drawFrameOnCanvas(0); // Draw initial frame
             }
         }
     }, [animation, drawFrameOnCanvas]);
 
 
-    // 3. Effect for drawing a new frame, runs ONLY when the frame index changes.
+    // 3. Effect for re-drawing frame on canvas, runs ONLY when the frame index changes.
     useEffect(() => {
         if (contextRef.current && animation) {
             drawFrameOnCanvas(currentFrameIndex);
         }
-    }, [currentFrameIndex, animation, drawFrameOnCanvas]);
+    }, [currentFrameIndex, drawFrameOnCanvas, animation]);
 
 
     // --- STATE COMMIT AND SAVE LOGIC ---
@@ -140,6 +146,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         if (!canvas || !anim) return;
 
         const currentCanvasImage = canvas.toDataURL();
+        // Only update state if the image has actually changed
         if (anim.frames[currentFrameIndex] !== currentCanvasImage) {
             const newFrames = [...anim.frames];
             newFrames[currentFrameIndex] = currentCanvasImage;
@@ -169,20 +176,20 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
     // --- DRAWING HANDLERS ---
 
     const startDrawing = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-        const canvas = canvasRef.current;
         const context = contextRef.current;
-        if (!context || !canvas || isPlaying) return;
-
-        const rect = canvas.getBoundingClientRect();
-        const scaleX = canvas.width / rect.width;
-        const scaleY = canvas.height / rect.height;
-        const x = (e.clientX - rect.left) * scaleX;
-        const y = (e.clientY - rect.top) * scaleY;
+        if (!context || isPlaying) return;
 
         isDrawingRef.current = true;
         context.globalCompositeOperation = selectedTool === 'eraser' ? 'destination-out' : 'source-over';
         context.strokeStyle = brushColor;
         context.lineWidth = brushSize;
+        
+        const rect = e.currentTarget.getBoundingClientRect();
+        const scaleX = e.currentTarget.width / rect.width;
+        const scaleY = e.currentTarget.height / rect.height;
+        const x = (e.clientX - rect.left) * scaleX;
+        const y = (e.clientY - rect.top) * scaleY;
+        
         context.beginPath();
         context.moveTo(x, y);
     }, [brushColor, brushSize, selectedTool, isPlaying]);
@@ -195,18 +202,16 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
     }, [commitCurrentCanvasToState]);
 
     const draw = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-        const canvas = canvasRef.current;
-        const context = contextRef.current;
-        if (!isDrawingRef.current || !context || !canvas) return;
+        if (!isDrawingRef.current || !contextRef.current) return;
         
-        const rect = canvas.getBoundingClientRect();
-        const scaleX = canvas.width / rect.width;
-        const scaleY = canvas.height / rect.height;
+        const rect = e.currentTarget.getBoundingClientRect();
+        const scaleX = e.currentTarget.width / rect.width;
+        const scaleY = e.currentTarget.height / rect.height;
         const x = (e.clientX - rect.left) * scaleX;
         const y = (e.clientY - rect.top) * scaleY;
 
-        context.lineTo(x, y);
-        context.stroke();
+        contextRef.current.lineTo(x, y);
+        contextRef.current.stroke();
     }, []);
 
     // --- FRAME MANIPULATION ---
@@ -296,8 +301,10 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
     const togglePlay = () => {
         if (isPlaying) {
             setIsPlaying(false);
+            // When stopping, restore the canvas to the currently selected frame
             drawFrameOnCanvas(currentFrameIndex); 
         } else {
+            // Save any pending changes before starting playback
             commitCurrentCanvasToState();
             playbackFrameRef.current = currentFrameIndex;
             setIsPlaying(true);
@@ -389,10 +396,11 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                         onMouseUp={finishDrawing}
                         onMouseLeave={finishDrawing}
                         onMouseMove={draw}
-                        className="bg-white shadow-lg cursor-crosshair max-w-full"
+                        className="bg-white shadow-lg cursor-crosshair"
                         style={{
                             aspectRatio: `${animation.width}/${animation.height}`,
-                            maxWidth: `${animation.width}px`,
+                            width: `${animation.width}px`,
+                            maxWidth: '100%'
                         }}
                     />
                 </div>
