@@ -68,7 +68,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         image.src = frameDataUrl;
         image.onload = () => {
             if (contextRef.current) {
-                contextRef.current.drawImage(image, 0, 0, image.width, image.height);
+                contextRef.current.drawImage(image, 0, 0);
             }
         };
         image.onerror = () => {
