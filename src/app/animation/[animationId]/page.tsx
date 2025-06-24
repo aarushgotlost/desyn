@@ -53,13 +53,13 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         const canvas = canvasRef.current;
         const context = contextRef.current;
 
-        if (!context || !canvas) return;
+        if (!context || !canvas || !anim) return;
         
         // Always clear canvas first
         context.clearRect(0, 0, canvas.width, canvas.height);
 
-        const frameDataUrl = anim?.frames[frameIndex];
-        if (!anim || !frameDataUrl) {
+        const frameDataUrl = anim.frames[frameIndex];
+        if (!frameDataUrl) {
             return; // Leave canvas blank if no frame data
         }
 
@@ -68,7 +68,10 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         image.onload = () => {
             // Check context still exists in case of rapid component unmount
             if (contextRef.current) {
-                contextRef.current.drawImage(image, 0, 0);
+                const rect = canvas.getBoundingClientRect();
+                const scaleX = canvas.width / rect.width;
+                const scaleY = canvas.height / rect.height;
+                contextRef.current.drawImage(image, 0, 0, image.width, image.height);
             }
         };
         image.onerror = () => {
@@ -76,7 +79,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         };
     }, []);
 
-    // --- EFFECT HOOKS RE-ARCHITECTED ---
+    // --- EFFECT HOOKS ---
 
     // 1. Effect for fetching initial data
     useEffect(() => {
@@ -110,7 +113,6 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
     // 2. Effect for setting up canvas, runs ONLY ONCE when animation data is first loaded.
     useEffect(() => {
         const canvas = canvasRef.current;
-        // Only setup if we have animation data and the canvas ref exists.
         if (animation && canvas && !contextRef.current) {
             canvas.width = animation.width;
             canvas.height = animation.height;
@@ -120,8 +122,6 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                 context.lineCap = 'round';
                 context.lineJoin = 'round';
                 contextRef.current = context;
-
-                // Draw the very first frame after setup is complete.
                 drawFrameOnCanvas(0);
             }
         }
@@ -130,22 +130,20 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
 
     // 3. Effect for drawing a new frame, runs ONLY when the frame index changes.
     useEffect(() => {
-        // Only draw if the canvas has been set up.
-        if (contextRef.current) {
+        if (contextRef.current && animation) { // Ensure animation data is present
             drawFrameOnCanvas(currentFrameIndex);
         }
-    }, [currentFrameIndex, drawFrameOnCanvas]);
+    }, [currentFrameIndex, animation, drawFrameOnCanvas]);
 
-    // --- END OF EFFECT HOOKS RE-ARCHITECTURE ---
 
-    // Function to commit the current visual state of the canvas to the animation state
+    // --- STATE COMMIT AND SAVE LOGIC ---
+
     const commitCurrentCanvasToState = useCallback(() => {
         const canvas = canvasRef.current;
         const anim = animationRef.current;
         if (!canvas || !anim) return;
 
         const currentCanvasImage = canvas.toDataURL();
-        // Avoid unnecessary state updates if nothing changed
         if (anim.frames[currentFrameIndex] !== currentCanvasImage) {
             const newFrames = [...anim.frames];
             newFrames[currentFrameIndex] = currentCanvasImage;
@@ -156,26 +154,25 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
     const handleSave = useCallback(async (dataToSave: AnimationProject) => {
         if (!dataToSave || !user) return;
         
-        // Before saving, ensure the latest drawing is in the state object
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-
-        const currentCanvasImage = canvas.toDataURL();
-        const frames = [...dataToSave.frames];
-        frames[currentFrameIndex] = currentCanvasImage;
-
-        const thumbnail = frames[0] || null;
-        
-        await updateAnimationData(dataToSave.id, { frames, fps: dataToSave.fps, thumbnail });
-    }, [user, currentFrameIndex]);
+        // The data passed to onSave is the latest from the state, which is updated by commitCurrentCanvasToState
+        const thumbnail = dataToSave.frames[0] || null;
+        await updateAnimationData(dataToSave.id, { 
+            frames: dataToSave.frames, 
+            fps: dataToSave.fps, 
+            thumbnail 
+        });
+    }, [user]);
     
     const { isSaving, forceSave } = useAutosave(animation, handleSave, 10000);
 
     const handleManualSave = async () => {
+        commitCurrentCanvasToState(); // Ensure the very latest drawing is in state before force-saving
         await forceSave();
         toast({ title: "Project Saved", description: "Your changes have been saved." });
     };
     
+    // --- DRAWING HANDLERS ---
+
     const startDrawing = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
         const canvas = canvasRef.current;
         const context = contextRef.current;
@@ -199,7 +196,9 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         if (!isDrawingRef.current || !contextRef.current) return;
         isDrawingRef.current = false;
         contextRef.current.closePath();
-    }, []);
+        // Commit the final drawing to state immediately on mouse up.
+        commitCurrentCanvasToState();
+    }, [commitCurrentCanvasToState]);
 
     const draw = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
         const canvas = canvasRef.current;
@@ -216,6 +215,8 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         context.stroke();
     }, []);
 
+    // --- FRAME MANIPULATION ---
+
     const addFrame = () => {
         if (isPlaying) return;
         commitCurrentCanvasToState(); // Save current work before adding a new frame
@@ -223,10 +224,10 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         const anim = animationRef.current;
         if (!anim) return;
         
-        const canvas = document.createElement('canvas');
-        canvas.width = anim.width;
-        canvas.height = anim.height;
-        const blankFrame = canvas.toDataURL();
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = anim.width;
+        tempCanvas.height = anim.height;
+        const blankFrame = tempCanvas.toDataURL();
         
         const newFrames = [...anim.frames];
         const newFrameIndex = currentFrameIndex + 1;
@@ -263,6 +264,18 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         // Adjust currentFrameIndex safely
         setCurrentFrameIndex(prev => Math.max(0, Math.min(prev, newFrames.length - 1)));
     };
+
+    const handleSelectFrame = (index: number) => {
+        if (isPlaying || index === currentFrameIndex) return;
+        
+        // Save any work on the current frame before switching
+        commitCurrentCanvasToState();
+        
+        // Then, switch to the new frame. The useEffect will handle drawing it.
+        setCurrentFrameIndex(index);
+    }
+
+    // --- PLAYBACK ---
 
     useEffect(() => {
         let animationFrameId: number;
@@ -308,16 +321,6 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
             setAnimation({ ...animation, fps: value[0] });
         }
     };
-
-    const handleSelectFrame = (index: number) => {
-        if (isPlaying || index === currentFrameIndex) return;
-        
-        // Save any work on the current frame before switching
-        commitCurrentCanvasToState();
-        
-        // Then, switch to the new frame. The useEffect will handle drawing it.
-        setCurrentFrameIndex(index);
-    }
 
 
     if (isLoading || authLoading) {
@@ -380,7 +383,12 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                         onMouseUp={finishDrawing}
                         onMouseLeave={finishDrawing}
                         onMouseMove={draw}
-                        className="block bg-white shadow-lg cursor-crosshair max-w-full max-h-full"
+                        className="bg-white shadow-lg cursor-crosshair"
+                        style={{
+                            aspectRatio: `${animation.width}/${animation.height}`,
+                            width: '100%',
+                            maxWidth: `${animation.width}px`,
+                        }}
                     />
                 </div>
             </div>
