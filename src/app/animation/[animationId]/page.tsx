@@ -136,7 +136,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                 drawFrameOnCanvas(currentFrameIndex);
             }
         }
-    }, [animation, drawFrameOnCanvas]); // Keep drawFrameOnCanvas dependency
+    }, [animation, drawFrameOnCanvas, currentFrameIndex]); // Added currentFrameIndex to redraw on canvas resize if needed
 
     // 3. Effect for re-drawing frame on canvas
     useEffect(() => {
@@ -541,8 +541,6 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                             style={{ 
                                 maxWidth: '100%',
                                 maxHeight: '100%',
-                                width: `${animation.width}px`,
-                                height: `${animation.height}px`,
                             }}
                         />
                     </div>
