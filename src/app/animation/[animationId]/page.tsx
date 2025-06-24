@@ -419,8 +419,6 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                             onMouseMove={draw}
                             className="bg-white shadow-lg cursor-crosshair"
                             style={{ 
-                                width: animation.width, 
-                                height: animation.height,
                                 maxWidth: '100%',
                                 maxHeight: '100%',
                             }}
@@ -499,4 +497,3 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
     );
 }
 
-    
