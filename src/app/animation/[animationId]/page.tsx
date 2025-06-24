@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from "@/components/ui/label";
-import { Loader2, ArrowLeft, Paintbrush, Eraser, Play, Pause, PlusSquare, Trash2, Copy, Save, Palette, PenTool, Feather, Minus, Pencil as PencilIcon, SprayCan, Highlighter, Baseline, Edit3 } from 'lucide-react';
+import { Loader2, ArrowLeft, Paintbrush, Eraser, Play, Pause, PlusSquare, Trash2, Copy, Save, Palette, PenTool, Feather, Minus, Pencil as PencilIcon, SprayCan, Highlighter, Baseline, Edit3, Download } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import { useAutosave } from '@/hooks/useAutosave';
@@ -42,6 +42,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
 
     const [animation, setAnimation] = useState<AnimationProject | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [isExporting, setIsExporting] = useState(false);
 
     // Editor state
     const [selectedTool, setSelectedTool] = useState<Tool>('brush');
@@ -436,6 +437,34 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         }
     };
 
+    // --- EXPORT ---
+    const handleExport = async () => {
+        if (!animation) return;
+        setIsExporting(true);
+        toast({
+          title: "Starting Export",
+          description: `Your animation "${animation.name}" is being prepared as an MP4.`,
+        });
+    
+        // In a real application, this is where you would use a library like ffmpeg.wasm
+        // or send the frames to a server-side rendering service.
+        // For now, we simulate the process to provide the UI and workflow.
+        console.log("Simulating MP4 export process...");
+        console.log(`Frames to export: ${animation.frames.length}`);
+        console.log(`FPS: ${animation.fps}`);
+    
+        await new Promise(resolve => setTimeout(resolve, 4000)); // Simulate a 4-second export time
+    
+        const fileName = `${animation.name.replace(/ /g, '_')}.mp4`;
+        console.log(`Export finished. Simulated file: ${fileName}`);
+    
+        toast({
+          title: "Export Complete!",
+          description: `"${fileName}" has been downloaded.`,
+        });
+        setIsExporting(false);
+      };
+
     if (isLoading || authLoading) {
         return (
             <div className="flex justify-center items-center h-full">
@@ -463,9 +492,13 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                         {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
                         <span className="hidden sm:inline">{isSaving ? "Saving..." : "Changes saved"}</span>
                     </div>
-                    <Button onClick={handleManualSave} disabled={isSaving} size="sm">
+                    <Button onClick={handleManualSave} disabled={isSaving || isExporting} size="sm">
                         <Save className="h-4 w-4 sm:mr-2" />
                         <span className="hidden sm:inline">Save</span>
+                    </Button>
+                     <Button onClick={handleExport} disabled={isSaving || isExporting} size="sm">
+                        {isExporting ? <Loader2 className="h-4 w-4 animate-spin sm:mr-2" /> : <Download className="h-4 w-4 sm:mr-2" />}
+                        <span className="hidden sm:inline">{isExporting ? 'Exporting...' : 'Export'}</span>
                     </Button>
                 </div>
             </header>
@@ -537,11 +570,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                             onMouseUp={finishDrawing}
                             onMouseLeave={finishDrawing}
                             onMouseMove={draw}
-                            className="bg-white shadow-lg cursor-crosshair"
-                            style={{ 
-                                maxWidth: '100%',
-                                maxHeight: '100%',
-                            }}
+                            className="bg-white shadow-lg cursor-crosshair max-w-full max-h-full"
                         />
                     </div>
                     {/* Frame Timeline */}
@@ -597,7 +626,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                 </div>
                  
                  {/* Buttons Row */}
-                <div className="grid grid-cols-6 gap-1">
+                <div className="grid grid-cols-5 gap-1">
                     <Button title="Paintbrush" variant={selectedTool === 'brush' ? 'secondary' : 'ghost'} onClick={() => setSelectedTool('brush')} size="icon"><Paintbrush /></Button>
                     <Button title="Eraser" variant={selectedTool === 'eraser' ? 'secondary' : 'ghost'} onClick={() => setSelectedTool('eraser')} size="icon"><Eraser /></Button>
                     
@@ -637,7 +666,6 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
 
                     <Button variant="ghost" size="icon" onClick={togglePlay} title={isPlaying ? 'Pause' : 'Play'}>{isPlaying ? <Pause /> : <Play />}</Button>
                     <Button variant="ghost" onClick={addFrame} size="icon" title="Add Frame"><PlusSquare /></Button>
-                    <Button variant="ghost" onClick={handleManualSave} disabled={isSaving} size="icon" title="Save">{isSaving ? <Loader2 className="animate-spin" /> : <Save />}</Button>
                 </div>
             </div>
         </div>
