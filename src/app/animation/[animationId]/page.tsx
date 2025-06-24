@@ -17,8 +17,6 @@ import { useToast } from "@/hooks/use-toast";
 import { useAutosave } from '@/hooks/useAutosave';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
-import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { fetchFile, toBlobURL } from '@ffmpeg/util';
 
 type Tool = 'brush' | 'eraser';
 type BrushTexture = 'solid' | 'pencil' | 'sketchy' | 'spray' | 'ink' | 'charcoal' | 'marker' | 'calligraphy';
@@ -62,7 +60,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
     const isDrawingRef = useRef(false);
     const playbackFrameRef = useRef<number>(0);
     const lastPointRef = useRef<{ x: number, y: number } | null>(null);
-    const ffmpegRef = useRef(new FFmpeg());
+    const ffmpegRef = useRef<any>(null);
     
     // Ref to hold the latest animation data to prevent state dependency loops
     const animationRef = useRef<AnimationProject | null>(null);
@@ -153,7 +151,12 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
     // 4. Effect for loading FFMPEG
     useEffect(() => {
         const load = async () => {
-            const ffmpeg = ffmpegRef.current;
+            const { FFmpeg } = await import('@ffmpeg/ffmpeg');
+            const { toBlobURL } = await import('@ffmpeg/util');
+
+            const ffmpeg = new FFmpeg();
+            ffmpegRef.current = ffmpeg;
+
             ffmpeg.on('log', ({ type, message }) => {
                 console.log(`ffmpeg: ${type}: ${message}`);
             });
@@ -468,7 +471,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
     // --- EXPORT ---
     const handleExport = async () => {
         if (!animation) return;
-        if (!ffmpegLoaded) {
+        if (!ffmpegRef.current || !ffmpegLoaded) {
             toast({
               title: "Encoder Not Ready",
               description: `The video encoder is still loading. Please try again in a moment.`,
@@ -484,6 +487,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         });
     
         try {
+            const { fetchFile } = await import('@ffmpeg/util');
             const ffmpeg = ffmpegRef.current;
 
             // Write frames to virtual file system
@@ -750,3 +754,5 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         </div>
     );
 }
+
+    
