@@ -379,19 +379,15 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
 
                 {/* Main Content Area */}
                 <div className="flex-grow flex flex-col gap-2 min-h-0">
-                    <div className="flex-grow grid place-items-center bg-muted rounded-lg border p-2 relative overflow-auto">
+                    <div className="flex-grow grid place-items-center bg-muted rounded-lg border p-2 relative">
                         <canvas
                             ref={canvasRef}
                             onMouseDown={startDrawing}
                             onMouseUp={finishDrawing}
                             onMouseLeave={finishDrawing}
                             onMouseMove={draw}
-                            className="bg-white shadow-lg cursor-crosshair"
+                            className="bg-white shadow-lg cursor-crosshair max-w-full max-h-full"
                             style={{
-                                width: animation.width,
-                                height: animation.height,
-                                maxWidth: '100%',
-                                maxHeight: '100%',
                                 aspectRatio: `${animation.width}/${animation.height}`
                             }}
                         />
@@ -460,5 +456,3 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         </div>
     );
 }
-
-    
