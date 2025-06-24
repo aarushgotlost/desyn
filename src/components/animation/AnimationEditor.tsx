@@ -33,7 +33,7 @@ const brushTextures = [
 ];
 
 
-export default function AnimationEditorPage({ params }: { params: { animationId: string } }) {
+export default function AnimationEditor({ params }: { params: { animationId: string } }) {
     const { animationId } = params;
     const { user, loading: authLoading } = useAuth();
     const router = useRouter();
@@ -160,7 +160,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
             ffmpegRef.current = ffmpeg;
     
             ffmpeg.on('log', ({ message }) => {
-              // console.log(`ffmpeg: ${message}`);
+              console.log(`ffmpeg: ${message}`);
             });
     
             const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm';
@@ -345,7 +345,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                 const dx = x - lastPointRef.current.x;
                 const dy = y - lastPointRef.current.y;
                 const angle = Math.atan2(dy, dx);
-                // Vary width based on angle to a broad-nib pen
+                // Vary width based on angle to simulate a broad-nib pen
                 const width = Math.abs(Math.sin(angle * 2)) * brushSize + (brushSize * 0.2); 
 
                 context.beginPath();
