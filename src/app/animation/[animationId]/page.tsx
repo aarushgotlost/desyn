@@ -176,8 +176,8 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         const rect = canvas.getBoundingClientRect();
         const scaleX = canvas.width / rect.width;
         const scaleY = canvas.height / rect.height;
-        const x = e.nativeEvent.offsetX * scaleX;
-        const y = e.nativeEvent.offsetY * scaleY;
+        const x = (e.clientX - rect.left) * scaleX;
+        const y = (e.clientY - rect.top) * scaleY;
 
         isDrawingRef.current = true;
         context.globalCompositeOperation = selectedTool === 'eraser' ? 'destination-out' : 'source-over';
@@ -202,8 +202,8 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         const rect = canvas.getBoundingClientRect();
         const scaleX = canvas.width / rect.width;
         const scaleY = canvas.height / rect.height;
-        const x = e.nativeEvent.offsetX * scaleX;
-        const y = e.nativeEvent.offsetY * scaleY;
+        const x = (e.clientX - rect.left) * scaleX;
+        const y = (e.clientY - rect.top) * scaleY;
 
         context.lineTo(x, y);
         context.stroke();
@@ -389,9 +389,10 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                         onMouseUp={finishDrawing}
                         onMouseLeave={finishDrawing}
                         onMouseMove={draw}
-                        className="bg-white shadow-lg cursor-crosshair"
+                        className="bg-white shadow-lg cursor-crosshair max-w-full"
                         style={{
                             aspectRatio: `${animation.width}/${animation.height}`,
+                            maxWidth: `${animation.width}px`,
                         }}
                     />
                 </div>
