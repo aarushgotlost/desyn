@@ -33,8 +33,7 @@ const brushTextures = [
 ];
 
 
-export default function AnimationEditor({ params }: { params: { animationId: string } }) {
-    const { animationId } = params;
+export default function AnimationEditor({ animationId }: { animationId: string }) {
     const { user, loading: authLoading } = useAuth();
     const router = useRouter();
     const { toast } = useToast();
@@ -160,7 +159,7 @@ export default function AnimationEditor({ params }: { params: { animationId: str
             ffmpegRef.current = ffmpeg;
     
             ffmpeg.on('log', ({ message }) => {
-              console.log(`ffmpeg: ${message}`);
+              // console.log(`ffmpeg: ${message}`);
             });
     
             const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm';
