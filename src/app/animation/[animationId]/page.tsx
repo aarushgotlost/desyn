@@ -11,11 +11,12 @@ import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from "@/components/ui/label";
-import { Loader2, ArrowLeft, Brush, Eraser, Play, Pause, PlusSquare, Trash2, Copy, Save } from 'lucide-react';
+import { Loader2, ArrowLeft, Brush, Eraser, Play, Pause, PlusSquare, Trash2, Copy, Save, Palette } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { useAutosave } from '@/hooks/useAutosave';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
 type Tool = 'brush' | 'eraser';
 
@@ -66,11 +67,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         const image = new Image();
         image.src = frameDataUrl;
         image.onload = () => {
-            // Check context still exists in case of rapid component unmount
             if (contextRef.current) {
-                const rect = canvas.getBoundingClientRect();
-                const scaleX = canvas.width / rect.width;
-                const scaleY = canvas.height / rect.height;
                 contextRef.current.drawImage(image, 0, 0, image.width, image.height);
             }
         };
@@ -92,7 +89,6 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         setIsLoading(true);
         getAnimationDetails(animationId).then(data => {
             if (data && data.collaborators.includes(user.uid)) {
-                // If there are no frames, create an initial blank one.
                 if (data.frames.length === 0) {
                     const tempCanvas = document.createElement('canvas');
                     tempCanvas.width = data.width;
@@ -130,7 +126,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
 
     // 3. Effect for drawing a new frame, runs ONLY when the frame index changes.
     useEffect(() => {
-        if (contextRef.current && animation) { // Ensure animation data is present
+        if (contextRef.current && animation) {
             drawFrameOnCanvas(currentFrameIndex);
         }
     }, [currentFrameIndex, animation, drawFrameOnCanvas]);
@@ -154,7 +150,6 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
     const handleSave = useCallback(async (dataToSave: AnimationProject) => {
         if (!dataToSave || !user) return;
         
-        // The data passed to onSave is the latest from the state, which is updated by commitCurrentCanvasToState
         const thumbnail = dataToSave.frames[0] || null;
         await updateAnimationData(dataToSave.id, { 
             frames: dataToSave.frames, 
@@ -166,7 +161,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
     const { isSaving, forceSave } = useAutosave(animation, handleSave, 10000);
 
     const handleManualSave = async () => {
-        commitCurrentCanvasToState(); // Ensure the very latest drawing is in state before force-saving
+        commitCurrentCanvasToState();
         await forceSave();
         toast({ title: "Project Saved", description: "Your changes have been saved." });
     };
@@ -196,7 +191,6 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         if (!isDrawingRef.current || !contextRef.current) return;
         isDrawingRef.current = false;
         contextRef.current.closePath();
-        // Commit the final drawing to state immediately on mouse up.
         commitCurrentCanvasToState();
     }, [commitCurrentCanvasToState]);
 
@@ -219,7 +213,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
 
     const addFrame = () => {
         if (isPlaying) return;
-        commitCurrentCanvasToState(); // Save current work before adding a new frame
+        commitCurrentCanvasToState();
 
         const anim = animationRef.current;
         if (!anim) return;
@@ -239,7 +233,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
 
     const duplicateFrame = (index: number) => {
         if (isPlaying) return;
-        commitCurrentCanvasToState(); // Save current work first
+        commitCurrentCanvasToState();
 
         const anim = animationRef.current;
         if (!anim) return;
@@ -261,17 +255,12 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         }
         const newFrames = anim.frames.filter((_, i) => i !== index);
         setAnimation({ ...anim, frames: newFrames });
-        // Adjust currentFrameIndex safely
         setCurrentFrameIndex(prev => Math.max(0, Math.min(prev, newFrames.length - 1)));
     };
 
     const handleSelectFrame = (index: number) => {
         if (isPlaying || index === currentFrameIndex) return;
-        
-        // Save any work on the current frame before switching
         commitCurrentCanvasToState();
-        
-        // Then, switch to the new frame. The useEffect will handle drawing it.
         setCurrentFrameIndex(index);
     }
 
@@ -307,10 +296,9 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
     const togglePlay = () => {
         if (isPlaying) {
             setIsPlaying(false);
-            // After stopping, revert canvas to the currently selected frame in the timeline
             drawFrameOnCanvas(currentFrameIndex); 
         } else {
-            commitCurrentCanvasToState(); // Save any uncommitted drawing before playing
+            commitCurrentCanvasToState();
             playbackFrameRef.current = currentFrameIndex;
             setIsPlaying(true);
         }
@@ -322,7 +310,6 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         }
     };
 
-
     if (isLoading || authLoading) {
         return (
             <div className="flex justify-center items-center h-full">
@@ -331,6 +318,28 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         );
     }
     if (!animation) return null;
+
+    const ToolsContent = () => (
+        <div className="p-4 flex flex-col gap-6 h-full">
+            <h2 className="text-lg font-semibold border-b pb-2">Tools</h2>
+            <div className="grid grid-cols-2 gap-2">
+                <Button title="Brush" variant={selectedTool === 'brush' ? 'default' : 'outline'} onClick={() => setSelectedTool('brush')} size="icon"><Brush /></Button>
+                <Button title="Eraser" variant={selectedTool === 'eraser' ? 'default' : 'outline'} onClick={() => setSelectedTool('eraser')} size="icon"><Eraser /></Button>
+            </div>
+            <div className="space-y-2">
+                <Label>Color</Label>
+                <Input type="color" value={brushColor} onChange={(e) => setBrushColor(e.target.value)} className="p-1" disabled={selectedTool === 'eraser'}/>
+            </div>
+            <div className="space-y-2">
+                <Label>Brush Size: {brushSize}</Label>
+                <Slider value={[brushSize]} onValueChange={(value) => setBrushSize(value[0])} min={1} max={50} step={1} />
+            </div>
+            <div className="space-y-2">
+                <Label>FPS: {animation.fps}</Label>
+                <Slider value={[animation.fps]} onValueChange={handleFpsChange} min={1} max={60} step={1} />
+            </div>
+        </div>
+    );
 
     return (
         <div className="flex flex-col h-full gap-4">
@@ -352,31 +361,28 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                         {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                         Save All
                     </Button>
+                    <div className="md:hidden">
+                        <Sheet>
+                            <SheetTrigger asChild>
+                                <Button variant="outline" size="icon">
+                                    <Palette className="h-5 w-5" />
+                                    <span className="sr-only">Open Tools</span>
+                                </Button>
+                            </SheetTrigger>
+                            <SheetContent side="bottom" className="h-[60%]">
+                                <ToolsContent />
+                            </SheetContent>
+                        </Sheet>
+                    </div>
                 </div>
             </header>
 
             <div className="flex-grow flex flex-col md:flex-row gap-4 min-h-0">
-                <Card className="w-full md:w-64 flex-shrink-0 p-4 flex flex-col gap-6 overflow-y-auto h-auto md:h-full">
-                    <h2 className="text-lg font-semibold border-b pb-2">Tools</h2>
-                    <div className="grid grid-cols-2 gap-2">
-                        <Button title="Brush" variant={selectedTool === 'brush' ? 'default' : 'outline'} onClick={() => setSelectedTool('brush')} size="icon"><Brush /></Button>
-                        <Button title="Eraser" variant={selectedTool === 'eraser' ? 'default' : 'outline'} onClick={() => setSelectedTool('eraser')} size="icon"><Eraser /></Button>
-                    </div>
-                    <div className="space-y-2">
-                        <Label>Color</Label>
-                        <Input type="color" value={brushColor} onChange={(e) => setBrushColor(e.target.value)} className="p-1" disabled={selectedTool === 'eraser'}/>
-                    </div>
-                    <div className="space-y-2">
-                        <Label>Brush Size: {brushSize}</Label>
-                        <Slider value={[brushSize]} onValueChange={(value) => setBrushSize(value[0])} min={1} max={50} step={1} />
-                    </div>
-                    <div className="space-y-2">
-                        <Label>FPS: {animation.fps}</Label>
-                        <Slider value={[animation.fps]} onValueChange={handleFpsChange} min={1} max={60} step={1} />
-                    </div>
+                <Card className="w-full md:w-64 flex-shrink-0 hidden md:flex flex-col overflow-y-auto h-auto md:h-full">
+                    <ToolsContent />
                 </Card>
 
-                <div className="flex-grow grid place-items-center bg-muted rounded-lg border p-2 relative min-h-[300px] md:min-h-0">
+                <div className="flex-grow grid place-items-center bg-muted rounded-lg border p-2 relative min-h-[300px] md:min-h-0 overflow-auto">
                     <canvas
                         ref={canvasRef}
                         onMouseDown={startDrawing}
@@ -386,8 +392,6 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                         className="bg-white shadow-lg cursor-crosshair"
                         style={{
                             aspectRatio: `${animation.width}/${animation.height}`,
-                            width: '100%',
-                            maxWidth: `${animation.width}px`,
                         }}
                     />
                 </div>
