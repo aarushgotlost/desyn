@@ -349,17 +349,17 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
     );
 
     return (
-        <div className="flex flex-col h-full gap-4">
-            <header className="flex flex-col sm:flex-row items-center justify-between gap-4 flex-shrink-0">
+        <div className="flex flex-col h-full gap-2 md:gap-4">
+            <header className="flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-4 flex-shrink-0">
                 <div className="flex items-center gap-4">
                     <Button variant="outline" size="sm" asChild>
                         <Link href="/animation">
                             <ArrowLeft className="mr-2 h-4 w-4" /> Back
                         </Link>
                     </Button>
-                    <h1 className="text-xl font-bold truncate">{animation.name}</h1>
+                    <h1 className="text-lg sm:text-xl font-bold truncate">{animation.name}</h1>
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 sm:gap-4">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
                         <span>{isSaving ? "Saving..." : "Changes saved"}</span>
@@ -384,7 +384,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                 </div>
             </header>
 
-            <div className="flex-grow flex flex-col md:flex-row gap-4 min-h-0">
+            <div className="flex-grow flex flex-col md:flex-row gap-2 md:gap-4 min-h-0">
                 <Card className="w-full md:w-64 flex-shrink-0 hidden md:flex flex-col overflow-y-auto h-auto md:h-full">
                     <ToolsContent />
                 </Card>
@@ -398,18 +398,18 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                         onMouseMove={draw}
                         className="bg-white shadow-lg cursor-crosshair"
                         style={{
-                            aspectRatio: `${animation.width}/${animation.height}`,
-                            width: `${animation.width}px`,
-                            maxWidth: '100%'
+                            width: animation.width,
+                            maxWidth: '100%',
+                            aspectRatio: `${animation.width}/${animation.height}`
                         }}
                     />
                 </div>
             </div>
 
             <Card className="flex-shrink-0">
-                <CardContent className="p-2 md:p-4">
-                    <div className="flex items-center gap-2 md:gap-4">
-                         <div className="flex items-center gap-2">
+                <CardContent className="p-2 md:p-3">
+                    <div className="flex items-center gap-2 md:gap-3">
+                         <div className="flex items-center">
                             <Button variant="outline" size="icon" onClick={togglePlay} title={isPlaying ? 'Pause' : 'Play'}>{isPlaying ? <Pause /> : <Play />}</Button>
                         </div>
                         <div className="flex-grow flex items-center gap-2 overflow-x-auto p-2 bg-muted rounded-lg border">
@@ -418,23 +418,28 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                                     key={`${index}-${frame.slice(-10)}`}
                                     onClick={() => handleSelectFrame(index)}
                                     className={cn(
-                                        "relative group flex-shrink-0 p-1 rounded-md border-2 cursor-pointer bg-white hover:border-primary/50",
-                                        currentFrameIndex === index ? "border-primary" : "border-transparent"
+                                        "relative group flex-shrink-0 p-1 rounded-lg border-2 cursor-pointer bg-white hover:border-primary/50 transition-colors",
+                                        currentFrameIndex === index ? "border-primary shadow-md" : "border-transparent"
                                     )}
                                 >
-                                    <img src={frame} alt={`Frame ${index + 1}`} width={80} height={45} className="w-20 h-[45px] object-contain pointer-events-none" data-ai-hint="animation frame" />
-                                    <span className="absolute bottom-1 right-1 text-xs bg-black/60 text-white rounded-sm px-1 pointer-events-none">{index + 1}</span>
-                                    <div className="absolute -top-1 -right-1 flex opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <Button variant="default" size="icon" className="h-5 w-5 rounded-full" title="Duplicate" onClick={(e) => { e.stopPropagation(); duplicateFrame(index); }}><Copy className="h-3 w-3" /></Button>
-                                        <Button variant="destructive" size="icon" className="h-5 w-5 rounded-full ml-0.5" title="Delete" onClick={(e) => { e.stopPropagation(); deleteFrame(index); }}><Trash2 className="h-3 w-3" /></Button>
+                                    <img src={frame} alt={`Frame ${index + 1}`} width={80} height={45} className="w-20 h-[45px] object-contain pointer-events-none rounded-md" data-ai-hint="animation frame" />
+                                    <span className="absolute bottom-1 right-1 text-xs bg-black/70 text-white rounded-sm px-1.5 py-0.5 pointer-events-none">{index + 1}</span>
+                                    <div className="absolute -top-2 -right-2 flex md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                                        <Button variant="default" size="icon" className="h-6 w-6 rounded-full shadow-md" title="Duplicate" onClick={(e) => { e.stopPropagation(); duplicateFrame(index); }}><Copy className="h-3 w-3" /></Button>
+                                        <Button variant="destructive" size="icon" className="h-6 w-6 rounded-full ml-1 shadow-md" title="Delete" onClick={(e) => { e.stopPropagation(); deleteFrame(index); }}><Trash2 className="h-3 w-3" /></Button>
                                     </div>
                                 </div>
                             ))}
                         </div>
-                        <Button variant="outline" onClick={addFrame} title="Add new blank frame"><PlusSquare className="mr-2 h-4 w-4" /> Add</Button>
+                        <Button variant="outline" onClick={addFrame} title="Add new blank frame">
+                            <PlusSquare className="h-4 w-4 md:mr-2" />
+                            <span className="hidden md:inline">Add</span>
+                        </Button>
                     </div>
                 </CardContent>
             </Card>
         </div>
     );
 }
+
+    
