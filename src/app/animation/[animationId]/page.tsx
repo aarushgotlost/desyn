@@ -16,7 +16,6 @@ import { useToast } from "@/hooks/use-toast";
 import { useAutosave } from '@/hooks/useAutosave';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
 type Tool = 'brush' | 'eraser';
 
@@ -326,16 +325,16 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
     }
     if (!animation) return null;
 
-    const ToolsContent = () => (
-        <div className="p-4 flex flex-col gap-6 h-full">
-            <h2 className="text-lg font-semibold border-b pb-2">Tools</h2>
+    // Reusable component for tool controls
+    const EditorToolbar = () => (
+         <div className="flex flex-col gap-4 h-full">
             <div className="grid grid-cols-2 gap-2">
                 <Button title="Brush" variant={selectedTool === 'brush' ? 'default' : 'outline'} onClick={() => setSelectedTool('brush')} size="icon"><Brush /></Button>
                 <Button title="Eraser" variant={selectedTool === 'eraser' ? 'default' : 'outline'} onClick={() => setSelectedTool('eraser')} size="icon"><Eraser /></Button>
             </div>
             <div className="space-y-2">
                 <Label>Color</Label>
-                <Input type="color" value={brushColor} onChange={(e) => setBrushColor(e.target.value)} className="p-1" disabled={selectedTool === 'eraser'}/>
+                <Input type="color" value={brushColor} onChange={(e) => setBrushColor(e.target.value)} className="p-1 h-10 w-full" disabled={selectedTool === 'eraser'}/>
             </div>
             <div className="space-y-2">
                 <Label>Brush Size: {brushSize}</Label>
@@ -349,95 +348,115 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
     );
 
     return (
-        <div className="flex flex-col h-full gap-2 md:gap-4">
-            <header className="flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-4 flex-shrink-0">
-                <div className="flex items-center gap-4">
-                    <Button variant="outline" size="sm" asChild>
-                        <Link href="/animation">
-                            <ArrowLeft className="mr-2 h-4 w-4" /> Back
-                        </Link>
-                    </Button>
-                    <h1 className="text-lg sm:text-xl font-bold truncate">{animation.name}</h1>
-                </div>
-                <div className="flex items-center gap-2 sm:gap-4">
+        <div className="flex flex-col h-full gap-2 md:gap-4 pb-32 md:pb-0">
+            {/* Header */}
+            <header className="flex items-center justify-between gap-4 flex-shrink-0 p-2 border-b">
+                <Button variant="outline" size="sm" asChild>
+                    <Link href="/animation">
+                        <ArrowLeft className="mr-2 h-4 w-4" />
+                        <span className="hidden sm:inline">Back</span>
+                    </Link>
+                </Button>
+                <h1 className="text-lg sm:text-xl font-bold truncate text-center">{animation.name}</h1>
+                <div className="flex items-center gap-2">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
-                        <span>{isSaving ? "Saving..." : "Changes saved"}</span>
+                        <span className="hidden sm:inline">{isSaving ? "Saving..." : "Saved"}</span>
                     </div>
-                     <Button onClick={handleManualSave} disabled={isSaving}>
-                        {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                        Save All
+                    <Button onClick={handleManualSave} disabled={isSaving} size="sm">
+                        <Save className="h-4 w-4 sm:mr-2" />
+                        <span className="hidden sm:inline">Save</span>
                     </Button>
-                    <div className="md:hidden">
-                        <Sheet>
-                            <SheetTrigger asChild>
-                                <Button variant="outline" size="icon">
-                                    <Palette className="h-5 w-5" />
-                                    <span className="sr-only">Open Tools</span>
-                                </Button>
-                            </SheetTrigger>
-                            <SheetContent side="bottom" className="h-[60%]">
-                                <ToolsContent />
-                            </SheetContent>
-                        </Sheet>
-                    </div>
                 </div>
             </header>
 
             <div className="flex-grow flex flex-col md:flex-row gap-2 md:gap-4 min-h-0">
-                <Card className="w-full md:w-64 flex-shrink-0 hidden md:flex flex-col overflow-y-auto h-auto md:h-full">
-                    <ToolsContent />
+                {/* Desktop Sidebar */}
+                <Card className="w-full md:w-64 flex-shrink-0 hidden md:flex flex-col h-auto md:h-full p-4">
+                     <h2 className="text-lg font-semibold border-b pb-2 mb-4">Tools</h2>
+                    <EditorToolbar />
                 </Card>
 
-                <div className="flex-grow grid place-items-center bg-muted rounded-lg border p-2 relative min-h-[300px] md:min-h-0 overflow-auto">
-                    <canvas
-                        ref={canvasRef}
-                        onMouseDown={startDrawing}
-                        onMouseUp={finishDrawing}
-                        onMouseLeave={finishDrawing}
-                        onMouseMove={draw}
-                        className="bg-white shadow-lg cursor-crosshair"
-                        style={{
-                            width: animation.width,
-                            maxWidth: '100%',
-                            aspectRatio: `${animation.width}/${animation.height}`
-                        }}
-                    />
+                {/* Main Content Area */}
+                <div className="flex-grow flex flex-col gap-2 min-h-0">
+                    <div className="flex-grow grid place-items-center bg-muted rounded-lg border p-2 relative overflow-auto">
+                        <canvas
+                            ref={canvasRef}
+                            onMouseDown={startDrawing}
+                            onMouseUp={finishDrawing}
+                            onMouseLeave={finishDrawing}
+                            onMouseMove={draw}
+                            className="bg-white shadow-lg cursor-crosshair"
+                            style={{
+                                width: animation.width,
+                                height: animation.height,
+                                maxWidth: '100%',
+                                maxHeight: '100%',
+                                aspectRatio: `${animation.width}/${animation.height}`
+                            }}
+                        />
+                    </div>
+                    {/* Frame Timeline */}
+                    <Card className="flex-shrink-0">
+                        <CardContent className="p-2 md:p-3">
+                            <div className="flex items-center gap-2">
+                                <div className="hidden md:flex items-center">
+                                    <Button variant="outline" size="icon" onClick={togglePlay} title={isPlaying ? 'Pause' : 'Play'}>{isPlaying ? <Pause /> : <Play />}</Button>
+                                </div>
+                                <div className="flex-grow flex items-center gap-2 overflow-x-auto p-2 bg-muted rounded-lg border">
+                                    {animation.frames.map((frame, index) => (
+                                        <div
+                                            key={`${index}-${frame.slice(-10)}`}
+                                            onClick={() => handleSelectFrame(index)}
+                                            className={cn(
+                                                "relative group flex-shrink-0 p-1 rounded-lg border-2 cursor-pointer bg-white hover:border-primary/50 transition-colors",
+                                                currentFrameIndex === index ? "border-primary shadow-md" : "border-transparent"
+                                            )}
+                                        >
+                                            <img src={frame} alt={`Frame ${index + 1}`} width={80} height={45} className="w-20 h-[45px] object-contain pointer-events-none rounded-md" data-ai-hint="animation frame" />
+                                            <span className="absolute bottom-1 right-1 text-xs bg-black/70 text-white rounded-sm px-1.5 py-0.5 pointer-events-none">{index + 1}</span>
+                                            <div className="absolute -top-2 -right-2 flex md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                                                <Button variant="default" size="icon" className="h-6 w-6 rounded-full shadow-md" title="Duplicate" onClick={(e) => { e.stopPropagation(); duplicateFrame(index); }}><Copy className="h-3 w-3" /></Button>
+                                                <Button variant="destructive" size="icon" className="h-6 w-6 rounded-full ml-1 shadow-md" title="Delete" onClick={(e) => { e.stopPropagation(); deleteFrame(index); }}><Trash2 className="h-3 w-3" /></Button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="hidden md:flex">
+                                    <Button variant="outline" onClick={addFrame} title="Add new blank frame">
+                                        <PlusSquare className="h-4 w-4 md:mr-2" />
+                                        <span className="hidden md:inline">Add</span>
+                                    </Button>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
                 </div>
             </div>
 
-            <Card className="flex-shrink-0">
-                <CardContent className="p-2 md:p-3">
-                    <div className="flex items-center gap-2 md:gap-3">
-                         <div className="flex items-center">
-                            <Button variant="outline" size="icon" onClick={togglePlay} title={isPlaying ? 'Pause' : 'Play'}>{isPlaying ? <Pause /> : <Play />}</Button>
-                        </div>
-                        <div className="flex-grow flex items-center gap-2 overflow-x-auto p-2 bg-muted rounded-lg border">
-                            {animation.frames.map((frame, index) => (
-                                <div
-                                    key={`${index}-${frame.slice(-10)}`}
-                                    onClick={() => handleSelectFrame(index)}
-                                    className={cn(
-                                        "relative group flex-shrink-0 p-1 rounded-lg border-2 cursor-pointer bg-white hover:border-primary/50 transition-colors",
-                                        currentFrameIndex === index ? "border-primary shadow-md" : "border-transparent"
-                                    )}
-                                >
-                                    <img src={frame} alt={`Frame ${index + 1}`} width={80} height={45} className="w-20 h-[45px] object-contain pointer-events-none rounded-md" data-ai-hint="animation frame" />
-                                    <span className="absolute bottom-1 right-1 text-xs bg-black/70 text-white rounded-sm px-1.5 py-0.5 pointer-events-none">{index + 1}</span>
-                                    <div className="absolute -top-2 -right-2 flex md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                                        <Button variant="default" size="icon" className="h-6 w-6 rounded-full shadow-md" title="Duplicate" onClick={(e) => { e.stopPropagation(); duplicateFrame(index); }}><Copy className="h-3 w-3" /></Button>
-                                        <Button variant="destructive" size="icon" className="h-6 w-6 rounded-full ml-1 shadow-md" title="Delete" onClick={(e) => { e.stopPropagation(); deleteFrame(index); }}><Trash2 className="h-3 w-3" /></Button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                        <Button variant="outline" onClick={addFrame} title="Add new blank frame">
-                            <PlusSquare className="h-4 w-4 md:mr-2" />
-                            <span className="hidden md:inline">Add</span>
-                        </Button>
+            {/* Mobile Bottom Toolbar */}
+            <div className="md:hidden fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-t z-20 p-2 space-y-3">
+                {/* Sliders Row */}
+                <div className="flex gap-4 px-2">
+                    <div className="flex-1 space-y-1">
+                        <Label htmlFor="mobile-brush-size" className="text-xs">Size: {brushSize}</Label>
+                        <Slider id="mobile-brush-size" value={[brushSize]} onValueChange={(v) => setBrushSize(v[0])} min={1} max={50} step={1} />
                     </div>
-                </CardContent>
-            </Card>
+                    <div className="flex-1 space-y-1">
+                        <Label htmlFor="mobile-fps" className="text-xs">FPS: {animation.fps}</Label>
+                        <Slider id="mobile-fps" value={[animation.fps]} onValueChange={handleFpsChange} min={1} max={60} step={1} />
+                    </div>
+                </div>
+                 {/* Buttons Row */}
+                <div className="grid grid-cols-6 gap-1">
+                    <Button title="Brush" variant={selectedTool === 'brush' ? 'secondary' : 'ghost'} onClick={() => setSelectedTool('brush')} size="icon"><Brush /></Button>
+                    <Button title="Eraser" variant={selectedTool === 'eraser' ? 'secondary' : 'ghost'} onClick={() => setSelectedTool('eraser')} size="icon"><Eraser /></Button>
+                    <Input aria-label="Brush Color" type="color" value={brushColor} onChange={(e) => setBrushColor(e.target.value)} className="p-0 h-10 w-10 border-none rounded-lg bg-transparent" disabled={selectedTool === 'eraser'}/>
+                    <Button variant="ghost" size="icon" onClick={togglePlay} title={isPlaying ? 'Pause' : 'Play'}>{isPlaying ? <Pause /> : <Play />}</Button>
+                    <Button variant="ghost" onClick={addFrame} size="icon" title="Add Frame"><PlusSquare /></Button>
+                    <Button variant="ghost" onClick={handleManualSave} disabled={isSaving} size="icon" title="Save">{isSaving ? <Loader2 className="animate-spin" /> : <Save />}</Button>
+                </div>
+            </div>
         </div>
     );
 }
