@@ -11,14 +11,23 @@ import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from "@/components/ui/label";
-import { Loader2, ArrowLeft, Paintbrush, Eraser, Play, Pause, PlusSquare, Trash2, Copy, Save, Palette } from 'lucide-react';
+import { Loader2, ArrowLeft, Paintbrush, Eraser, Play, Pause, PlusSquare, Trash2, Copy, Save, Palette, PenTool, Feather, Minus, Pencil as PencilIcon, SprayCan } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { useAutosave } from '@/hooks/useAutosave';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 
 type Tool = 'brush' | 'eraser';
-type BrushTexture = 'solid' | 'pencil' | 'spray';
+type BrushTexture = 'solid' | 'pencil' | 'spray' | 'ink' | 'charcoal';
+
+const brushTextures = [
+  { name: 'solid' as BrushTexture, icon: Minus, label: 'Solid' },
+  { name: 'pencil' as BrushTexture, icon: PencilIcon, label: 'Pencil' },
+  { name: 'spray' as BrushTexture, icon: SprayCan, label: 'Spray' },
+  { name: 'ink' as BrushTexture, icon: PenTool, label: 'Ink' },
+  { name: 'charcoal' as BrushTexture, icon: Feather, label: 'Charcoal' },
+];
+
 
 export default function AnimationEditorPage({ params }: { params: { animationId: string } }) {
     const resolvedParams = use(params);
@@ -203,35 +212,71 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         const x = (e.clientX - rect.left) * scaleX;
         const y = (e.clientY - rect.top) * scaleY;
         
-        const currentTool = selectedTool === 'eraser' ? 'eraser' : brushTexture;
+        const currentDrawMode = selectedTool === 'eraser' ? 'solid' : brushTexture;
 
-        if (currentTool === 'spray') {
-             context.fillStyle = brushColor;
-             const sprayDensity = Math.round(brushSize) + 20;
-             for (let i = 0; i < sprayDensity; i++) {
-                 const sprayRadius = brushSize * 0.75;
-                 const offsetX = (Math.random() - 0.5) * sprayRadius * 2;
-                 const offsetY = (Math.random() - 0.5) * sprayRadius * 2;
-                 if (Math.sqrt(offsetX * offsetX + offsetY * offsetY) < sprayRadius) {
-                      context.fillRect(x + offsetX, y + offsetY, 1, 1);
-                 }
-             }
-        } else {
-            context.beginPath();
-            context.moveTo(lastPointRef.current.x, lastPointRef.current.y);
-            context.lineTo(x, y);
+        context.globalAlpha = 1.0;
+        context.lineCap = 'round';
+        context.lineJoin = 'round';
 
-            if (currentTool === 'pencil') {
+        switch(currentDrawMode) {
+            case 'spray':
+                context.fillStyle = brushColor;
+                const sprayDensity = Math.round(brushSize) + 20;
+                for (let i = 0; i < sprayDensity; i++) {
+                    const sprayRadius = brushSize * 0.75;
+                    const offsetX = (Math.random() - 0.5) * sprayRadius * 2;
+                    const offsetY = (Math.random() - 0.5) * sprayRadius * 2;
+                    if (Math.sqrt(offsetX * offsetX + offsetY * offsetY) < sprayRadius) {
+                         context.fillRect(x + offsetX, y + offsetY, 1, 1);
+                    }
+                }
+                break;
+            case 'pencil':
+                context.beginPath();
+                context.moveTo(lastPointRef.current.x, lastPointRef.current.y);
+                context.lineTo(x, y);
                 context.strokeStyle = brushColor;
-                context.lineWidth = brushSize * (Math.random() * 0.2 + 0.9);
-                context.globalAlpha = Math.random() * 0.2 + 0.8;
+                context.lineWidth = brushSize * (Math.random() * 0.3 + 0.8);
+                context.globalAlpha = Math.random() * 0.3 + 0.7;
                 context.stroke();
-                context.globalAlpha = 1.0;
-            } else { // Solid brush and eraser
+                break;
+            case 'ink':
+                context.beginPath();
+                context.moveTo(lastPointRef.current.x, lastPointRef.current.y);
+                context.lineTo(x, y);
+                context.strokeStyle = brushColor;
+                context.lineWidth = brushSize * (Math.random() * 0.1 + 0.95);
+                context.stroke();
+                break;
+            case 'charcoal':
+                context.lineCap = 'butt';
+                context.lineJoin = 'miter';
+                context.strokeStyle = brushColor;
+                context.globalAlpha = 0.08;
+                const charcoalDensity = brushSize * 1.5;
+                for (let i = 0; i < charcoalDensity; i++) {
+                    context.beginPath();
+                    const moveOffsetX = (Math.random() - 0.5) * brushSize * 1.2;
+                    const moveOffsetY = (Math.random() - 0.5) * brushSize * 1.2;
+                    context.moveTo(lastPointRef.current.x + moveOffsetX, lastPointRef.current.y + moveOffsetY);
+
+                    const lineOffsetX = (Math.random() - 0.5) * brushSize * 1.2;
+                    const lineOffsetY = (Math.random() - 0.5) * brushSize * 1.2;
+                    context.lineTo(x + lineOffsetX, y + lineOffsetY);
+                    
+                    context.lineWidth = Math.random() * (brushSize * 0.8);
+                    context.stroke();
+                }
+                break;
+            case 'solid':
+            default:
+                context.beginPath();
+                context.moveTo(lastPointRef.current.x, lastPointRef.current.y);
+                context.lineTo(x, y);
                 context.strokeStyle = brushColor;
                 context.lineWidth = brushSize;
                 context.stroke();
-            }
+                break;
         }
 
         lastPointRef.current = { x, y };
@@ -377,25 +422,35 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                      <h2 className="text-lg font-semibold border-b pb-2 mb-4">Tools</h2>
                      <div className="flex flex-col gap-4 h-full">
                         <div className="grid grid-cols-2 gap-2">
-                            <Button title="Paintbrush" variant={selectedTool === 'brush' ? 'default' : 'outline'} onClick={() => setSelectedTool('brush')} size="icon"><Paintbrush /></Button>
-                            <Button title="Eraser" variant={selectedTool === 'eraser' ? 'default' : 'outline'} onClick={() => setSelectedTool('eraser')} size="icon"><Eraser /></Button>
+                            <Button title="Paintbrush" variant={selectedTool === 'brush' ? 'secondary' : 'outline'} onClick={() => setSelectedTool('brush')} size="icon"><Paintbrush /></Button>
+                            <Button title="Eraser" variant={selectedTool === 'eraser' ? 'secondary' : 'outline'} onClick={() => setSelectedTool('eraser')} size="icon"><Eraser /></Button>
                         </div>
 
                         {selectedTool === 'brush' && (
-                            <>
+                            <div className="space-y-4">
                                 <div className="space-y-2">
                                     <Label>Color</Label>
                                     <Input type="color" value={brushColor} onChange={(e) => setBrushColor(e.target.value)} className="p-1 h-10 w-full" />
                                 </div>
                                 <div className="space-y-2">
                                     <Label>Texture</Label>
-                                    <div className="grid grid-cols-3 gap-1">
-                                        <Button title="Solid" variant={brushTexture === 'solid' ? 'default' : 'outline'} onClick={() => setBrushTexture('solid')} size="sm">Solid</Button>
-                                        <Button title="Pencil" variant={brushTexture === 'pencil' ? 'default' : 'outline'} onClick={() => setBrushTexture('pencil')} size="sm">Pencil</Button>
-                                        <Button title="Spray" variant={brushTexture === 'spray' ? 'default' : 'outline'} onClick={() => setBrushTexture('spray')} size="sm">Spray</Button>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {brushTextures.map((texture) => (
+                                            <Button
+                                                key={texture.name}
+                                                title={texture.label}
+                                                variant={brushTexture === texture.name ? 'secondary' : 'outline'}
+                                                onClick={() => setBrushTexture(texture.name)}
+                                                className="flex items-center justify-start gap-2 capitalize"
+                                                size="sm"
+                                            >
+                                                <texture.icon className="h-4 w-4" />
+                                                <span>{texture.label}</span>
+                                            </Button>
+                                        ))}
                                     </div>
                                 </div>
-                            </>
+                            </div>
                         )}
 
                         <div className="space-y-2">
@@ -480,10 +535,20 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                 {/* Texture Row - Conditional */}
                 {selectedTool === 'brush' && (
                     <div className="px-2">
-                        <div className="grid grid-cols-3 gap-2">
-                            <Button size="sm" className="h-8" variant={brushTexture === 'solid' ? 'secondary' : 'ghost'} onClick={() => setBrushTexture('solid')}>Solid</Button>
-                            <Button size="sm" className="h-8" variant={brushTexture === 'pencil' ? 'secondary' : 'ghost'} onClick={() => setBrushTexture('pencil')}>Pencil</Button>
-                            <Button size="sm" className="h-8" variant={brushTexture === 'spray' ? 'secondary' : 'ghost'} onClick={() => setBrushTexture('spray')}>Spray</Button>
+                        <div className="flex flex-wrap gap-2 justify-center">
+                             {brushTextures.map((texture) => (
+                                <Button
+                                    key={texture.name}
+                                    size="sm"
+                                    className="h-8 capitalize"
+                                    variant={brushTexture === texture.name ? 'secondary' : 'ghost'}
+                                    onClick={() => setBrushTexture(texture.name)}
+                                    title={texture.label}
+                                >
+                                    <texture.icon className="h-4 w-4 mr-1.5" />
+                                    {texture.label}
+                                </Button>
+                            ))}
                         </div>
                     </div>
                 )}
@@ -501,3 +566,5 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         </div>
     );
 }
+
+    
