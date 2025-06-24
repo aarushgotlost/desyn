@@ -358,14 +358,14 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                     </div>
                 </Card>
 
-                <div className="flex-grow grid place-items-center bg-muted rounded-lg border p-2 relative min-h-[300px] md:min-h-0">
+                <div className="flex-grow grid place-items-center bg-muted rounded-lg border p-2 relative min-h-[300px] md:min-h-0 overflow-auto">
                     <canvas
                         ref={canvasRef}
                         onMouseDown={startDrawing}
                         onMouseUp={finishDrawing}
                         onMouseLeave={finishDrawing}
                         onMouseMove={draw}
-                        className="block bg-white shadow-lg cursor-crosshair max-w-full max-h-full"
+                        className="block bg-white shadow-lg cursor-crosshair"
                     />
                 </div>
             </div>
@@ -402,5 +402,3 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         </div>
     );
 }
-
-    
