@@ -11,18 +11,19 @@ import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from "@/components/ui/label";
-import { Loader2, ArrowLeft, Paintbrush, Eraser, Play, Pause, PlusSquare, Trash2, Copy, Save, Palette, PenTool, Feather, Minus, Pencil as PencilIcon, SprayCan, Highlighter, Baseline } from 'lucide-react';
+import { Loader2, ArrowLeft, Paintbrush, Eraser, Play, Pause, PlusSquare, Trash2, Copy, Save, Palette, PenTool, Feather, Minus, Pencil as PencilIcon, SprayCan, Highlighter, Baseline, Edit3 } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { useAutosave } from '@/hooks/useAutosave';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 
 type Tool = 'brush' | 'eraser';
-type BrushTexture = 'solid' | 'pencil' | 'spray' | 'ink' | 'charcoal' | 'marker' | 'calligraphy';
+type BrushTexture = 'solid' | 'pencil' | 'sketchy' | 'spray' | 'ink' | 'charcoal' | 'marker' | 'calligraphy';
 
 const brushTextures = [
   { name: 'solid' as BrushTexture, icon: Minus, label: 'Solid' },
   { name: 'pencil' as BrushTexture, icon: PencilIcon, label: 'Pencil' },
+  { name: 'sketchy' as BrushTexture, icon: Edit3, label: 'Sketchy' },
   { name: 'spray' as BrushTexture, icon: SprayCan, label: 'Spray' },
   { name: 'ink' as BrushTexture, icon: PenTool, label: 'Ink' },
   { name: 'charcoal' as BrushTexture, icon: Feather, label: 'Charcoal' },
@@ -241,6 +242,29 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                 context.lineWidth = brushSize * (Math.random() * 0.3 + 0.8);
                 context.globalAlpha = Math.random() * 0.3 + 0.7;
                 context.stroke();
+                break;
+            case 'sketchy':
+                context.lineCap = 'round';
+                context.lineJoin = 'round';
+                context.strokeStyle = brushColor;
+                context.globalAlpha = 0.3; // low alpha for buildup
+                const sketchyLines = 3;
+                for (let i = 0; i < sketchyLines; i++) {
+                    context.beginPath();
+                    const offsetX1 = (Math.random() - 0.5) * brushSize * 0.5;
+                    const offsetY1 = (Math.random() - 0.5) * brushSize * 0.5;
+                    if (lastPointRef.current) {
+                        context.moveTo(lastPointRef.current.x + offsetX1, lastPointRef.current.y + offsetY1);
+                    }
+
+                    const offsetX2 = (Math.random() - 0.5) * brushSize * 0.5;
+                    const offsetY2 = (Math.random() - 0.5) * brushSize * 0.5;
+                    context.lineTo(x + offsetX2, y + offsetY2);
+                    
+                    context.lineWidth = brushSize * (Math.random() * 0.5 + 0.5);
+                    context.stroke();
+                }
+                context.globalAlpha = 1.0; // reset alpha
                 break;
             case 'ink':
                 context.beginPath();
@@ -560,13 +584,13 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                  
                 {/* Texture Row - Conditional */}
                 {selectedTool === 'brush' && (
-                    <div className="px-2">
-                        <div className="flex flex-wrap gap-2 justify-center">
+                    <div className="px-2 overflow-x-auto pb-1">
+                        <div className="flex flex-row gap-2">
                              {brushTextures.map((texture) => (
                                 <Button
                                     key={texture.name}
                                     size="sm"
-                                    className="h-8 capitalize"
+                                    className="h-8 capitalize flex-shrink-0"
                                     variant={brushTexture === texture.name ? 'secondary' : 'ghost'}
                                     onClick={() => setBrushTexture(texture.name)}
                                     title={texture.label}
@@ -592,4 +616,3 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         </div>
     );
 }
-
