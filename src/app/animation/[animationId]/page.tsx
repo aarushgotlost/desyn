@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from "@/components/ui/label";
-import { Loader2, ArrowLeft, Paintbrush, Eraser, Play, Pause, PlusSquare, Trash2, Copy, Save, Palette, PenTool, Feather, Minus, Pencil as PencilIcon, SprayCan, Highlighter, Baseline, Edit3 } from 'lucide-react';
+import { Loader2, ArrowLeft, Paintbrush, Eraser, Play, Pause, PlusSquare, Trash2, Copy, Save, Palette, PenTool, Feather, Minus, Pencil as PencilIcon, SprayCan, Highlighter, Baseline, Edit3, Paintbrush2, Brush } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import { useAutosave } from '@/hooks/useAutosave';
@@ -19,7 +19,7 @@ import { cn } from '@/lib/utils';
 import Link from 'next/link';
 
 type Tool = 'brush' | 'eraser';
-type BrushTexture = 'solid' | 'pencil' | 'sketchy' | 'spray' | 'ink' | 'charcoal' | 'marker' | 'calligraphy';
+type BrushTexture = 'solid' | 'pencil' | 'sketchy' | 'spray' | 'ink' | 'charcoal' | 'marker' | 'calligraphy' | 'watercolor' | 'oil';
 
 const brushTextures = [
   { name: 'solid' as BrushTexture, icon: Minus, label: 'Solid' },
@@ -30,6 +30,8 @@ const brushTextures = [
   { name: 'charcoal' as BrushTexture, icon: Feather, label: 'Charcoal' },
   { name: 'marker' as BrushTexture, icon: Highlighter, label: 'Marker' },
   { name: 'calligraphy' as BrushTexture, icon: Baseline, label: 'Calligraphy' },
+  { name: 'watercolor' as BrushTexture, icon: Paintbrush2, label: 'Watercolor' },
+  { name: 'oil' as BrushTexture, icon: Brush, label: 'Oil Paint' },
 ];
 
 
@@ -318,6 +320,37 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                 context.strokeStyle = brushColor;
                 context.lineWidth = width;
                 context.stroke();
+                break;
+            case 'watercolor':
+                context.globalAlpha = 0.15; // Low alpha for blending
+                context.beginPath();
+                context.moveTo(lastPointRef.current.x, lastPointRef.current.y);
+                context.lineTo(x, y);
+                context.strokeStyle = brushColor;
+                context.lineWidth = brushSize;
+                context.stroke();
+                context.globalAlpha = 1.0; // Reset alpha
+                break;
+            case 'oil':
+                context.lineCap = 'round';
+                context.lineJoin = 'round';
+                const oilSegments = 5;
+                for (let i = 0; i < oilSegments; i++) {
+                    context.beginPath();
+                    const moveOffsetX = (Math.random() - 0.5) * brushSize * 0.4;
+                    const moveOffsetY = (Math.random() - 0.5) * brushSize * 0.4;
+                    context.moveTo(lastPointRef.current.x + moveOffsetX, lastPointRef.current.y + moveOffsetY);
+
+                    const lineOffsetX = (Math.random() - 0.5) * brushSize * 0.4;
+                    const lineOffsetY = (Math.random() - 0.5) * brushSize * 0.4;
+                    context.lineTo(x + lineOffsetX, y + lineOffsetY);
+                    
+                    context.strokeStyle = brushColor;
+                    context.lineWidth = brushSize * (Math.random() * 0.6 + 0.4);
+                    context.globalAlpha = Math.random() * 0.5 + 0.5; // vary alpha for texture
+                    context.stroke();
+                }
+                context.globalAlpha = 1.0; // reset alpha
                 break;
             case 'solid':
             default:
@@ -643,3 +676,5 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         </div>
     );
 }
+
+    
