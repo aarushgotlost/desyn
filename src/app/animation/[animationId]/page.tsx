@@ -176,16 +176,23 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         toast({ title: "Project Saved", description: "Your changes have been saved." });
     };
     
-    const startDrawing = useCallback(({ nativeEvent }: React.MouseEvent<HTMLCanvasElement>) => {
-        if (!contextRef.current || isPlaying) return;
-        const { offsetX, offsetY } = nativeEvent;
+    const startDrawing = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+        const canvas = canvasRef.current;
+        const context = contextRef.current;
+        if (!context || !canvas || isPlaying) return;
+
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const x = e.nativeEvent.offsetX * scaleX;
+        const y = e.nativeEvent.offsetY * scaleY;
 
         isDrawingRef.current = true;
-        contextRef.current.globalCompositeOperation = selectedTool === 'eraser' ? 'destination-out' : 'source-over';
-        contextRef.current.strokeStyle = brushColor;
-        contextRef.current.lineWidth = brushSize;
-        contextRef.current.beginPath();
-        contextRef.current.moveTo(offsetX, offsetY);
+        context.globalCompositeOperation = selectedTool === 'eraser' ? 'destination-out' : 'source-over';
+        context.strokeStyle = brushColor;
+        context.lineWidth = brushSize;
+        context.beginPath();
+        context.moveTo(x, y);
     }, [brushColor, brushSize, selectedTool, isPlaying]);
 
     const finishDrawing = useCallback(() => {
@@ -194,11 +201,19 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         contextRef.current.closePath();
     }, []);
 
-    const draw = useCallback(({ nativeEvent }: React.MouseEvent<HTMLCanvasElement>) => {
-        if (!isDrawingRef.current || !contextRef.current) return;
-        const { offsetX, offsetY } = nativeEvent;
-        contextRef.current.lineTo(offsetX, offsetY);
-        contextRef.current.stroke();
+    const draw = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+        const canvas = canvasRef.current;
+        const context = contextRef.current;
+        if (!isDrawingRef.current || !context || !canvas) return;
+        
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const x = e.nativeEvent.offsetX * scaleX;
+        const y = e.nativeEvent.offsetY * scaleY;
+
+        context.lineTo(x, y);
+        context.stroke();
     }, []);
 
     const addFrame = () => {
@@ -358,14 +373,14 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                     </div>
                 </Card>
 
-                <div className="flex-grow grid place-items-center bg-muted rounded-lg border p-2 relative min-h-[300px] md:min-h-0 overflow-auto">
+                <div className="flex-grow grid place-items-center bg-muted rounded-lg border p-2 relative min-h-[300px] md:min-h-0">
                     <canvas
                         ref={canvasRef}
                         onMouseDown={startDrawing}
                         onMouseUp={finishDrawing}
                         onMouseLeave={finishDrawing}
                         onMouseMove={draw}
-                        className="block bg-white shadow-lg cursor-crosshair"
+                        className="block bg-white shadow-lg cursor-crosshair max-w-full max-h-full"
                     />
                 </div>
             </div>
