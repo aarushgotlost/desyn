@@ -11,13 +11,14 @@ import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from "@/components/ui/label";
-import { Loader2, ArrowLeft, Brush, Eraser, Play, Pause, PlusSquare, Trash2, Copy, Save, Palette } from 'lucide-react';
+import { Loader2, ArrowLeft, Brush, Eraser, Play, Pause, PlusSquare, Trash2, Copy, Save, Palette, Paintbrush } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { useAutosave } from '@/hooks/useAutosave';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 
 type Tool = 'brush' | 'eraser';
+type BrushTexture = 'solid' | 'pencil' | 'spray';
 
 export default function AnimationEditorPage({ params }: { params: { animationId: string } }) {
     const resolvedParams = use(params);
@@ -31,6 +32,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
 
     // Editor state
     const [selectedTool, setSelectedTool] = useState<Tool>('brush');
+    const [brushTexture, setBrushTexture] = useState<BrushTexture>('solid');
     const [brushColor, setBrushColor] = useState('#000000');
     const [brushSize, setBrushSize] = useState(5);
     const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
@@ -41,6 +43,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
     const contextRef = useRef<CanvasRenderingContext2D | null>(null);
     const isDrawingRef = useRef(false);
     const playbackFrameRef = useRef<number>(0);
+    const lastPointRef = useRef<{ x: number, y: number } | null>(null);
     
     // Ref to hold the latest animation data to prevent state dependency loops
     const animationRef = useRef<AnimationProject | null>(null);
@@ -53,23 +56,19 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         const canvas = canvasRef.current;
 
         if (!canvas || !anim) return;
-
-        // Ensure context is available
         const context = canvas.getContext('2d', { willReadFrequently: true });
         if (!context) return;
         
-        // Always clear canvas first
         context.clearRect(0, 0, canvas.width, canvas.height);
 
         const frameDataUrl = anim.frames[frameIndex];
         if (!frameDataUrl) {
-            return; // Leave canvas blank if no frame data
+            return;
         }
 
         const image = new Image();
         image.src = frameDataUrl;
         image.onload = () => {
-            // Re-check context in case component unmounted
             const currentContext = canvas.getContext('2d');
             if (currentContext) {
                  currentContext.drawImage(image, 0, 0);
@@ -94,7 +93,6 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         getAnimationDetails(animationId).then(data => {
             if (data && data.collaborators.includes(user.uid)) {
                 if (data.frames.length === 0) {
-                    // Create a blank frame if project is new
                     const tempCanvas = document.createElement('canvas');
                     tempCanvas.width = data.width;
                     tempCanvas.height = data.height;
@@ -111,25 +109,22 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         }).finally(() => setIsLoading(false));
     }, [animationId, user, authLoading, router, toast]);
 
-    // 2. Effect for setting up canvas and context, runs ONLY ONCE when animation data is first loaded.
+    // 2. Effect for setting up canvas and context
     useEffect(() => {
         const canvas = canvasRef.current;
-        if (animation && canvas && !contextRef.current) {
+        if (animation && canvas) {
             canvas.width = animation.width;
             canvas.height = animation.height;
 
             const context = canvas.getContext('2d', { willReadFrequently: true });
             if (context) {
-                context.lineCap = 'round';
-                context.lineJoin = 'round';
-                contextRef.current = context; // Set context ref once
-                drawFrameOnCanvas(0); // Draw initial frame
+                contextRef.current = context;
+                drawFrameOnCanvas(currentFrameIndex);
             }
         }
-    }, [animation, drawFrameOnCanvas]);
+    }, [animation]); // Runs once when animation data is first loaded
 
-
-    // 3. Effect for re-drawing frame on canvas, runs ONLY when the frame index changes.
+    // 3. Effect for re-drawing frame on canvas
     useEffect(() => {
         if (contextRef.current && animation) {
             drawFrameOnCanvas(currentFrameIndex);
@@ -145,7 +140,6 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         if (!canvas || !anim) return;
 
         const currentCanvasImage = canvas.toDataURL();
-        // Only update state if the image has actually changed
         if (anim.frames[currentFrameIndex] !== currentCanvasImage) {
             const newFrames = [...anim.frames];
             newFrames[currentFrameIndex] = currentCanvasImage;
@@ -164,7 +158,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         });
     }, [user]);
     
-    const { isSaving, forceSave } = useAutosave(animation, handleSave, 10000);
+    const { isSaving, forceSave } = useAutosave(animation, handleSave, 3000);
 
     const handleManualSave = async () => {
         commitCurrentCanvasToState();
@@ -179,39 +173,70 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         if (!context || isPlaying) return;
 
         isDrawingRef.current = true;
-        context.globalCompositeOperation = selectedTool === 'eraser' ? 'destination-out' : 'source-over';
-        context.strokeStyle = brushColor;
-        context.lineWidth = brushSize;
-        
         const rect = e.currentTarget.getBoundingClientRect();
         const scaleX = e.currentTarget.width / rect.width;
         const scaleY = e.currentTarget.height / rect.height;
         const x = (e.clientX - rect.left) * scaleX;
         const y = (e.clientY - rect.top) * scaleY;
         
-        context.beginPath();
-        context.moveTo(x, y);
-    }, [brushColor, brushSize, selectedTool, isPlaying]);
+        lastPointRef.current = { x, y };
+        
+        context.lineCap = 'round';
+        context.lineJoin = 'round';
+        context.globalCompositeOperation = selectedTool === 'eraser' ? 'destination-out' : 'source-over';
+    }, [selectedTool, isPlaying]);
 
     const finishDrawing = useCallback(() => {
-        if (!isDrawingRef.current || !contextRef.current) return;
+        if (!isDrawingRef.current) return;
         isDrawingRef.current = false;
-        contextRef.current.closePath();
+        lastPointRef.current = null;
         commitCurrentCanvasToState();
     }, [commitCurrentCanvasToState]);
 
     const draw = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-        if (!isDrawingRef.current || !contextRef.current) return;
+        if (!isDrawingRef.current || !contextRef.current || !lastPointRef.current) return;
         
+        const context = contextRef.current;
         const rect = e.currentTarget.getBoundingClientRect();
         const scaleX = e.currentTarget.width / rect.width;
         const scaleY = e.currentTarget.height / rect.height;
         const x = (e.clientX - rect.left) * scaleX;
         const y = (e.clientY - rect.top) * scaleY;
+        
+        const currentTool = selectedTool === 'eraser' ? 'eraser' : brushTexture;
 
-        contextRef.current.lineTo(x, y);
-        contextRef.current.stroke();
-    }, []);
+        if (currentTool === 'spray') {
+             context.fillStyle = brushColor;
+             const sprayDensity = Math.round(brushSize) + 20;
+             for (let i = 0; i < sprayDensity; i++) {
+                 const sprayRadius = brushSize * 0.75;
+                 const offsetX = (Math.random() - 0.5) * sprayRadius * 2;
+                 const offsetY = (Math.random() - 0.5) * sprayRadius * 2;
+                 if (Math.sqrt(offsetX * offsetX + offsetY * offsetY) < sprayRadius) {
+                      context.fillRect(x + offsetX, y + offsetY, 1, 1);
+                 }
+             }
+        } else {
+            context.beginPath();
+            context.moveTo(lastPointRef.current.x, lastPointRef.current.y);
+            context.lineTo(x, y);
+
+            if (currentTool === 'pencil') {
+                context.strokeStyle = brushColor;
+                context.lineWidth = brushSize * (Math.random() * 0.2 + 0.9);
+                context.globalAlpha = Math.random() * 0.2 + 0.8;
+                context.stroke();
+                context.globalAlpha = 1.0;
+            } else { // Solid brush and eraser
+                context.strokeStyle = brushColor;
+                context.lineWidth = brushSize;
+                context.stroke();
+            }
+        }
+
+        lastPointRef.current = { x, y };
+    }, [brushColor, brushSize, selectedTool, brushTexture]);
+
 
     // --- FRAME MANIPULATION ---
 
@@ -300,10 +325,8 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
     const togglePlay = () => {
         if (isPlaying) {
             setIsPlaying(false);
-            // When stopping, restore the canvas to the currently selected frame
             drawFrameOnCanvas(currentFrameIndex); 
         } else {
-            // Save any pending changes before starting playback
             commitCurrentCanvasToState();
             playbackFrameRef.current = currentFrameIndex;
             setIsPlaying(true);
@@ -336,6 +359,14 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                 <Label>Color</Label>
                 <Input type="color" value={brushColor} onChange={(e) => setBrushColor(e.target.value)} className="p-1 h-10 w-full" disabled={selectedTool === 'eraser'}/>
             </div>
+             <div className="space-y-2">
+                <Label>Texture</Label>
+                <div className="grid grid-cols-3 gap-1">
+                    <Button title="Solid" variant={brushTexture === 'solid' ? 'default' : 'outline'} onClick={() => setBrushTexture('solid')} size="sm">Solid</Button>
+                    <Button title="Pencil" variant={brushTexture === 'pencil' ? 'default' : 'outline'} onClick={() => setBrushTexture('pencil')} size="sm">Pencil</Button>
+                    <Button title="Spray" variant={brushTexture === 'spray' ? 'default' : 'outline'} onClick={() => setBrushTexture('spray')} size="sm">Spray</Button>
+                </div>
+            </div>
             <div className="space-y-2">
                 <Label>Brush Size: {brushSize}</Label>
                 <Slider value={[brushSize]} onValueChange={(value) => setBrushSize(value[0])} min={1} max={50} step={1} />
@@ -348,7 +379,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
     );
 
     return (
-        <div className="flex flex-col h-full gap-2 md:gap-4 pb-32 md:pb-0">
+        <div className="flex flex-col h-full gap-2 md:gap-4 pb-48 md:pb-0">
             {/* Header */}
             <header className="flex items-center justify-between gap-4 flex-shrink-0 p-2 border-b">
                 <Button variant="outline" size="sm" asChild>
@@ -361,7 +392,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                 <div className="flex items-center gap-2">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
-                        <span className="hidden sm:inline">{isSaving ? "Saving..." : "Saved"}</span>
+                        <span className="hidden sm:inline">{isSaving ? "Saving..." : "Changes saved"}</span>
                     </div>
                     <Button onClick={handleManualSave} disabled={isSaving} size="sm">
                         <Save className="h-4 w-4 sm:mr-2" />
@@ -379,16 +410,19 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
 
                 {/* Main Content Area */}
                 <div className="flex-grow flex flex-col gap-2 min-h-0">
-                    <div className="flex-grow grid place-items-center bg-muted rounded-lg border p-2 relative">
+                    <div className="flex-grow grid place-items-center bg-muted rounded-lg border p-2 relative overflow-auto">
                         <canvas
                             ref={canvasRef}
                             onMouseDown={startDrawing}
                             onMouseUp={finishDrawing}
                             onMouseLeave={finishDrawing}
                             onMouseMove={draw}
-                            className="bg-white shadow-lg cursor-crosshair max-w-full max-h-full"
-                            style={{
-                                aspectRatio: `${animation.width}/${animation.height}`
+                            className="bg-white shadow-lg cursor-crosshair"
+                            style={{ 
+                                width: animation.width, 
+                                height: animation.height,
+                                maxWidth: '100%',
+                                maxHeight: '100%',
                             }}
                         />
                     </div>
@@ -443,6 +477,14 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                         <Slider id="mobile-fps" value={[animation.fps]} onValueChange={handleFpsChange} min={1} max={60} step={1} />
                     </div>
                 </div>
+                 {/* Texture Row */}
+                <div className="px-2">
+                    <div className="grid grid-cols-3 gap-2">
+                        <Button size="sm" className="h-8" variant={brushTexture === 'solid' ? 'secondary' : 'ghost'} onClick={() => setBrushTexture('solid')}>Solid</Button>
+                        <Button size="sm" className="h-8" variant={brushTexture === 'pencil' ? 'secondary' : 'ghost'} onClick={() => setBrushTexture('pencil')}>Pencil</Button>
+                        <Button size="sm" className="h-8" variant={brushTexture === 'spray' ? 'secondary' : 'ghost'} onClick={() => setBrushTexture('spray')}>Spray</Button>
+                    </div>
+                </div>
                  {/* Buttons Row */}
                 <div className="grid grid-cols-6 gap-1">
                     <Button title="Brush" variant={selectedTool === 'brush' ? 'secondary' : 'ghost'} onClick={() => setSelectedTool('brush')} size="icon"><Brush /></Button>
@@ -456,3 +498,5 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         </div>
     );
 }
+
+    
