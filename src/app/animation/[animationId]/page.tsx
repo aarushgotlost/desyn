@@ -12,6 +12,7 @@ import { Slider } from "@/components/ui/slider";
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from "@/components/ui/label";
 import { Loader2, ArrowLeft, Paintbrush, Eraser, Play, Pause, PlusSquare, Trash2, Copy, Save, Palette, PenTool, Feather, Minus, Pencil as PencilIcon, SprayCan, Highlighter, Baseline, Edit3 } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import { useAutosave } from '@/hooks/useAutosave';
 import { cn } from '@/lib/utils';
@@ -49,6 +50,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
     const [brushSize, setBrushSize] = useState(5);
     const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
     const [isPlaying, setIsPlaying] = useState(false);
+    const [texturePopoverOpen, setTexturePopoverOpen] = useState(false);
 
     // Refs for canvases and drawing
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -442,6 +444,8 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         );
     }
     if (!animation) return null;
+    
+    const currentBrushTexture = brushTextures.find((t) => t.name === brushTexture);
 
     return (
         <div className="flex flex-col h-full gap-2 md:gap-4 pb-48 md:pb-0">
@@ -484,21 +488,31 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                                 </div>
                                 <div className="space-y-2">
                                     <Label>Texture</Label>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        {brushTextures.map((texture) => (
-                                            <Button
-                                                key={texture.name}
-                                                title={texture.label}
-                                                variant={brushTexture === texture.name ? 'secondary' : 'outline'}
-                                                onClick={() => setBrushTexture(texture.name)}
-                                                className="flex items-center justify-start gap-2 capitalize"
-                                                size="sm"
-                                            >
-                                                <texture.icon className="h-4 w-4" />
-                                                <span>{texture.label}</span>
+                                    <Popover open={texturePopoverOpen} onOpenChange={setTexturePopoverOpen}>
+                                        <PopoverTrigger asChild>
+                                            <Button variant="outline" className="w-full justify-start capitalize">
+                                                {currentBrushTexture ? <currentBrushTexture.icon className="h-4 w-4 mr-2" /> : <Palette className="h-4 w-4 mr-2" />}
+                                                <span>{currentBrushTexture ? currentBrushTexture.label : 'Select Texture'}</span>
                                             </Button>
-                                        ))}
-                                    </div>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-56 p-0">
+                                            <div className="grid grid-cols-2 gap-1 p-1">
+                                                {brushTextures.map((texture) => (
+                                                    <Button
+                                                        key={texture.name}
+                                                        title={texture.label}
+                                                        variant={brushTexture === texture.name ? 'secondary' : 'ghost'}
+                                                        onClick={() => { setBrushTexture(texture.name); setTexturePopoverOpen(false); }}
+                                                        className="flex items-center justify-start gap-2 capitalize"
+                                                        size="sm"
+                                                    >
+                                                        <texture.icon className="h-4 w-4" />
+                                                        <span>{texture.label}</span>
+                                                    </Button>
+                                                ))}
+                                            </div>
+                                        </PopoverContent>
+                                    </Popover>
                                 </div>
                             </div>
                         )}
@@ -527,6 +541,8 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                             style={{ 
                                 maxWidth: '100%',
                                 maxHeight: '100%',
+                                width: `${animation.width}px`,
+                                height: `${animation.height}px`,
                             }}
                         />
                     </div>
@@ -582,32 +598,45 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                     </div>
                 </div>
                  
-                {/* Texture Row - Conditional */}
-                {selectedTool === 'brush' && (
-                    <div className="px-2 overflow-x-auto pb-1">
-                        <div className="flex flex-row gap-2">
-                             {brushTextures.map((texture) => (
-                                <Button
-                                    key={texture.name}
-                                    size="sm"
-                                    className="h-8 capitalize flex-shrink-0"
-                                    variant={brushTexture === texture.name ? 'secondary' : 'ghost'}
-                                    onClick={() => setBrushTexture(texture.name)}
-                                    title={texture.label}
-                                >
-                                    <texture.icon className="h-4 w-4 mr-1.5" />
-                                    {texture.label}
-                                </Button>
-                            ))}
-                        </div>
-                    </div>
-                )}
-                
                  {/* Buttons Row */}
                 <div className="grid grid-cols-6 gap-1">
                     <Button title="Paintbrush" variant={selectedTool === 'brush' ? 'secondary' : 'ghost'} onClick={() => setSelectedTool('brush')} size="icon"><Paintbrush /></Button>
                     <Button title="Eraser" variant={selectedTool === 'eraser' ? 'secondary' : 'ghost'} onClick={() => setSelectedTool('eraser')} size="icon"><Eraser /></Button>
-                    <Input aria-label="Brush Color" type="color" value={brushColor} onChange={(e) => setBrushColor(e.target.value)} className="p-0 h-10 w-10 border-none rounded-lg bg-transparent" disabled={selectedTool === 'eraser'}/>
+                    
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <Button title="Brush Properties" variant="ghost" size="icon" disabled={selectedTool === 'eraser'}>
+                                <Palette />
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto" side="top">
+                             <div className="space-y-4 p-2">
+                                <div className="space-y-2">
+                                    <Label>Color</Label>
+                                    <Input type="color" value={brushColor} onChange={(e) => setBrushColor(e.target.value)} className="p-1 h-10 w-full" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Texture</Label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {brushTextures.map((texture) => (
+                                            <Button
+                                                key={texture.name}
+                                                size="sm"
+                                                className="h-8 capitalize flex-shrink-0"
+                                                variant={brushTexture === texture.name ? 'secondary' : 'ghost'}
+                                                onClick={() => setBrushTexture(texture.name)}
+                                                title={texture.label}
+                                            >
+                                                <texture.icon className="h-4 w-4 mr-1.5" />
+                                                {texture.label}
+                                            </Button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </PopoverContent>
+                    </Popover>
+
                     <Button variant="ghost" size="icon" onClick={togglePlay} title={isPlaying ? 'Pause' : 'Play'}>{isPlaying ? <Pause /> : <Play />}</Button>
                     <Button variant="ghost" onClick={addFrame} size="icon" title="Add Frame"><PlusSquare /></Button>
                     <Button variant="ghost" onClick={handleManualSave} disabled={isSaving} size="icon" title="Save">{isSaving ? <Loader2 className="animate-spin" /> : <Save />}</Button>
