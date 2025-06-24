@@ -17,6 +17,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useAutosave } from '@/hooks/useAutosave';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
+import { FFmpeg } from '@ffmpeg/ffmpeg';
+import { fetchFile, toBlobURL } from '@ffmpeg/util';
 
 type Tool = 'brush' | 'eraser';
 type BrushTexture = 'solid' | 'pencil' | 'sketchy' | 'spray' | 'ink' | 'charcoal' | 'marker' | 'calligraphy';
@@ -43,6 +45,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
     const [animation, setAnimation] = useState<AnimationProject | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isExporting, setIsExporting] = useState(false);
+    const [ffmpegLoaded, setFfmpegLoaded] = useState(false);
 
     // Editor state
     const [selectedTool, setSelectedTool] = useState<Tool>('brush');
@@ -59,6 +62,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
     const isDrawingRef = useRef(false);
     const playbackFrameRef = useRef<number>(0);
     const lastPointRef = useRef<{ x: number, y: number } | null>(null);
+    const ffmpegRef = useRef(new FFmpeg());
     
     // Ref to hold the latest animation data to prevent state dependency loops
     const animationRef = useRef<AnimationProject | null>(null);
@@ -137,7 +141,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                 drawFrameOnCanvas(currentFrameIndex);
             }
         }
-    }, [animation, drawFrameOnCanvas, currentFrameIndex]); // Added currentFrameIndex to redraw on canvas resize if needed
+    }, [animation, drawFrameOnCanvas, currentFrameIndex]);
 
     // 3. Effect for re-drawing frame on canvas
     useEffect(() => {
@@ -145,6 +149,30 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
             drawFrameOnCanvas(currentFrameIndex);
         }
     }, [currentFrameIndex, drawFrameOnCanvas, animation]);
+
+    // 4. Effect for loading FFMPEG
+    useEffect(() => {
+        const load = async () => {
+            const ffmpeg = ffmpegRef.current;
+            ffmpeg.on('log', ({ type, message }) => {
+                console.log(`ffmpeg: ${type}: ${message}`);
+            });
+            const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm';
+            try {
+                if (!ffmpeg.loaded) {
+                    await ffmpeg.load({
+                        coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+                        wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+                    });
+                }
+                setFfmpegLoaded(true);
+            } catch (err) {
+                console.error("Failed to load ffmpeg", err);
+                toast({ title: "Encoder Error", description: "Could not load video encoder. Export will not work.", variant: "destructive"});
+            }
+        };
+        load();
+    }, [toast]);
 
 
     // --- STATE COMMIT AND SAVE LOGIC ---
@@ -440,30 +468,74 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
     // --- EXPORT ---
     const handleExport = async () => {
         if (!animation) return;
+        if (!ffmpegLoaded) {
+            toast({
+              title: "Encoder Not Ready",
+              description: `The video encoder is still loading. Please try again in a moment.`,
+              variant: "destructive"
+            });
+            return;
+        }
+
         setIsExporting(true);
         toast({
           title: "Starting Export",
-          description: `Your animation "${animation.name}" is being prepared as an MP4.`,
+          description: `Preparing "${animation.name}" as an MP4. This may take a while...`,
         });
     
-        // In a real application, this is where you would use a library like ffmpeg.wasm
-        // or send the frames to a server-side rendering service.
-        // For now, we simulate the process to provide the UI and workflow.
-        console.log("Simulating MP4 export process...");
-        console.log(`Frames to export: ${animation.frames.length}`);
-        console.log(`FPS: ${animation.fps}`);
-    
-        await new Promise(resolve => setTimeout(resolve, 4000)); // Simulate a 4-second export time
-    
-        const fileName = `${animation.name.replace(/ /g, '_')}.mp4`;
-        console.log(`Export finished. Simulated file: ${fileName}`);
-    
-        toast({
-          title: "Export Complete!",
-          description: `"${fileName}" has been downloaded.`,
-        });
-        setIsExporting(false);
+        try {
+            const ffmpeg = ffmpegRef.current;
+
+            // Write frames to virtual file system
+            toast({ title: "Processing frames...", description: `Preparing ${animation.frames.length} frames for encoding.` });
+            for (let i = 0; i < animation.frames.length; i++) {
+                const frameDataUrl = animation.frames[i];
+                const fileName = `frame-${String(i).padStart(4, '0')}.png`;
+                await ffmpeg.writeFile(fileName, await fetchFile(frameDataUrl));
+            }
+
+            // Run ffmpeg command
+            toast({ title: "Encoding video...", description: "This is the most intensive step. Your browser may be slow." });
+            await ffmpeg.exec([
+                '-framerate', String(animation.fps),
+                '-i', 'frame-%04d.png',
+                '-c:v', 'libx264',
+                '-pix_fmt', 'yuv420p', // For broad compatibility
+                '-preset', 'ultrafast', // To make it faster
+                '-r', '30', // Output frame rate
+                'output.mp4'
+            ]);
+
+            // Read result and trigger download
+            toast({ title: "Finalizing...", description: "Preparing your video for download." });
+            const data = await ffmpeg.readFile('output.mp4');
+            const blob = new Blob([(data as Uint8Array).buffer], { type: 'video/mp4' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${animation.name.replace(/ /g, '_')}.mp4`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            toast({
+              title: "Export Complete!",
+              description: `"${a.download}" has been downloaded.`,
+            });
+        
+        } catch (error: any) {
+            console.error("Error during MP4 export:", error);
+            toast({
+                title: "Export Failed",
+                description: `An error occurred: ${error.message || 'Check console for details.'}`,
+                variant: "destructive"
+            });
+        } finally {
+            setIsExporting(false);
+        }
       };
+
 
     if (isLoading || authLoading) {
         return (
@@ -496,9 +568,11 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                         <Save className="h-4 w-4 sm:mr-2" />
                         <span className="hidden sm:inline">Save</span>
                     </Button>
-                     <Button onClick={handleExport} disabled={isSaving || isExporting} size="sm">
-                        {isExporting ? <Loader2 className="h-4 w-4 animate-spin sm:mr-2" /> : <Download className="h-4 w-4 sm:mr-2" />}
-                        <span className="hidden sm:inline">{isExporting ? 'Exporting...' : 'Export'}</span>
+                     <Button onClick={handleExport} disabled={isSaving || isExporting || !ffmpegLoaded} size="sm">
+                        {isExporting ? <Loader2 className="h-4 w-4 animate-spin sm:mr-2" /> : (ffmpegLoaded ? <Download className="h-4 w-4 sm:mr-2" /> : <Loader2 className="h-4 w-4 animate-spin sm:mr-2" />)}
+                        <span className="hidden sm:inline">
+                            {isExporting ? 'Exporting...' : (ffmpegLoaded ? 'Export' : 'Encoder Loading...')}
+                        </span>
                     </Button>
                 </div>
             </header>
@@ -570,7 +644,12 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                             onMouseUp={finishDrawing}
                             onMouseLeave={finishDrawing}
                             onMouseMove={draw}
-                            className="bg-white shadow-lg cursor-crosshair max-w-full max-h-full"
+                            className="bg-white shadow-lg cursor-crosshair"
+                            style={{ 
+                                aspectRatio: `${animation.width}/${animation.height}`,
+                                maxHeight: '100%',
+                                maxWidth: '100%'
+                            }}
                         />
                     </div>
                     {/* Frame Timeline */}
