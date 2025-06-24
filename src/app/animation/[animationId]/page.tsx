@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from "@/components/ui/label";
-import { Loader2, ArrowLeft, Brush, Eraser, Play, Pause, PlusSquare, Trash2, Copy, Save, Palette, Paintbrush } from 'lucide-react';
+import { Loader2, ArrowLeft, Paintbrush, Eraser, Play, Pause, PlusSquare, Trash2, Copy, Save, Palette } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { useAutosave } from '@/hooks/useAutosave';
 import { cn } from '@/lib/utils';
@@ -122,7 +122,7 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                 drawFrameOnCanvas(currentFrameIndex);
             }
         }
-    }, [animation]); // Runs once when animation data is first loaded
+    }, [animation, drawFrameOnCanvas]); // Keep drawFrameOnCanvas dependency
 
     // 3. Effect for re-drawing frame on canvas
     useEffect(() => {
@@ -348,36 +348,6 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
     }
     if (!animation) return null;
 
-    // Reusable component for tool controls
-    const EditorToolbar = () => (
-         <div className="flex flex-col gap-4 h-full">
-            <div className="grid grid-cols-2 gap-2">
-                <Button title="Brush" variant={selectedTool === 'brush' ? 'default' : 'outline'} onClick={() => setSelectedTool('brush')} size="icon"><Brush /></Button>
-                <Button title="Eraser" variant={selectedTool === 'eraser' ? 'default' : 'outline'} onClick={() => setSelectedTool('eraser')} size="icon"><Eraser /></Button>
-            </div>
-            <div className="space-y-2">
-                <Label>Color</Label>
-                <Input type="color" value={brushColor} onChange={(e) => setBrushColor(e.target.value)} className="p-1 h-10 w-full" disabled={selectedTool === 'eraser'}/>
-            </div>
-             <div className="space-y-2">
-                <Label>Texture</Label>
-                <div className="grid grid-cols-3 gap-1">
-                    <Button title="Solid" variant={brushTexture === 'solid' ? 'default' : 'outline'} onClick={() => setBrushTexture('solid')} size="sm">Solid</Button>
-                    <Button title="Pencil" variant={brushTexture === 'pencil' ? 'default' : 'outline'} onClick={() => setBrushTexture('pencil')} size="sm">Pencil</Button>
-                    <Button title="Spray" variant={brushTexture === 'spray' ? 'default' : 'outline'} onClick={() => setBrushTexture('spray')} size="sm">Spray</Button>
-                </div>
-            </div>
-            <div className="space-y-2">
-                <Label>Brush Size: {brushSize}</Label>
-                <Slider value={[brushSize]} onValueChange={(value) => setBrushSize(value[0])} min={1} max={50} step={1} />
-            </div>
-            <div className="space-y-2">
-                <Label>FPS: {animation.fps}</Label>
-                <Slider value={[animation.fps]} onValueChange={handleFpsChange} min={1} max={60} step={1} />
-            </div>
-        </div>
-    );
-
     return (
         <div className="flex flex-col h-full gap-2 md:gap-4 pb-48 md:pb-0">
             {/* Header */}
@@ -403,9 +373,40 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
 
             <div className="flex-grow flex flex-col md:flex-row gap-2 md:gap-4 min-h-0">
                 {/* Desktop Sidebar */}
-                <Card className="w-full md:w-64 flex-shrink-0 hidden md:flex flex-col h-auto md:h-full p-4">
+                <Card className="w-full md:w-64 flex-shrink-0 hidden md:flex flex-col p-4">
                      <h2 className="text-lg font-semibold border-b pb-2 mb-4">Tools</h2>
-                    <EditorToolbar />
+                     <div className="flex flex-col gap-4 h-full">
+                        <div className="grid grid-cols-2 gap-2">
+                            <Button title="Paintbrush" variant={selectedTool === 'brush' ? 'default' : 'outline'} onClick={() => setSelectedTool('brush')} size="icon"><Paintbrush /></Button>
+                            <Button title="Eraser" variant={selectedTool === 'eraser' ? 'default' : 'outline'} onClick={() => setSelectedTool('eraser')} size="icon"><Eraser /></Button>
+                        </div>
+
+                        {selectedTool === 'brush' && (
+                            <>
+                                <div className="space-y-2">
+                                    <Label>Color</Label>
+                                    <Input type="color" value={brushColor} onChange={(e) => setBrushColor(e.target.value)} className="p-1 h-10 w-full" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Texture</Label>
+                                    <div className="grid grid-cols-3 gap-1">
+                                        <Button title="Solid" variant={brushTexture === 'solid' ? 'default' : 'outline'} onClick={() => setBrushTexture('solid')} size="sm">Solid</Button>
+                                        <Button title="Pencil" variant={brushTexture === 'pencil' ? 'default' : 'outline'} onClick={() => setBrushTexture('pencil')} size="sm">Pencil</Button>
+                                        <Button title="Spray" variant={brushTexture === 'spray' ? 'default' : 'outline'} onClick={() => setBrushTexture('spray')} size="sm">Spray</Button>
+                                    </div>
+                                </div>
+                            </>
+                        )}
+
+                        <div className="space-y-2">
+                            <Label>Size: {brushSize}</Label>
+                            <Slider value={[brushSize]} onValueChange={(value) => setBrushSize(value[0])} min={1} max={50} step={1} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>FPS: {animation.fps}</Label>
+                            <Slider value={[animation.fps]} onValueChange={handleFpsChange} min={1} max={60} step={1} />
+                        </div>
+                    </div>
                 </Card>
 
                 {/* Main Content Area */}
@@ -475,17 +476,21 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
                         <Slider id="mobile-fps" value={[animation.fps]} onValueChange={handleFpsChange} min={1} max={60} step={1} />
                     </div>
                 </div>
-                 {/* Texture Row */}
-                <div className="px-2">
-                    <div className="grid grid-cols-3 gap-2">
-                        <Button size="sm" className="h-8" variant={brushTexture === 'solid' ? 'secondary' : 'ghost'} onClick={() => setBrushTexture('solid')}>Solid</Button>
-                        <Button size="sm" className="h-8" variant={brushTexture === 'pencil' ? 'secondary' : 'ghost'} onClick={() => setBrushTexture('pencil')}>Pencil</Button>
-                        <Button size="sm" className="h-8" variant={brushTexture === 'spray' ? 'secondary' : 'ghost'} onClick={() => setBrushTexture('spray')}>Spray</Button>
+                 
+                {/* Texture Row - Conditional */}
+                {selectedTool === 'brush' && (
+                    <div className="px-2">
+                        <div className="grid grid-cols-3 gap-2">
+                            <Button size="sm" className="h-8" variant={brushTexture === 'solid' ? 'secondary' : 'ghost'} onClick={() => setBrushTexture('solid')}>Solid</Button>
+                            <Button size="sm" className="h-8" variant={brushTexture === 'pencil' ? 'secondary' : 'ghost'} onClick={() => setBrushTexture('pencil')}>Pencil</Button>
+                            <Button size="sm" className="h-8" variant={brushTexture === 'spray' ? 'secondary' : 'ghost'} onClick={() => setBrushTexture('spray')}>Spray</Button>
+                        </div>
                     </div>
-                </div>
+                )}
+                
                  {/* Buttons Row */}
                 <div className="grid grid-cols-6 gap-1">
-                    <Button title="Brush" variant={selectedTool === 'brush' ? 'secondary' : 'ghost'} onClick={() => setSelectedTool('brush')} size="icon"><Brush /></Button>
+                    <Button title="Paintbrush" variant={selectedTool === 'brush' ? 'secondary' : 'ghost'} onClick={() => setSelectedTool('brush')} size="icon"><Paintbrush /></Button>
                     <Button title="Eraser" variant={selectedTool === 'eraser' ? 'secondary' : 'ghost'} onClick={() => setSelectedTool('eraser')} size="icon"><Eraser /></Button>
                     <Input aria-label="Brush Color" type="color" value={brushColor} onChange={(e) => setBrushColor(e.target.value)} className="p-0 h-10 w-10 border-none rounded-lg bg-transparent" disabled={selectedTool === 'eraser'}/>
                     <Button variant="ghost" size="icon" onClick={togglePlay} title={isPlaying ? 'Pause' : 'Play'}>{isPlaying ? <Pause /> : <Play />}</Button>
@@ -496,4 +501,3 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
         </div>
     );
 }
-
