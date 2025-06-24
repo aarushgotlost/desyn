@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, use } from 'react';
 import { getAnimationDetails, updateAnimationData } from "@/actions/animationActions";
 import type { AnimationProject } from "@/types/data";
 import { useAuth } from '@/contexts/AuthContext';
@@ -34,7 +34,7 @@ const brushTextures = [
 
 
 export default function AnimationEditorPage({ params }: { params: { animationId: string } }) {
-    const { animationId } = params;
+    const { animationId } = use(params);
     const { user, loading: authLoading } = useAuth();
     const router = useRouter();
     const { toast } = useToast();
