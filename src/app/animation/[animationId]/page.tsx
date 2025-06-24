@@ -567,4 +567,3 @@ export default function AnimationEditorPage({ params }: { params: { animationId:
     );
 }
 
-    
