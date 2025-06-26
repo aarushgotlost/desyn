@@ -17,9 +17,13 @@ import { useToast } from '@/hooks/use-toast';
 import { useAutosave } from '@/hooks/useAutosave';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
-import CCapture from 'ccapture.js';
 import { Progress } from '@/components/ui/progress';
 
+declare global {
+  interface Window {
+    CCapture: new (settings: any) => any;
+  }
+}
 
 type Tool = 'brush' | 'eraser';
 type BrushTexture = 'solid' | 'pencil' | 'sketchy' | 'spray' | 'ink' | 'charcoal' | 'marker' | 'calligraphy' | 'watercolor' | 'oil';
@@ -55,6 +59,7 @@ export default function AnimationEditor({ animationId }: { animationId: string }
     const [texturePopoverOpen, setTexturePopoverOpen] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
     const [exportProgress, setExportProgress] = useState(0);
+    const [exportScriptLoaded, setExportScriptLoaded] = useState(false);
 
     // Refs for canvases and drawing
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -99,7 +104,30 @@ export default function AnimationEditor({ animationId }: { animationId: string }
 
     // --- EFFECT HOOKS ---
 
-    // 1. Effect for fetching initial data
+    // 1. Effect for loading the export script
+    useEffect(() => {
+        if (window.CCapture) {
+            setExportScriptLoaded(true);
+            return;
+        }
+
+        const script = document.createElement('script');
+        script.src = 'https://unpkg.com/ccapture.js@1.1.0/build/CCapture.all.min.js';
+        script.async = true;
+
+        const onScriptLoad = () => {
+            setExportScriptLoaded(true);
+        };
+
+        script.addEventListener('load', onScriptLoad);
+        document.body.appendChild(script);
+
+        return () => {
+            script.removeEventListener('load', onScriptLoad);
+        };
+    }, []);
+
+    // 2. Effect for fetching initial data
     useEffect(() => {
         if (authLoading) return;
         if (!user) {
@@ -127,7 +155,7 @@ export default function AnimationEditor({ animationId }: { animationId: string }
         }).finally(() => setIsLoading(false));
     }, [animationId, user, authLoading, router, toast]);
 
-    // 2. Effect for setting up canvas and context
+    // 3. Effect for setting up canvas and context
     useEffect(() => {
         const canvas = canvasRef.current;
         if (animation && canvas) {
@@ -142,7 +170,7 @@ export default function AnimationEditor({ animationId }: { animationId: string }
         }
     }, [animation, drawFrameOnCanvas, currentFrameIndex]);
 
-    // 3. Effect for re-drawing frame on canvas
+    // 4. Effect for re-drawing frame on canvas
     useEffect(() => {
         if (contextRef.current && animation) {
             drawFrameOnCanvas(currentFrameIndex);
@@ -476,11 +504,15 @@ export default function AnimationEditor({ animationId }: { animationId: string }
             toast({ title: "Error", description: "Animation data not loaded.", variant: "destructive" });
             return;
         }
+        if (!exportScriptLoaded || !window.CCapture) {
+            toast({ title: "Export library not ready", description: "The export script is still loading. Please try again in a moment.", variant: "destructive" });
+            return;
+        }
         
         setIsExporting(true);
         setExportProgress(0);
     
-        const capturer = new CCapture({
+        const capturer = new window.CCapture({
             format: 'webm',
             framerate: animation.fps,
             verbose: false,
@@ -557,7 +589,7 @@ export default function AnimationEditor({ animationId }: { animationId: string }
                         {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
                         <span className="hidden sm:inline">{isSaving ? "Saving..." : "Changes saved"}</span>
                     </div>
-                    <Button onClick={handleExport} disabled={isExporting || isSaving} size="sm" variant="outline">
+                    <Button onClick={handleExport} disabled={isExporting || isSaving || !exportScriptLoaded} size="sm" variant="outline">
                         {isExporting ? (
                             <Loader2 className="h-4 w-4 sm:mr-2 animate-spin" />
                         ) : (
