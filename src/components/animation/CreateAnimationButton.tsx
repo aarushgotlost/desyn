@@ -90,7 +90,7 @@ export function CreateAnimationButton() {
                     </DialogClose>
                     <Button onClick={handleCreate} disabled={isPending || !projectName.trim()}>
                          {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Create Project
+                        Create
                     </Button>
                 </DialogFooter>
             </DialogContent>
