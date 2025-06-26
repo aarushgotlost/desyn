@@ -45,6 +45,7 @@ export default function AnimationEditor({ animationId }: { animationId: string }
     const { user, loading: authLoading } = useAuth();
     const router = useRouter();
     const { toast } = useToast();
+    const resolvedParams = use({ animationId }); // Using `use` hook correctly
 
     const [animation, setAnimation] = useState<AnimationProject | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -78,7 +79,7 @@ export default function AnimationEditor({ animationId }: { animationId: string }
         const anim = animationRef.current;
         const canvas = canvasRef.current;
 
-        if (!canvas || !anim) return;
+        if (!canvas || !anim || !anim.frames[frameIndex]) return;
         const context = canvas.getContext('2d', { willReadFrequently: true });
         if (!context) return;
         
@@ -136,7 +137,7 @@ export default function AnimationEditor({ animationId }: { animationId: string }
         }
 
         setIsLoading(true);
-        getAnimationDetails(animationId).then(data => {
+        getAnimationDetails(resolvedParams.animationId).then(data => {
             if (data && data.collaborators.includes(user.uid)) {
                 if (data.frames.length === 0) {
                     const tempCanvas = document.createElement('canvas');
@@ -153,7 +154,7 @@ export default function AnimationEditor({ animationId }: { animationId: string }
                 notFound();
             }
         }).finally(() => setIsLoading(false));
-    }, [animationId, user, authLoading, router, toast]);
+    }, [resolvedParams.animationId, user, authLoading, router, toast]);
 
     // 3. Effect for setting up canvas and context
     useEffect(() => {
@@ -499,7 +500,7 @@ export default function AnimationEditor({ animationId }: { animationId: string }
         }
     };
 
-    const handleExport = async () => {
+    const handleExport = () => {
         if (!animation || !canvasRef.current) {
             toast({ title: "Error", description: "Animation data not loaded.", variant: "destructive" });
             return;
@@ -516,50 +517,55 @@ export default function AnimationEditor({ animationId }: { animationId: string }
             format: 'webm',
             framerate: animation.fps,
             verbose: false,
-            quality: 90,
             name: animation.name.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'animation'
         });
     
-        try {
-            capturer.start();
-    
-            const canvas = canvasRef.current;
-            const context = canvas.getContext('2d');
-            if (!context) {
-                throw new Error("Could not get canvas context.");
-            }
-    
-            let frameIndex = 0;
-            for (const frameSrc of animation.frames) {
-                await new Promise<void>((resolve, reject) => {
-                    const image = new Image();
-                    image.src = frameSrc;
-                    image.onload = () => {
-                        context.clearRect(0, 0, canvas.width, canvas.height);
-                        context.drawImage(image, 0, 0);
-                        capturer.capture(canvas);
-                        frameIndex++;
-                        setExportProgress((frameIndex / animation.frames.length) * 100);
-                        resolve();
-                    };
-                    image.onerror = () => {
-                        reject(new Error(`Failed to load frame ${frameIndex} for export.`));
-                    };
-                });
-            }
-    
-            capturer.stop();
-            capturer.save();
-            toast({ title: "Export Started", description: "Your video download should begin shortly." });
-    
-        } catch (error: any) {
-            console.error("Export failed:", error);
-            toast({ title: "Export Failed", description: error.message || "An unknown error occurred during export.", variant: "destructive" });
-        } finally {
+        const canvas = canvasRef.current;
+        const context = canvas.getContext('2d');
+        if (!context) {
+            toast({ title: "Error", description: "Could not get canvas context.", variant: "destructive" });
             setIsExporting(false);
-            setExportProgress(0);
-            drawFrameOnCanvas(currentFrameIndex);
+            return;
         }
+
+        let frameIndex = 0;
+        const frames = [...animation.frames];
+        const totalFrames = frames.length;
+
+        capturer.start();
+
+        const drawAndCapture = () => {
+            if (frameIndex >= totalFrames) {
+                capturer.stop();
+                capturer.save();
+                
+                toast({ title: "Export Finished", description: "Your video download should begin shortly." });
+                setIsExporting(false);
+                setExportProgress(0);
+                drawFrameOnCanvas(currentFrameIndex); 
+                return;
+            }
+
+            const image = new Image();
+            image.onload = () => {
+                context.clearRect(0, 0, canvas.width, canvas.height);
+                context.drawImage(image, 0, 0);
+                capturer.capture(canvas);
+                setExportProgress(((frameIndex + 1) / totalFrames) * 100);
+
+                frameIndex++;
+                requestAnimationFrame(drawAndCapture);
+            };
+            image.onerror = () => {
+                toast({ title: "Export Failed", description: `Failed to load image for frame ${frameIndex + 1}.`, variant: "destructive" });
+                setIsExporting(false);
+                capturer.stop(); // Stop the capturer on error
+            };
+            
+            image.src = frames[frameIndex];
+        };
+
+        requestAnimationFrame(drawAndCapture);
     };
 
     if (isLoading || authLoading) {
