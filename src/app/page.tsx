@@ -78,9 +78,8 @@ export default async function HomePage() {
                       <Image 
                         src={post.imageURL} 
                         alt={post.title || "Post image"}
-                        layout="fill"
-                        objectFit="cover"
-                        className="transition-transform duration-300 group-hover:scale-105"
+                        fill
+                        className="object-cover transition-transform duration-300 group-hover:scale-105"
                         data-ai-hint="post image content"
                       />
                     </div>

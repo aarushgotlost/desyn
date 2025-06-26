@@ -87,8 +87,8 @@ export default async function PostDetailsPage({ params }: { params: { postId: st
             <Image 
               src={post.imageURL} 
               alt={post.title || "Post image"} 
-              layout="fill"
-              objectFit="cover"
+              fill
+              className="object-cover"
               priority
               data-ai-hint="post image large detail"
             />
