@@ -496,8 +496,7 @@ export default function AnimationEditor({ animationId }: { animationId: string }
                 });
                 
                 setExportMessage("Initializing FFmpeg Core...");
-                // Use unpkg CDN as a reliable source for the core files to bypass local serving issues.
-                const baseURL = "https://unpkg.com/@ffmpeg/core@0.12.10/dist/esm";
+                const baseURL = "https://unpkg.com/@ffmpeg/core@0.12.4/dist/esm";
                 await ffmpeg.load({
                     coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
                     wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
@@ -523,8 +522,6 @@ export default function AnimationEditor({ animationId }: { animationId: string }
                 '-i', 'frame-%04d.png',
                 '-c:v', 'libx264',
                 '-pix_fmt', 'yuv420p',
-                '-preset', 'slow',
-                '-crf', '22',
                 'output.mp4'
             ]);
 
@@ -768,5 +765,3 @@ export default function AnimationEditor({ animationId }: { animationId: string }
         </div>
     );
 }
-
-    
