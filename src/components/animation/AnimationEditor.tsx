@@ -451,7 +451,7 @@ export default function AnimationEditor({ animationId }: { animationId: string }
         if (isPlaying || index === currentFrameIndex) return;
         commitCurrentCanvasToState();
         setCurrentFrameIndex(index);
-    }
+    };
 
     // --- PLAYBACK & EXPORT ---
 
@@ -561,9 +561,9 @@ export default function AnimationEditor({ animationId }: { animationId: string }
             capturer.save();
     
             toast({ title: "Export Finished", description: "Your video download should begin shortly." });
-        } catch (error) {
+        } catch (error: any) {
             console.error("Export failed:", error);
-            toast({ title: "Export Failed", description: "Could not export the video. A frame may be corrupted or an error occurred.", variant: "destructive" });
+            toast({ title: "Export Failed", description: error.message || 'Could not export the video. A frame may be corrupted or an error occurred.', variant: "destructive" });
             try {
                 capturer.stop();
             } catch (e) {
@@ -629,7 +629,7 @@ export default function AnimationEditor({ animationId }: { animationId: string }
                      <div className="flex flex-col gap-4 h-full">
                         <div className="grid grid-cols-2 gap-2">
                             <Button title="Paintbrush" variant={selectedTool === 'brush' ? 'secondary' : 'outline'} onClick={() => setSelectedTool('brush')} size="icon"><Paintbrush /></Button>
-                            <Button title="Eraser" variant={selectedTool === 'eraser' ? 'secondary' : 'outline'} onClick={()={() => setSelectedTool('eraser')} size="icon"><Eraser /></Button>
+                            <Button title="Eraser" variant={selectedTool === 'eraser' ? 'secondary' : 'outline'} onClick={() => setSelectedTool('eraser')} size="icon"><Eraser /></Button>
                         </div>
 
                         {selectedTool === 'brush' && (
@@ -801,4 +801,3 @@ export default function AnimationEditor({ animationId }: { animationId: string }
         </div>
     );
 }
-
