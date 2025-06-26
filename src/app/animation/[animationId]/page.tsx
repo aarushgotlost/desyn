@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic'
 import { Skeleton } from '@/components/ui/skeleton'
+import { use } from 'react';
 
 // Dynamically import the editor component with SSR turned off.
 // This is the standard Next.js way to handle components that can only run in the browser.
@@ -34,7 +35,7 @@ const AnimationEditor = dynamic(
 )
 
 export default function AnimationEditorPage({ params }: { params: { animationId:string } }) {
-  // We pass the animationId to the client component. `use(params)` was causing issues,
-  // so we revert to direct access which is still supported for migration.
-  return <AnimationEditor animationId={params.animationId} />
+  // Use the `use` hook to unwrap the params promise, which is the recommended Next.js approach.
+  const resolvedParams = use(params);
+  return <AnimationEditor animationId={resolvedParams.animationId} />
 }
