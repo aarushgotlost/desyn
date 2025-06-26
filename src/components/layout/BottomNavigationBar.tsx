@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { HomeIcon, PlusCircle, MessageSquare, User as UserIcon, Compass, Clapperboard } from 'lucide-react'; 
+import { HomeIcon, PlusCircle, User as UserIcon, Compass, Clapperboard } from 'lucide-react'; 
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -11,9 +11,9 @@ import { getInitials } from '@/lib/utils';
 
 const navItems = [
   { href: "/", label: "Home", icon: HomeIcon, authRequired: false },
+  { href: "/animation", label: "Desyn2d", icon: Clapperboard, authRequired: true },
   { href: "/communities", label: "Discover", icon: Compass, authRequired: false },
   { href: "/posts/create", label: "Create", icon: PlusCircle, authRequired: true },
-  { href: "/messages", label: "Messages", icon: MessageSquare, authRequired: true },
   { href: "/profile", label: "Profile", icon: UserIcon, authRequired: true, isProfile: true }, 
 ];
 
@@ -59,7 +59,7 @@ export function BottomNavigationBar() {
                             !(item.href === "/messages" && isChatDetailPage) &&
                             !(item.href === "/animation" && isAnimationEditorPage)
                            );
-          if (item.href === "/animation" && isAnimationEditorPage) isActive = true;
+          if (item.href === "/animation" && (pathname === '/animation' || isAnimationEditorPage)) isActive = true;
           
           return (
             <Link

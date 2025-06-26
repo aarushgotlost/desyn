@@ -26,9 +26,9 @@ export default function Header() {
 
   const navLinks = [
     { href: "/", label: "Home", icon: HomeIcon, authRequired: false },
+    { href: "/animation", label: "Desyn2d", icon: Clapperboard, authRequired: true },
     { href: "/communities", label: "Discover", icon: Compass, authRequired: false },
     { href: "/posts/create", label: "Create Post", icon: PlusCircle, authRequired: true },
-    { href: "/messages", label: "Messages", icon: MessageSquare, authRequired: true },
   ];
 
   const authRestrictedPages = ['/login', '/signup', '/forgot-password', '/onboarding', '/onboarding/profile-setup'];
@@ -48,10 +48,14 @@ export default function Header() {
         <nav className="hidden md:flex items-center space-x-6 text-sm font-medium">
           {navLinks.map(link => {
             if (link.authRequired && !user) return null;
-            const isActive = (link.href === "/" && pathname === link.href) || 
-                             (link.href !== "/" && pathname.startsWith(link.href) && 
-                              !(link.href === "/messages" && pathname.includes("/messages/"))
+            const isAnimationEditorPage = pathname.startsWith('/animation/') && pathname.split('/').length > 2;
+            let isActive = (link.href === "/" && pathname === link.href) || 
+                             (link.href !== "/" && pathname.startsWith(link.href) &&
+                              !isAnimationEditorPage
                              );
+            if(link.href === '/animation' && (pathname === '/animation' || isAnimationEditorPage)) {
+              isActive = true;
+            }
             
             return (
               <Link
@@ -77,6 +81,11 @@ export default function Header() {
               <Button variant="ghost" size="icon" asChild className="h-8 w-8 rounded-full" aria-label="Open DevBot">
                 <Link href="/chatbot">
                   <Bot className="h-5 w-5" />
+                </Link>
+              </Button>
+              <Button variant="ghost" size="icon" asChild className="h-8 w-8 rounded-full" aria-label="Open Messages">
+                <Link href="/messages">
+                  <MessageSquare className="h-5 w-5" />
                 </Link>
               </Button>
               <NotificationIcon /> 
