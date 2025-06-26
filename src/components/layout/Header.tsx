@@ -28,6 +28,7 @@ export default function Header() {
     { href: "/animation", label: "Desyn2d", icon: Clapperboard, authRequired: true },
     { href: "/posts/create", label: "Create Post", icon: PlusCircle, authRequired: true },
     { href: "/communities", label: "Discover", icon: Compass, authRequired: false },
+    { href: "/messages", label: "Messages", icon: MessageSquare, authRequired: true },
   ];
 
   const authRestrictedPages = ['/login', '/signup', '/forgot-password', '/onboarding', '/onboarding/profile-setup'];
@@ -82,7 +83,7 @@ export default function Header() {
                   <Bot className="h-5 w-5" />
                 </Link>
               </Button>
-              <Button variant="ghost" size="icon" asChild className="h-8 w-8 rounded-full" aria-label="Open Messages">
+              <Button variant="ghost" size="icon" asChild className="md:hidden h-8 w-8 rounded-full" aria-label="Open Messages">
                 <Link href="/messages">
                   <MessageSquare className="h-5 w-5" />
                 </Link>
