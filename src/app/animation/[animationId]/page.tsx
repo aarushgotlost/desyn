@@ -18,6 +18,7 @@ const AnimationEditor = dynamic(
           <div className="flex items-center gap-2">
             <Skeleton className="h-9 w-24" />
             <Skeleton className="h-9 w-24" />
+            <Skeleton className="h-9 w-24" />
           </div>
         </header>
         <div className="flex-grow flex flex-col md:flex-row gap-2 md:gap-4 min-h-0">
@@ -33,7 +34,7 @@ const AnimationEditor = dynamic(
 )
 
 export default function AnimationEditorPage({ params }: { params: { animationId:string } }) {
-  // Although Next.js recommends using React.use(), direct access is still supported.
-  // Reverting to direct access to resolve a "Failed to fetch" runtime error.
+  // We pass the animationId to the client component. `use(params)` was causing issues,
+  // so we revert to direct access which is still supported for migration.
   return <AnimationEditor animationId={params.animationId} />
 }
