@@ -11,14 +11,12 @@ import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from "@/components/ui/label";
-import { Loader2, ArrowLeft, Paintbrush, Eraser, Play, Pause, PlusSquare, Trash2, Copy, Save, Palette, PenTool, Feather, Minus, Pencil as PencilIcon, SprayCan, Highlighter, Baseline, Edit3, Paintbrush2, Brush, Video } from 'lucide-react';
+import { Loader2, ArrowLeft, Paintbrush, Eraser, Play, Pause, PlusSquare, Trash2, Copy, Save, Palette, PenTool, Feather, Minus, Pencil as PencilIcon, SprayCan, Highlighter, Baseline, Edit3, Paintbrush2, Brush } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from '@/hooks/use-toast';
 import { useAutosave } from '@/hooks/useAutosave';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
-import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { fetchFile, toBlobURL } from '@ffmpeg/util';
 
 type Tool = 'brush' | 'eraser';
 type BrushTexture = 'solid' | 'pencil' | 'sketchy' | 'spray' | 'ink' | 'charcoal' | 'marker' | 'calligraphy' | 'watercolor' | 'oil';
@@ -51,7 +49,6 @@ export default function AnimationEditor({ animationId }: { animationId: string }
     const [brushSize, setBrushSize] = useState(5);
     const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
     const [isPlaying, setIsPlaying] = useState(false);
-    const [isExporting, setIsExporting] = useState(false);
     const [texturePopoverOpen, setTexturePopoverOpen] = useState(false);
     
     // Refs for canvases and drawing
@@ -60,7 +57,6 @@ export default function AnimationEditor({ animationId }: { animationId: string }
     const isDrawingRef = useRef(false);
     const playbackFrameRef = useRef<number>(0);
     const lastPointRef = useRef<{ x: number, y: number } | null>(null);
-    const ffmpegRef = useRef(new FFmpeg());
     
     // Ref to hold the latest animation data to prevent state dependency loops
     const animationRef = useRef<AnimationProject | null>(null);
@@ -470,61 +466,6 @@ export default function AnimationEditor({ animationId }: { animationId: string }
         }
     };
 
-    const handleExport = async () => {
-        if (!animation || isExporting) return;
-
-        toast({ title: "Starting Export...", description: "This may take a moment. Please stay on the page." });
-        setIsExporting(true);
-
-        try {
-            const ffmpeg = ffmpegRef.current;
-            const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm';
-
-            // Load the single-threaded version of FFmpeg core
-            if (!ffmpeg.loaded) {
-                await ffmpeg.load({
-                    coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-                    wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-                });
-            }
-            
-            // Write each frame to the virtual file system
-            for (let i = 0; i < animation.frames.length; i++) {
-                const frameDataUrl = animation.frames[i];
-                const fileName = `frame-${String(i).padStart(4, '0')}.png`;
-                await ffmpeg.writeFile(fileName, await fetchFile(frameDataUrl));
-            }
-
-            // Run the FFmpeg command
-            await ffmpeg.exec([
-                '-framerate', String(animation.fps),
-                '-i', 'frame-%04d.png',
-                '-c:v', 'libx264',
-                '-pix_fmt', 'yuv420p',
-                'output.mp4'
-            ]);
-
-            // Read the result and trigger download
-            const data = await ffmpeg.readFile('output.mp4');
-            const url = URL.createObjectURL(new Blob([data], { type: 'video/mp4' }));
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${animation.name}.mp4`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            
-            toast({ title: "Export Successful!", description: "Your video has been downloaded." });
-
-        } catch (error) {
-            console.error("Export failed:", error);
-            toast({ title: "Export Failed", description: "Could not export the video. Check console for details.", variant: "destructive" });
-        } finally {
-            setIsExporting(false);
-        }
-    };
-
     if (isLoading || authLoading) {
         return (
             <div className="flex justify-center items-center h-full">
@@ -555,10 +496,6 @@ export default function AnimationEditor({ animationId }: { animationId: string }
                     <Button onClick={handleManualSave} disabled={isSaving} size="sm">
                         <Save className="h-4 w-4 sm:mr-2" />
                         <span className="hidden sm:inline">Save</span>
-                    </Button>
-                     <Button onClick={handleExport} disabled={isExporting} size="sm">
-                        {isExporting ? <Loader2 className="h-4 w-4 sm:mr-2 animate-spin" /> : <Video className="h-4 w-4 sm:mr-2" />}
-                        <span className="hidden sm:inline">{isExporting ? "Exporting..." : "Export Video"}</span>
                     </Button>
                 </div>
             </header>
