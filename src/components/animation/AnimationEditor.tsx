@@ -248,16 +248,20 @@ export default function AnimationEditor({ animationId }: { animationId: string }
         const scaleY = e.currentTarget.height / rect.height;
         const x = (e.clientX - rect.left) * scaleX;
         const y = (e.clientY - rect.top) * scaleY;
+
+        const dist = Math.hypot(x - lastPointRef.current.x, y - lastPointRef.current.y);
+        const speed = Math.min(dist * 0.7, brushSize * 1.5);
         
         const currentDrawMode = selectedTool === 'eraser' ? 'solid' : brushTexture;
 
         context.globalAlpha = 1.0;
         context.lineCap = 'round';
         context.lineJoin = 'round';
+        context.strokeStyle = brushColor;
+        context.fillStyle = brushColor;
 
         switch(currentDrawMode) {
             case 'spray':
-                context.fillStyle = brushColor;
                 const sprayDensity = Math.round(brushSize) + 20;
                 for (let i = 0; i < sprayDensity; i++) {
                     const sprayRadius = brushSize * 0.75;
@@ -272,123 +276,119 @@ export default function AnimationEditor({ animationId }: { animationId: string }
                 context.beginPath();
                 context.moveTo(lastPointRef.current.x, lastPointRef.current.y);
                 context.lineTo(x, y);
-                context.strokeStyle = brushColor;
-                context.lineWidth = brushSize * (Math.random() * 0.3 + 0.8);
-                context.globalAlpha = Math.random() * 0.3 + 0.7;
+                context.lineWidth = brushSize * (Math.random() * 0.25 + 0.75);
+                context.globalAlpha = Math.random() * 0.4 + 0.6;
                 context.stroke();
+                context.globalAlpha = 1.0;
                 break;
             case 'sketchy':
                 context.lineCap = 'round';
                 context.lineJoin = 'round';
-                context.strokeStyle = brushColor;
-                context.globalAlpha = 0.3; // low alpha for buildup
+                context.globalAlpha = 0.25; 
                 const sketchyLines = 3;
                 for (let i = 0; i < sketchyLines; i++) {
                     context.beginPath();
-                    const offsetX1 = (Math.random() - 0.5) * brushSize * 0.5;
-                    const offsetY1 = (Math.random() - 0.5) * brushSize * 0.5;
-                    if (lastPointRef.current) {
-                        context.moveTo(lastPointRef.current.x + offsetX1, lastPointRef.current.y + offsetY1);
-                    }
-
-                    const offsetX2 = (Math.random() - 0.5) * brushSize * 0.5;
-                    const offsetY2 = (Math.random() - 0.5) * brushSize * 0.5;
+                    const offsetX1 = (Math.random() - 0.5) * brushSize * 0.6;
+                    const offsetY1 = (Math.random() - 0.5) * brushSize * 0.6;
+                    context.moveTo(lastPointRef.current.x + offsetX1, lastPointRef.current.y + offsetY1);
+                    
+                    const offsetX2 = (Math.random() - 0.5) * brushSize * 0.6;
+                    const offsetY2 = (Math.random() - 0.5) * brushSize * 0.6;
                     context.lineTo(x + offsetX2, y + offsetY2);
                     
-                    context.lineWidth = brushSize * (Math.random() * 0.5 + 0.5);
+                    context.lineWidth = brushSize * (Math.random() * 0.4 + 0.6);
                     context.stroke();
                 }
-                context.globalAlpha = 1.0; // reset alpha
+                context.globalAlpha = 1.0; 
                 break;
             case 'ink':
                 context.beginPath();
                 context.moveTo(lastPointRef.current.x, lastPointRef.current.y);
                 context.lineTo(x, y);
-                context.strokeStyle = brushColor;
-                context.lineWidth = brushSize * (Math.random() * 0.1 + 0.95);
+                const minInkWidth = brushSize * 0.1;
+                const maxInkWidth = brushSize;
+                context.lineWidth = Math.max(maxInkWidth - speed, minInkWidth);
                 context.stroke();
                 break;
             case 'charcoal':
                 context.lineCap = 'butt';
                 context.lineJoin = 'miter';
-                context.strokeStyle = brushColor;
-                context.globalAlpha = 0.08;
-                const charcoalDensity = brushSize * 1.5;
+                context.globalAlpha = 0.05;
+                const charcoalDensity = brushSize * 2;
                 for (let i = 0; i < charcoalDensity; i++) {
                     context.beginPath();
-                    const moveOffsetX = (Math.random() - 0.5) * brushSize * 1.2;
-                    const moveOffsetY = (Math.random() - 0.5) * brushSize * 1.2;
+                    const moveOffsetX = (Math.random() - 0.5) * brushSize * 1.5;
+                    const moveOffsetY = (Math.random() - 0.5) * brushSize * 1.5;
                     context.moveTo(lastPointRef.current.x + moveOffsetX, lastPointRef.current.y + moveOffsetY);
 
-                    const lineOffsetX = (Math.random() - 0.5) * brushSize * 1.2;
-                    const lineOffsetY = (Math.random() - 0.5) * brushSize * 1.2;
+                    const lineOffsetX = (Math.random() - 0.5) * brushSize * 1.5;
+                    const lineOffsetY = (Math.random() - 0.5) * brushSize * 1.5;
                     context.lineTo(x + lineOffsetX, y + lineOffsetY);
                     
-                    context.lineWidth = Math.random() * (brushSize * 0.8);
+                    context.lineWidth = Math.random() * (brushSize * 0.7);
                     context.stroke();
                 }
+                context.globalAlpha = 1.0;
                 break;
             case 'marker':
-                context.globalAlpha = 0.6; // Semi-transparent
+                context.globalAlpha = 0.65;
+                context.lineCap = 'butt';
                 context.beginPath();
                 context.moveTo(lastPointRef.current.x, lastPointRef.current.y);
                 context.lineTo(x, y);
-                context.strokeStyle = brushColor;
                 context.lineWidth = brushSize;
                 context.stroke();
-                context.globalAlpha = 1.0; // Reset alpha
+                context.globalAlpha = 1.0;
                 break;
             case 'calligraphy':
                 const dx = x - lastPointRef.current.x;
                 const dy = y - lastPointRef.current.y;
                 const angle = Math.atan2(dy, dx);
-                // Vary width based on angle to simulate a broad-nib pen
-                const width = Math.abs(Math.sin(angle * 2)) * brushSize + (brushSize * 0.2); 
+                const width = Math.abs(Math.sin(angle * 2.5)) * brushSize + (brushSize * 0.25); 
 
                 context.beginPath();
                 context.moveTo(lastPointRef.current.x, lastPointRef.current.y);
                 context.lineTo(x, y);
-                context.strokeStyle = brushColor;
                 context.lineWidth = width;
                 context.stroke();
                 break;
             case 'watercolor':
-                context.globalAlpha = 0.15; // Low alpha for blending
-                context.beginPath();
-                context.moveTo(lastPointRef.current.x, lastPointRef.current.y);
-                context.lineTo(x, y);
-                context.strokeStyle = brushColor;
-                context.lineWidth = brushSize;
-                context.stroke();
-                context.globalAlpha = 1.0; // Reset alpha
+                context.globalAlpha = 0.08; 
+                const waterSteps = Math.ceil(dist / (brushSize / 4));
+                for(let i=0; i < waterSteps; i++) {
+                    const stepX = lastPointRef.current.x + (x - lastPointRef.current.x) * (i / waterSteps);
+                    const stepY = lastPointRef.current.y + (y - lastPointRef.current.y) * (i / waterSteps);
+                    context.beginPath();
+                    context.arc(stepX, stepY, brushSize * (Math.random() * 0.5 + 0.5), 0, Math.PI*2);
+                    context.fill();
+                }
+                context.globalAlpha = 1.0;
                 break;
             case 'oil':
                 context.lineCap = 'round';
                 context.lineJoin = 'round';
-                const oilSegments = 5;
+                const oilSegments = 10;
                 for (let i = 0; i < oilSegments; i++) {
                     context.beginPath();
-                    const moveOffsetX = (Math.random() - 0.5) * brushSize * 0.4;
-                    const moveOffsetY = (Math.random() - 0.5) * brushSize * 0.4;
+                    const moveOffsetX = (Math.random() - 0.5) * brushSize * 0.5;
+                    const moveOffsetY = (Math.random() - 0.5) * brushSize * 0.5;
                     context.moveTo(lastPointRef.current.x + moveOffsetX, lastPointRef.current.y + moveOffsetY);
 
-                    const lineOffsetX = (Math.random() - 0.5) * brushSize * 0.4;
-                    const lineOffsetY = (Math.random() - 0.5) * brushSize * 0.4;
+                    const lineOffsetX = (Math.random() - 0.5) * brushSize * 0.5;
+                    const lineOffsetY = (Math.random() - 0.5) * brushSize * 0.5;
                     context.lineTo(x + lineOffsetX, y + lineOffsetY);
                     
-                    context.strokeStyle = brushColor;
-                    context.lineWidth = brushSize * (Math.random() * 0.6 + 0.4);
-                    context.globalAlpha = Math.random() * 0.5 + 0.5; // vary alpha for texture
+                    context.lineWidth = brushSize * (Math.random() * 0.7 + 0.3);
+                    context.globalAlpha = Math.random() * 0.6 + 0.4;
                     context.stroke();
                 }
-                context.globalAlpha = 1.0; // reset alpha
+                context.globalAlpha = 1.0;
                 break;
             case 'solid':
             default:
                 context.beginPath();
                 context.moveTo(lastPointRef.current.x, lastPointRef.current.y);
                 context.lineTo(x, y);
-                context.strokeStyle = brushColor;
                 context.lineWidth = brushSize;
                 context.stroke();
                 break;
