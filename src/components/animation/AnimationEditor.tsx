@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useRef, useCallback, use } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { getAnimationDetails, updateAnimationData } from "@/actions/animationActions";
 import type { AnimationProject } from "@/types/data";
 import { useAuth } from '@/contexts/AuthContext';
@@ -560,10 +560,10 @@ export default function AnimationEditor({ animationId }: { animationId: string }
             capturer.stop();
             capturer.save();
     
-            toast({ title: "Export Finished", description: "Your video download should begin shortly." });
+            toast({ title: "Download Complete", description: "Your video download should begin shortly." });
         } catch (error: any) {
             console.error("Export failed:", error);
-            toast({ title: "Export Failed", description: error.message || 'Could not export the video. A frame may be corrupted or an error occurred.', variant: "destructive" });
+            toast({ title: "Download Failed", description: error.message || 'Could not export the video. A frame may be corrupted or an error occurred.', variant: "destructive" });
             try {
                 capturer.stop();
             } catch (e) {
@@ -612,7 +612,7 @@ export default function AnimationEditor({ animationId }: { animationId: string }
                             <Download className="h-4 w-4 sm:mr-2" />
                         )}
                         <span className="hidden sm:inline">
-                            {isExporting ? `Exporting... ${Math.round(exportProgress)}%` : 'Export WebM'}
+                            {isExporting ? `Downloading... ${Math.round(exportProgress)}%` : 'Download'}
                         </span>
                     </Button>
                     <Button onClick={handleManualSave} disabled={isSaving || isExporting} size="sm">
@@ -698,7 +698,7 @@ export default function AnimationEditor({ animationId }: { animationId: string }
                         />
                         {isExporting && (
                             <div className="absolute bottom-4 left-4 right-4 bg-background/80 p-3 rounded-lg shadow-lg backdrop-blur-sm border">
-                                <p className="text-sm font-medium text-center mb-2">Exporting video...</p>
+                                <p className="text-sm font-medium text-center mb-2">Preparing video...</p>
                                 <Progress value={exportProgress} className="w-full" />
                             </div>
                         )}
