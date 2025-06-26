@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useRef, useCallback, use } from 'react';
@@ -488,14 +489,18 @@ export default function AnimationEditor({ animationId }: { animationId: string }
             if (!ffmpegRef.current) {
                 const ffmpeg = new FFmpeg();
                 ffmpeg.on('log', ({ message }) => console.log(message));
-                ffmpeg.on('progress', ({ progress, time }) => {
-                    setExportProgress(Math.round(progress * 100));
+                ffmpeg.on('progress', ({ progress }) => {
+                    if (progress >= 0 && progress <= 1) {
+                        setExportProgress(Math.round(progress * 100));
+                    }
                 });
                 
                 setExportMessage("Initializing FFmpeg Core...");
+                // Use unpkg CDN as a reliable source for the core files to bypass local serving issues.
+                const baseURL = "https://unpkg.com/@ffmpeg/core@0.12.10/dist/esm";
                 await ffmpeg.load({
-                    coreURL: await toBlobURL('/ffmpeg/ffmpeg-core.js', 'text/javascript'),
-                    wasmURL: await toBlobURL('/ffmpeg/ffmpeg-core.wasm', 'application/wasm'),
+                    coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+                    wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
                 });
                 ffmpegRef.current = ffmpeg;
             }
@@ -763,3 +768,5 @@ export default function AnimationEditor({ animationId }: { animationId: string }
         </div>
     );
 }
+
+    
