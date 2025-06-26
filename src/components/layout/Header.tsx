@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from 'next/link';
@@ -27,8 +26,8 @@ export default function Header() {
   const navLinks = [
     { href: "/", label: "Home", icon: HomeIcon, authRequired: false },
     { href: "/animation", label: "Desyn2d", icon: Clapperboard, authRequired: true },
-    { href: "/communities", label: "Discover", icon: Compass, authRequired: false },
     { href: "/posts/create", label: "Create Post", icon: PlusCircle, authRequired: true },
+    { href: "/communities", label: "Discover", icon: Compass, authRequired: false },
   ];
 
   const authRestrictedPages = ['/login', '/signup', '/forgot-password', '/onboarding', '/onboarding/profile-setup'];

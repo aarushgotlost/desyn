@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from 'next/link';
@@ -12,8 +11,8 @@ import { getInitials } from '@/lib/utils';
 const navItems = [
   { href: "/", label: "Home", icon: HomeIcon, authRequired: false },
   { href: "/animation", label: "Desyn2d", icon: Clapperboard, authRequired: true },
-  { href: "/communities", label: "Discover", icon: Compass, authRequired: false },
   { href: "/posts/create", label: "Create", icon: PlusCircle, authRequired: true },
+  { href: "/communities", label: "Discover", icon: Compass, authRequired: false },
   { href: "/profile", label: "Profile", icon: UserIcon, authRequired: true, isProfile: true }, 
 ];
 
