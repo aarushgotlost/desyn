@@ -546,6 +546,8 @@ export default function AnimationEditor({ animationId }: { animationId: string }
                 const image = await loadImage(frameDataUrl);
     
                 context.clearRect(0, 0, canvas.width, canvas.height);
+                context.fillStyle = '#FFFFFF';
+                context.fillRect(0, 0, canvas.width, canvas.height);
                 context.drawImage(image, 0, 0);
                 capturer.capture(canvas);
                 
@@ -627,7 +629,7 @@ export default function AnimationEditor({ animationId }: { animationId: string }
                      <div className="flex flex-col gap-4 h-full">
                         <div className="grid grid-cols-2 gap-2">
                             <Button title="Paintbrush" variant={selectedTool === 'brush' ? 'secondary' : 'outline'} onClick={() => setSelectedTool('brush')} size="icon"><Paintbrush /></Button>
-                            <Button title="Eraser" variant={selectedTool === 'eraser' ? 'secondary' : 'outline'} onClick={() => setSelectedTool('eraser')} size="icon"><Eraser /></Button>
+                            <Button title="Eraser" variant={selectedTool === 'eraser' ? 'secondary' : 'outline'} onClick={()={() => setSelectedTool('eraser')} size="icon"><Eraser /></Button>
                         </div>
 
                         {selectedTool === 'brush' && (
@@ -799,3 +801,4 @@ export default function AnimationEditor({ animationId }: { animationId: string }
         </div>
     );
 }
+
