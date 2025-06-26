@@ -58,7 +58,7 @@ export function CreateAnimationButton() {
             <DialogTrigger asChild>
                 <Button>
                     <PlusCircle className="mr-2 h-4 w-4" />
-                    Desyn2d
+                    Create
                 </Button>
             </DialogTrigger>
             <DialogContent>
