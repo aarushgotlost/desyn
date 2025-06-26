@@ -41,10 +41,7 @@ export default function AnimationEditor({ animationId }: { animationId: string }
 
     const [animation, setAnimation] = useState<AnimationProject | null>(null);
     const [isLoading, setIsLoading] = useState(true);
-    const [isExporting, setIsExporting] = useState(false);
-    const [exportProgress, setExportProgress] = useState(0);
-    const [exportMessage, setExportMessage] = useState("");
-
+    
     // Editor state
     const [selectedTool, setSelectedTool] = useState<Tool>('brush');
     const [brushTexture, setBrushTexture] = useState<BrushTexture>('solid');
@@ -54,9 +51,6 @@ export default function AnimationEditor({ animationId }: { animationId: string }
     const [isPlaying, setIsPlaying] = useState(false);
     const [texturePopoverOpen, setTexturePopoverOpen] = useState(false);
     
-    // FFmpeg refs
-    const ffmpegRef = useRef<any>(null);
-
     // Refs for canvases and drawing
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const contextRef = useRef<CanvasRenderingContext2D | null>(null);
@@ -471,81 +465,6 @@ export default function AnimationEditor({ animationId }: { animationId: string }
             setAnimation({ ...animation, fps: value[0] });
         }
     };
-    
-    const handleExport = async () => {
-        if (!animation) {
-            toast({ title: "Error", description: "Animation data not loaded.", variant: "destructive" });
-            return;
-        }
-
-        setIsExporting(true);
-        setExportMessage("Loading FFmpeg...");
-        setExportProgress(0);
-
-        try {
-            const { FFmpeg } = await import('@ffmpeg/ffmpeg');
-            const { toBlobURL, fetchFile } = await import('@ffmpeg/util');
-
-            if (!ffmpegRef.current) {
-                const ffmpeg = new FFmpeg();
-                ffmpeg.on('log', ({ message }) => console.log(message));
-                ffmpeg.on('progress', ({ progress }) => {
-                    if (progress >= 0 && progress <= 1) {
-                        setExportProgress(Math.round(progress * 100));
-                    }
-                });
-                
-                setExportMessage("Initializing FFmpeg Core...");
-                const baseURL = "https://unpkg.com/@ffmpeg/core@0.12.4/dist/esm";
-                await ffmpeg.load({
-                    coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-                    wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-                });
-                ffmpegRef.current = ffmpeg;
-            }
-
-            const ffmpeg = ffmpegRef.current;
-
-            setExportMessage("Writing frames...");
-            setExportProgress(0);
-            for (let i = 0; i < animation.frames.length; i++) {
-                const frameData = animation.frames[i];
-                const fileName = `frame-${String(i).padStart(4, '0')}.png`;
-                await ffmpeg.writeFile(fileName, await fetchFile(frameData));
-            }
-            
-            setExportMessage("Encoding video...");
-            setExportProgress(0);
-            
-            await ffmpeg.exec([
-                '-framerate', String(animation.fps),
-                '-i', 'frame-%04d.png',
-                '-c:v', 'libx264',
-                '-pix_fmt', 'yuv420p',
-                'output.mp4'
-            ]);
-
-            setExportMessage("Finalizing...");
-            const data = await ffmpeg.readFile('output.mp4');
-            const url = URL.createObjectURL(new Blob([(data as any).buffer], { type: 'video/mp4' }));
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${animation.name}.mp4`;
-            a.click();
-            URL.revokeObjectURL(url);
-            
-            toast({ title: "Export Successful", description: "Your video has been downloaded." });
-
-        } catch (error) {
-            console.error("Export failed:", error);
-            toast({ title: "Export Failed", description: "Could not export the video. Check console for details.", variant: "destructive" });
-        } finally {
-            setIsExporting(false);
-            setExportMessage("");
-            setExportProgress(0);
-        }
-    };
-
 
     if (isLoading || authLoading) {
         return (
@@ -570,24 +489,13 @@ export default function AnimationEditor({ animationId }: { animationId: string }
                 </Button>
                 <h1 className="text-lg sm:text-xl font-bold truncate text-center">{animation.name}</h1>
                 <div className="flex items-center gap-2">
-                    {isExporting ? (
-                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            <span>{exportMessage} ({exportProgress}%)</span>
-                        </div>
-                    ) : (
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
-                            <span className="hidden sm:inline">{isSaving ? "Saving..." : "Changes saved"}</span>
-                        </div>
-                    )}
-                    <Button onClick={handleManualSave} disabled={isSaving || isExporting} size="sm">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+                        <span className="hidden sm:inline">{isSaving ? "Saving..." : "Changes saved"}</span>
+                    </div>
+                    <Button onClick={handleManualSave} disabled={isSaving} size="sm">
                         <Save className="h-4 w-4 sm:mr-2" />
                         <span className="hidden sm:inline">Save</span>
-                    </Button>
-                     <Button onClick={handleExport} disabled={isSaving || isExporting} size="sm" variant="default">
-                        <Video className="h-4 w-4 sm:mr-2" />
-                        <span className="hidden sm:inline">Export</span>
                     </Button>
                 </div>
             </header>
