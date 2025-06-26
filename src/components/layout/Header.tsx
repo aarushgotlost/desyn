@@ -27,7 +27,6 @@ export default function Header() {
   const navLinks = [
     { href: "/", label: "Home", icon: HomeIcon, authRequired: false },
     { href: "/communities", label: "Discover", icon: Compass, authRequired: false },
-    { href: "/animation", label: "Animate", icon: Clapperboard, authRequired: true },
     { href: "/posts/create", label: "Create Post", icon: PlusCircle, authRequired: true },
     { href: "/messages", label: "Messages", icon: MessageSquare, authRequired: true },
   ];

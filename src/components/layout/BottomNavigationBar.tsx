@@ -12,7 +12,6 @@ import { getInitials } from '@/lib/utils';
 const navItems = [
   { href: "/", label: "Home", icon: HomeIcon, authRequired: false },
   { href: "/communities", label: "Discover", icon: Compass, authRequired: false },
-  { href: "/animation", label: "Animate", icon: Clapperboard, authRequired: true },
   { href: "/posts/create", label: "Create", icon: PlusCircle, authRequired: true },
   { href: "/messages", label: "Messages", icon: MessageSquare, authRequired: true },
   { href: "/profile", label: "Profile", icon: UserIcon, authRequired: true, isProfile: true }, 
