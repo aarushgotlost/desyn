@@ -45,7 +45,6 @@ export default function AnimationEditor({ animationId }: { animationId: string }
     const { user, loading: authLoading } = useAuth();
     const router = useRouter();
     const { toast } = useToast();
-    const resolvedParams = use({ animationId }); // Using `use` hook correctly
 
     const [animation, setAnimation] = useState<AnimationProject | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -137,7 +136,7 @@ export default function AnimationEditor({ animationId }: { animationId: string }
         }
 
         setIsLoading(true);
-        getAnimationDetails(resolvedParams.animationId).then(data => {
+        getAnimationDetails(animationId).then(data => {
             if (data && data.collaborators.includes(user.uid)) {
                 if (data.frames.length === 0) {
                     const tempCanvas = document.createElement('canvas');
@@ -154,7 +153,7 @@ export default function AnimationEditor({ animationId }: { animationId: string }
                 notFound();
             }
         }).finally(() => setIsLoading(false));
-    }, [resolvedParams.animationId, user, authLoading, router, toast]);
+    }, [animationId, user, authLoading, router, toast]);
 
     // 3. Effect for setting up canvas and context
     useEffect(() => {
