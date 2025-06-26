@@ -175,7 +175,7 @@ export default function AnimationEditor({ animationId }: { animationId: string }
         });
     }, [user]);
     
-    const { isSaving, forceSave } = useAutosave(animation, handleSave, 3000);
+    const { isSaving, forceSave } = useAutosave(animation, handleSave, 10000);
 
     const handleManualSave = async () => {
         commitCurrentCanvasToState();
