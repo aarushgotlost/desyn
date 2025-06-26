@@ -11,12 +11,15 @@ import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from "@/components/ui/label";
-import { Loader2, ArrowLeft, Paintbrush, Eraser, Play, Pause, PlusSquare, Trash2, Copy, Save, Palette, PenTool, Feather, Minus, Pencil as PencilIcon, SprayCan, Highlighter, Baseline, Edit3, Paintbrush2, Brush } from 'lucide-react';
+import { Loader2, ArrowLeft, Paintbrush, Eraser, Play, Pause, PlusSquare, Trash2, Copy, Save, Palette, PenTool, Feather, Minus, Pencil as PencilIcon, SprayCan, Highlighter, Baseline, Edit3, Paintbrush2, Brush, Download } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from '@/hooks/use-toast';
 import { useAutosave } from '@/hooks/useAutosave';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
+import CCapture from 'ccapture.js';
+import { Progress } from '@/components/ui/progress';
+
 
 type Tool = 'brush' | 'eraser';
 type BrushTexture = 'solid' | 'pencil' | 'sketchy' | 'spray' | 'ink' | 'charcoal' | 'marker' | 'calligraphy' | 'watercolor' | 'oil';
@@ -50,7 +53,9 @@ export default function AnimationEditor({ animationId }: { animationId: string }
     const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
     const [isPlaying, setIsPlaying] = useState(false);
     const [texturePopoverOpen, setTexturePopoverOpen] = useState(false);
-    
+    const [isExporting, setIsExporting] = useState(false);
+    const [exportProgress, setExportProgress] = useState(0);
+
     // Refs for canvases and drawing
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const contextRef = useRef<CanvasRenderingContext2D | null>(null);
@@ -420,7 +425,7 @@ export default function AnimationEditor({ animationId }: { animationId: string }
         setCurrentFrameIndex(index);
     }
 
-    // --- PLAYBACK ---
+    // --- PLAYBACK & EXPORT ---
 
     useEffect(() => {
         let animationFrameId: number;
@@ -466,6 +471,65 @@ export default function AnimationEditor({ animationId }: { animationId: string }
         }
     };
 
+    const handleExport = async () => {
+        if (!animation || !canvasRef.current) {
+            toast({ title: "Error", description: "Animation data not loaded.", variant: "destructive" });
+            return;
+        }
+        
+        setIsExporting(true);
+        setExportProgress(0);
+    
+        const capturer = new CCapture({
+            format: 'webm',
+            framerate: animation.fps,
+            verbose: false,
+            quality: 90,
+            name: animation.name.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'animation'
+        });
+    
+        try {
+            capturer.start();
+    
+            const canvas = canvasRef.current;
+            const context = canvas.getContext('2d');
+            if (!context) {
+                throw new Error("Could not get canvas context.");
+            }
+    
+            let frameIndex = 0;
+            for (const frameSrc of animation.frames) {
+                await new Promise<void>((resolve, reject) => {
+                    const image = new Image();
+                    image.src = frameSrc;
+                    image.onload = () => {
+                        context.clearRect(0, 0, canvas.width, canvas.height);
+                        context.drawImage(image, 0, 0);
+                        capturer.capture(canvas);
+                        frameIndex++;
+                        setExportProgress((frameIndex / animation.frames.length) * 100);
+                        resolve();
+                    };
+                    image.onerror = () => {
+                        reject(new Error(`Failed to load frame ${frameIndex} for export.`));
+                    };
+                });
+            }
+    
+            capturer.stop();
+            capturer.save();
+            toast({ title: "Export Started", description: "Your video download should begin shortly." });
+    
+        } catch (error: any) {
+            console.error("Export failed:", error);
+            toast({ title: "Export Failed", description: error.message || "An unknown error occurred during export.", variant: "destructive" });
+        } finally {
+            setIsExporting(false);
+            setExportProgress(0);
+            drawFrameOnCanvas(currentFrameIndex);
+        }
+    };
+
     if (isLoading || authLoading) {
         return (
             <div className="flex justify-center items-center h-full">
@@ -493,7 +557,17 @@ export default function AnimationEditor({ animationId }: { animationId: string }
                         {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
                         <span className="hidden sm:inline">{isSaving ? "Saving..." : "Changes saved"}</span>
                     </div>
-                    <Button onClick={handleManualSave} disabled={isSaving} size="sm">
+                    <Button onClick={handleExport} disabled={isExporting || isSaving} size="sm" variant="outline">
+                        {isExporting ? (
+                            <Loader2 className="h-4 w-4 sm:mr-2 animate-spin" />
+                        ) : (
+                            <Download className="h-4 w-4 sm:mr-2" />
+                        )}
+                        <span className="hidden sm:inline">
+                            {isExporting ? `Exporting... ${Math.round(exportProgress)}%` : 'Export WebM'}
+                        </span>
+                    </Button>
+                    <Button onClick={handleManualSave} disabled={isSaving || isExporting} size="sm">
                         <Save className="h-4 w-4 sm:mr-2" />
                         <span className="hidden sm:inline">Save</span>
                     </Button>
@@ -574,6 +648,12 @@ export default function AnimationEditor({ animationId }: { animationId: string }
                                 maxWidth: '100%'
                             }}
                         />
+                        {isExporting && (
+                            <div className="absolute bottom-4 left-4 right-4 bg-background/80 p-3 rounded-lg shadow-lg backdrop-blur-sm border">
+                                <p className="text-sm font-medium text-center mb-2">Exporting video...</p>
+                                <Progress value={exportProgress} className="w-full" />
+                            </div>
+                        )}
                     </div>
                     {/* Frame Timeline */}
                     <Card className="flex-shrink-0">
