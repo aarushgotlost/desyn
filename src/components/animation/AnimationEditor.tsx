@@ -499,7 +499,7 @@ export default function AnimationEditor({ animationId }: { animationId: string }
         }
     };
 
-    const handleExport = () => {
+    const handleExport = async () => {
         if (!animation || !canvasRef.current) {
             toast({ title: "Error", description: "Animation data not loaded.", variant: "destructive" });
             return;
@@ -520,51 +520,60 @@ export default function AnimationEditor({ animationId }: { animationId: string }
         });
     
         const canvas = canvasRef.current;
-        const context = canvas.getContext('2d');
+        const context = canvas.getContext('2d', { willReadFrequently: true });
         if (!context) {
             toast({ title: "Error", description: "Could not get canvas context.", variant: "destructive" });
             setIsExporting(false);
             return;
         }
-
-        let frameIndex = 0;
-        const frames = [...animation.frames];
-        const totalFrames = frames.length;
-
-        capturer.start();
-
-        const drawAndCapture = () => {
-            if (frameIndex >= totalFrames) {
-                capturer.stop();
-                capturer.save();
-                
-                toast({ title: "Export Finished", description: "Your video download should begin shortly." });
-                setIsExporting(false);
-                setExportProgress(0);
-                drawFrameOnCanvas(currentFrameIndex); 
-                return;
-            }
-
-            const image = new Image();
-            image.onload = () => {
+    
+        const loadImage = (src: string): Promise<HTMLImageElement> => {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => resolve(img);
+                img.onerror = (err) => reject(err);
+                img.src = src;
+            });
+        };
+    
+        try {
+            capturer.start();
+            const frames = [...animation.frames];
+            const totalFrames = frames.length;
+    
+            for (let i = 0; i < totalFrames; i++) {
+                const frameDataUrl = frames[i];
+                const image = await loadImage(frameDataUrl);
+    
                 context.clearRect(0, 0, canvas.width, canvas.height);
                 context.drawImage(image, 0, 0);
                 capturer.capture(canvas);
-                setExportProgress(((frameIndex + 1) / totalFrames) * 100);
-
-                frameIndex++;
-                requestAnimationFrame(drawAndCapture);
-            };
-            image.onerror = () => {
-                toast({ title: "Export Failed", description: `Failed to load image for frame ${frameIndex + 1}.`, variant: "destructive" });
-                setIsExporting(false);
-                capturer.stop(); // Stop the capturer on error
-            };
-            
-            image.src = frames[frameIndex];
-        };
-
-        requestAnimationFrame(drawAndCapture);
+                
+                // Batch state updates within a requestAnimationFrame to prevent UI stutter
+                requestAnimationFrame(() => {
+                    setExportProgress(((i + 1) / totalFrames) * 100);
+                });
+            }
+    
+            capturer.stop();
+            capturer.save();
+    
+            toast({ title: "Export Finished", description: "Your video download should begin shortly." });
+        } catch (error) {
+            console.error("Export failed:", error);
+            toast({ title: "Export Failed", description: "Could not export the video. A frame may be corrupted or an error occurred.", variant: "destructive" });
+            try {
+                capturer.stop();
+            } catch (e) {
+                console.error("Could not stop capturer on fail:", e);
+            }
+        } finally {
+            setIsExporting(false);
+            setExportProgress(0);
+            setTimeout(() => {
+               drawFrameOnCanvas(currentFrameIndex); 
+            }, 100);
+        }
     };
 
     if (isLoading || authLoading) {
