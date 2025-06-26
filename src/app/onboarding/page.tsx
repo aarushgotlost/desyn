@@ -5,28 +5,28 @@ import Image from 'next/image';
 
 const informationalOnboardingSteps = [
   {
-    title: "Connect with Creators",
-    description: "Find and connect with developers, artists, and animators from around the globe. Share your ideas and collaborate on exciting projects.",
+    title: "Create & Animate",
+    description: "Use the powerful Desyn2d editor to bring your characters and stories to life, frame by frame. Perfect for both developers and artists.",
     image: "https://placehold.co/400x300.png",
-    imageHint: "creative network connection"
+    imageHint: "animation editor canvas"
   },
   {
-    title: "Collaborate & Solve",
-    description: "Post your creative challenges or technical bugs and get help from the community. Offer your expertise to solve others' problems.",
+    title: "Share Your Creations",
+    description: "Showcase your animations, WIPs, and code snippets. Get feedback from a community of talented creators.",
     image: "https://placehold.co/400x300.png",
-    imageHint: "team collaboration ideas"
+    imageHint: "animation showcase gallery"
   },
   {
-    title: "Join Communities",
-    description: "Explore and join communities based on your interests, favorite tools, software, or creative fields.",
+    title: "Collaborate on Projects",
+    description: "Find developers and animators to collaborate with. Join forces to build bigger and better animated projects.",
     image: "https://placehold.co/400x300.png",
-    imageHint: "community group people diverse"
+    imageHint: "team collaboration animation"
   },
   {
-    title: "Share Your Work",
-    description: "Create posts, share snippets of your work, art, code, or animations, and write articles to showcase your skills and help others learn.",
+    title: "Join Animation Communities",
+    description: "Connect with others in communities focused on animation techniques, software like Desyn2d, or specific art styles.",
     image: "https://placehold.co/400x300.png",
-    imageHint: "knowledge sharing artwork code"
+    imageHint: "animation community group"
   },
 ];
 

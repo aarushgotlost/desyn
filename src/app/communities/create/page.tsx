@@ -110,7 +110,7 @@ export default function CreateCommunityPage() {
             Create a New Community
           </CardTitle>
           <CardDescription>
-            Build a space for creators to connect and collaborate around a specific topic, tool, or interest.
+            Build a space for animators and developers to connect and collaborate around a specific tool, style, or project.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -123,7 +123,7 @@ export default function CreateCommunityPage() {
                   <FormItem>
                     <FormLabel>Community Name</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g., Indie Animators Hub, Pixel Art Enthusiasts" {...field} />
+                      <Input placeholder="e.g., Indie Animators Hub, JavaScript Animation" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -180,7 +180,7 @@ export default function CreateCommunityPage() {
                   <FormItem>
                     <FormLabel>Tags (comma-separated)</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g., animation, gamedev, javascript, illustration" {...field} />
+                      <Input placeholder="e.g., 2d animation, gamedev, javascript, character design" {...field} />
                     </FormControl>
                     <FormDescription>Help others discover your community.</FormDescription>
                     <FormMessage />

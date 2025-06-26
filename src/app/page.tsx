@@ -24,8 +24,8 @@ export default async function HomePage() {
 
   return (
     <div className="space-y-8">
-      <h1 className="text-3xl font-bold font-headline">Home Feed</h1>
-      <p className="text-muted-foreground">Recent posts from all communities.</p>
+      <h1 className="text-3xl font-bold font-headline">Animation Feed</h1>
+      <p className="text-muted-foreground">Recent animations and creative projects from the community.</p>
       
       {posts.length > 0 ? (
         <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-1">
@@ -129,7 +129,7 @@ export default async function HomePage() {
           })}
         </div>
       ) : (
-         <p className="text-muted-foreground col-span-full text-center py-10">No posts found yet. Be the first to create one!</p>
+         <p className="text-muted-foreground col-span-full text-center py-10">No animations posted yet. Be the first to create one!</p>
       )}
     </div>
   );

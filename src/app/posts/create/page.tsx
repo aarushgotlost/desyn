@@ -204,7 +204,7 @@ export default function CreatePostPage() {
                   <FormItem>
                     <FormLabel>Title</FormLabel>
                     <FormControl>
-                      <Input placeholder="Enter a catchy title for your post" {...field} />
+                      <Input placeholder="e.g., My new walk cycle animation, How I coded this particle effect" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -218,7 +218,7 @@ export default function CreatePostPage() {
                   <FormItem>
                     <FormLabel>Description / Content</FormLabel>
                     <FormControl>
-                      <Textarea placeholder="Write your post content here. Markdown is supported." rows={10} {...field} />
+                      <Textarea placeholder="Share details about your animation, artwork, or code. Markdown is supported." rows={10} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

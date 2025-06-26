@@ -12,7 +12,7 @@ export default function SignupPage() {
         <CardHeader className="text-center">
           <Image src="/logo.svg" alt="Desyn App Logo" width={60} height={60} className="mx-auto mb-4" data-ai-hint="application logo D C" />
           <CardTitle className="text-2xl font-headline">Create your Account</CardTitle>
-          <CardDescription>Join Desyn and start collaborating with creators, developers, and artists.</CardDescription>
+          <CardDescription>Join Desyn and start creating and collaborating on animations.</CardDescription>
         </CardHeader>
         <CardContent>
           <SignupForm />

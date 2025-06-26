@@ -10,8 +10,8 @@ import { BottomNavigationBar } from '@/components/layout/BottomNavigationBar';
 import { ConditionalFooter } from '@/components/layout/ConditionalFooter'; // Import ConditionalFooter
 
 export const metadata: Metadata = {
-  title: 'Desyn - Creative Collaboration Platform',
-  description: 'Connect, share, and grow with fellow creators, developers, animators, and artists on Desyn.',
+  title: 'Desyn - Animation Platform for Developers & Animators',
+  description: 'Create, share, and collaborate on 2D animations. A platform for developers and animators to bring their ideas to life.',
 };
 
 export default function RootLayout({

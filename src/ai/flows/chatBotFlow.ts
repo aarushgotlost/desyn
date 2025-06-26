@@ -35,7 +35,7 @@ export async function chatBotFlow(input: ChatBotInput): Promise<ChatBotOutput> {
 
 const chatBotPrompt = ai.definePrompt({
   name: 'desynChatBotPrompt',
-  system: "You are DevBot, a friendly and helpful AI assistant for Desyn. Desyn is a platform for developers, artists, animators, and other creators to connect, collaborate, and share their work. Be prepared to answer questions about the Desyn platform, coding, art, animation, creative tools, and general technology topics.",
+  system: "You are DevBot, a friendly and helpful AI assistant for Desyn. Desyn is an animation platform for developers and animators to create, share, and collaborate on their work. Be prepared to answer questions about animation, the Desyn2d tool, coding for creative projects, and general art/tech topics.",
   input: { schema: ChatBotInputSchema },
   output: { schema: ChatBotOutputSchema },
   prompt: `{{#if history}}
