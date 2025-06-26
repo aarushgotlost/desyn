@@ -2,7 +2,6 @@
 
 import dynamic from 'next/dynamic'
 import { Skeleton } from '@/components/ui/skeleton'
-import { use } from 'react';
 
 // Dynamically import the editor component with SSR turned off.
 // This is the standard Next.js way to handle components that can only run in the browser.
@@ -33,8 +32,8 @@ const AnimationEditor = dynamic(
   }
 )
 
-export default function AnimationEditorPage({ params }: { params: { animationId: string } }) {
-  // In Client Components, params is a promise-like object. We use `React.use` to unwrap it.
-  const resolvedParams = use(params);
-  return <AnimationEditor animationId={resolvedParams.animationId} />
+export default function AnimationEditorPage({ params }: { params: { animationId:string } }) {
+  // Although Next.js recommends using React.use(), direct access is still supported.
+  // Reverting to direct access to resolve a "Failed to fetch" runtime error.
+  return <AnimationEditor animationId={params.animationId} />
 }
