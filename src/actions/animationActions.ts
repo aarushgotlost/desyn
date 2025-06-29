@@ -1,4 +1,3 @@
-
 'use server';
 
 import { db } from '@/lib/firebase';
@@ -48,8 +47,8 @@ export async function createAnimationProject(
       ownerId: userId,
       collaborators: [userId],
       thumbnail: null,
-      width: 1280,
-      height: 720,
+      width: 1920,
+      height: 1080,
       fps: fps,
       frames: [],
       createdAt: serverTimestamp(),

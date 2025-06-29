@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -516,6 +515,7 @@ export default function AnimationEditor({ animationId }: { animationId: string }
             format: 'webm',
             framerate: animation.fps,
             verbose: false,
+            quality: 95,
             name: animation.name.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'animation'
         });
     
