@@ -1,3 +1,4 @@
+
 'use server';
 
 import { db } from '@/lib/firebase';
@@ -30,10 +31,15 @@ const processAnimationDoc = (doc: any): AnimationProject => {
 
 export async function createAnimationProject(
   name: string,
-  userId: string
+  userId: string,
+  fps: number
 ): Promise<{ success: boolean; projectId?: string; message: string }> {
   if (!userId) {
     return { success: false, message: 'User not authenticated.' };
+  }
+
+  if (!fps || fps < 1 || fps > 60) {
+    return { success: false, message: 'Invalid FPS value. It must be between 1 and 60.' };
   }
 
   try {
@@ -44,7 +50,7 @@ export async function createAnimationProject(
       thumbnail: null,
       width: 1280,
       height: 720,
-      fps: 24,
+      fps: fps,
       frames: [],
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),

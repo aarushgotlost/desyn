@@ -29,6 +29,7 @@ export function CreateAnimationButton() {
     const [isPending, startTransition] = useTransition();
     const [isOpen, setIsOpen] = useState(false);
     const [projectName, setProjectName] = useState("");
+    const [fps, setFps] = useState(24);
 
     const handleCreate = () => {
         if (!user) {
@@ -39,13 +40,18 @@ export function CreateAnimationButton() {
             toast({ title: "Invalid Name", description: "Project name cannot be empty.", variant: "destructive" });
             return;
         }
+        if (fps < 1 || fps > 60) {
+            toast({ title: "Invalid FPS", description: "FPS must be between 1 and 60.", variant: "destructive" });
+            return;
+        }
 
         startTransition(async () => {
-            const result = await createAnimationProject(projectName, user.uid);
+            const result = await createAnimationProject(projectName, user.uid, fps);
             if (result.success && result.projectId) {
                 toast({ title: "Project Created!", description: `"${projectName}" has been created.` });
                 setIsOpen(false);
                 setProjectName("");
+                setFps(24);
                 router.push(`/animation/${result.projectId}`);
             } else {
                 toast({ title: "Error", description: result.message, variant: "destructive" });
@@ -65,7 +71,7 @@ export function CreateAnimationButton() {
                 <DialogHeader>
                     <DialogTitle>Create New Animation</DialogTitle>
                     <DialogDescription>
-                        Give your new animation project a name to get started.
+                        Give your new animation project a name and set the framerate.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
@@ -81,6 +87,20 @@ export function CreateAnimationButton() {
                             placeholder="e.g., My First Short"
                         />
                     </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="project-fps" className="text-right">
+                            FPS
+                        </Label>
+                        <Input
+                            id="project-fps"
+                            type="number"
+                            value={fps}
+                            onChange={(e) => setFps(e.target.value ? parseInt(e.target.value, 10) : 0)}
+                            className="col-span-3"
+                            min="1"
+                            max="60"
+                        />
+                    </div>
                 </div>
                 <DialogFooter>
                     <DialogClose asChild>
@@ -88,7 +108,7 @@ export function CreateAnimationButton() {
                             Cancel
                         </Button>
                     </DialogClose>
-                    <Button onClick={handleCreate} disabled={isPending || !projectName.trim()}>
+                    <Button onClick={handleCreate} disabled={isPending || !projectName.trim() || !fps || fps < 1 || fps > 60}>
                          {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         Create
                     </Button>
